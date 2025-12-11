@@ -8,7 +8,7 @@ import { PortfolioTable } from './components/PortfolioTable';
 import { TradeModal } from './components/TradeModal';
 import { PortfolioChart } from './components/PortfolioChart';
 import { ActivityFeed } from './components/ActivityFeed';
-import { SettingsModal } from './components/SettingsModal';
+import { SettingsPage } from './components/SettingsPage';
 import { AuthOverlay } from './components/AuthOverlay';
 import { InstallPWA } from './components/InstallPWA';
 import { analyzeStockTechnical } from './services/technicalAnalysis';
@@ -90,6 +90,9 @@ export default function App() {
   // Mobile Tab State
   const [mobileTab, setMobileTab] = useState<'HOME' | 'MARKET' | 'PORTFOLIO' | 'MORE'>('HOME');
 
+  // New View State for Routing (Dashboard vs Settings)
+  const [currentView, setCurrentView] = useState<'DASHBOARD' | 'SETTINGS'>('DASHBOARD');
+
   // Funds & Data States
   const [funds, setFunds] = useState<Funds>(() => {
     const saved = localStorage.getItem(STORAGE_KEYS.FUNDS);
@@ -123,7 +126,6 @@ export default function App() {
   // UI STATE
   const [activeTab, setActiveTab] = useState<AssetType>('STOCK');
   const [pnlViewMode, setPnlViewMode] = useState<'MARKET' | 'BROKER'>('BROKER');
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [recommendations, setRecommendations] = useState<StockRecommendation[]>([]);
   const [marketData, setMarketData] = useState<MarketData>({});
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -410,6 +412,19 @@ export default function App() {
       setIsTradeModalOpen(true);
   };
 
+  const handleTabChange = (tab: 'HOME' | 'MARKET' | 'PORTFOLIO' | 'MORE') => {
+      setMobileTab(tab);
+      setCurrentView('DASHBOARD');
+  };
+
+  const saveSettings = (s: AppSettings) => {
+      setSettings(s);
+      setCurrentView('DASHBOARD');
+      if(JSON.stringify(s.initialFunds) !== JSON.stringify(settings.initialFunds)) setFunds(s.initialFunds);
+      loadMarketData();
+      showNotification("Settings Saved");
+  };
+
   // --- STATS ---
   const calculatePnlForType = (type: AssetType, currentCash: number, initialFund: number) => {
       const typeHoldings = allHoldings.filter(h => h.type === type);
@@ -538,7 +553,8 @@ export default function App() {
   return (
     <div className="h-full flex flex-col bg-background text-slate-100 font-sans overflow-hidden">
       
-      {/* Top Navbar */}
+      {/* Top Navbar - Only show on Dashboard */}
+      {currentView === 'DASHBOARD' && (
       <nav className="flex-none bg-slate-900/90 backdrop-blur-md border-b border-slate-800 safe-top z-40">
         <div className="max-w-7xl mx-auto px-4">
           <div className="flex items-center justify-between h-14 md:h-16">
@@ -556,7 +572,7 @@ export default function App() {
                <div className="hidden md:flex items-center gap-3">
                    <button onClick={() => setShowBotMenu(!showBotMenu)} className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-800 border border-slate-700 text-slate-300 text-xs font-bold hover:bg-slate-700"><Bot size={14} /> Bots</button>
                    <button onClick={manualSendTelegram} className="p-2 text-slate-400 hover:text-blue-400"><Send size={18} /></button>
-                   <button onClick={() => setIsSettingsOpen(true)} className="p-2 text-slate-400 hover:text-white"><Settings size={18} /></button>
+                   <button onClick={() => setCurrentView('SETTINGS')} className="p-2 text-slate-400 hover:text-white"><Settings size={18} /></button>
                </div>
                {/* Mobile Profile / Settings Shortcuts */}
                <div className="flex items-center gap-2">
@@ -567,6 +583,7 @@ export default function App() {
           </div>
         </div>
       </nav>
+      )}
 
       {/* Notifications */}
       {notification && (
@@ -576,129 +593,141 @@ export default function App() {
           </div>
       )}
 
-      {/* Main Scrollable Area */}
-      <main className="flex-1 overflow-y-auto custom-scrollbar w-full">
-        <div className="max-w-7xl mx-auto px-4 py-4 md:py-8 pb-24 md:pb-8">
-        
-        {/* === MOBILE VIEW (Tabs) === */}
-        <div className="md:hidden space-y-4">
-            {mobileTab === 'HOME' && (
-                <div className="space-y-4 animate-fade-in">
+      {/* Main Content Area */}
+      <main className="flex-1 overflow-hidden w-full relative">
+        {currentView === 'SETTINGS' ? (
+             <div className="absolute inset-0 bg-background z-50">
+                <SettingsPage 
+                    settings={settings} 
+                    onSave={saveSettings} 
+                    onBack={() => setCurrentView('DASHBOARD')}
+                />
+             </div>
+        ) : (
+        <div className="h-full overflow-y-auto custom-scrollbar">
+            <div className="max-w-7xl mx-auto px-4 py-4 md:py-8 pb-24 md:pb-8">
+            
+            {/* === MOBILE VIEW (Tabs) === */}
+            <div className="md:hidden space-y-4">
+                {mobileTab === 'HOME' && (
+                    <div className="space-y-4 animate-fade-in">
+                        {renderFundsCard()}
+                        {renderPnLCard()}
+                        <div className="bg-surface rounded-2xl border border-slate-800 p-4 shadow-lg">
+                            <h3 className="text-xs font-medium text-slate-400 uppercase mb-4">Performance</h3>
+                            <PortfolioChart data={history} baseline={totalInitial} />
+                        </div>
+                    </div>
+                )}
+
+                {mobileTab === 'MARKET' && (
+                    <div className="space-y-4 animate-fade-in">
+                        <div className="flex justify-between items-center">
+                            <h2 className="text-lg font-bold text-white">Market</h2>
+                            <button onClick={loadMarketData} className="p-2 bg-slate-800 rounded-full text-slate-400"><RefreshCw size={14}/></button>
+                        </div>
+                        {renderMarketTabs()}
+                        {renderStockList()}
+                    </div>
+                )}
+
+                {mobileTab === 'PORTFOLIO' && (
+                    <div className="space-y-4 animate-fade-in pb-20">
+                        <div className="flex justify-between items-center">
+                            <h2 className="text-lg font-bold text-white">Holdings <span className="text-sm font-normal text-slate-500">({allHoldings.length})</span></h2>
+                            <button onClick={handleAnalysis} disabled={isAnalyzing} className="px-3 py-1.5 bg-purple-600 rounded-lg text-xs font-bold flex items-center gap-1 text-white">{isAnalyzing ? <RefreshCw className="animate-spin" size={12}/> : <Sparkles size={12}/>} AI Analyze</button>
+                        </div>
+                        <PortfolioTable portfolio={allHoldings} marketData={marketData} analysisData={analysisData} onSell={(s, b) => { const st = recommendations.find(r=>r.symbol===s) || {symbol:s} as any; openTradeModal(st, 'SELL', b);}} />
+                    </div>
+                )}
+
+                {mobileTab === 'MORE' && (
+                    <div className="space-y-4 animate-fade-in pb-20">
+                        <div className="flex justify-center pb-2">
+                            <InstallPWA />
+                        </div>
+                        {renderBotControls()}
+                        <ActivityFeed transactions={transactions} />
+                        <button onClick={() => setCurrentView('SETTINGS')} className="w-full py-4 bg-slate-800 rounded-xl border border-slate-700 text-slate-300 font-bold flex items-center justify-center gap-2">
+                            <Settings size={18} /> Open Settings
+                        </button>
+                        <button onClick={manualSendTelegram} className="w-full py-4 bg-slate-800 rounded-xl border border-slate-700 text-blue-400 font-bold flex items-center justify-center gap-2">
+                            <Send size={18} /> Test Telegram
+                        </button>
+                        <button onClick={handleLogout} className="w-full py-4 bg-red-900/20 rounded-xl border border-red-900/50 text-red-400 font-bold flex items-center justify-center gap-2">
+                            <LogOut size={18} /> Sign Out
+                        </button>
+                    </div>
+                )}
+            </div>
+
+            {/* === DESKTOP VIEW (Grid) === */}
+            <div className="hidden md:block space-y-8">
+                <div className="grid grid-cols-3 gap-6">
                     {renderFundsCard()}
                     {renderPnLCard()}
-                    <div className="bg-surface rounded-2xl border border-slate-800 p-4 shadow-lg">
-                        <h3 className="text-xs font-medium text-slate-400 uppercase mb-4">Performance</h3>
-                        <PortfolioChart data={history} baseline={totalInitial} />
+                    <div className="bg-surface p-6 rounded-2xl border border-slate-800 shadow-lg relative overflow-hidden">
+                        <div className="absolute top-0 right-0 p-4 opacity-10"><PieChart size={64} /></div>
+                        <h3 className="text-slate-400 text-sm font-medium uppercase tracking-wider mb-2">Positions</h3>
+                        <div className="text-3xl font-bold text-white font-mono">{allHoldings.length}</div>
+                        <p className="text-xs text-slate-500 mt-2">Active across {Object.values(settings.enabledMarkets).filter(Boolean).length} markets</p>
                     </div>
                 </div>
-            )}
 
-            {mobileTab === 'MARKET' && (
-                <div className="space-y-4 animate-fade-in">
-                    <div className="flex justify-between items-center">
-                        <h2 className="text-lg font-bold text-white">Market</h2>
-                        <button onClick={loadMarketData} className="p-2 bg-slate-800 rounded-full text-slate-400"><RefreshCw size={14}/></button>
+                <div>
+                    <div className="flex items-center justify-between mb-4">
+                        <h2 className="text-xl font-bold text-white">Open Positions</h2>
+                        <button onClick={handleAnalysis} disabled={isAnalyzing} className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold disabled:opacity-50 transition-colors">{isAnalyzing ? <RefreshCw className="animate-spin" size={14}/> : <Sparkles size={14} />} Analyze Portfolio</button>
                     </div>
-                    {renderMarketTabs()}
-                    {renderStockList()}
-                </div>
-            )}
-
-            {mobileTab === 'PORTFOLIO' && (
-                <div className="space-y-4 animate-fade-in pb-20">
-                    <div className="flex justify-between items-center">
-                        <h2 className="text-lg font-bold text-white">Holdings <span className="text-sm font-normal text-slate-500">({allHoldings.length})</span></h2>
-                        <button onClick={handleAnalysis} disabled={isAnalyzing} className="px-3 py-1.5 bg-purple-600 rounded-lg text-xs font-bold flex items-center gap-1 text-white">{isAnalyzing ? <RefreshCw className="animate-spin" size={12}/> : <Sparkles size={12}/>} AI Analyze</button>
-                    </div>
-                    {/* Compact Mobile List View for Portfolio could be here, reusing Table for now but check overflow */}
                     <PortfolioTable portfolio={allHoldings} marketData={marketData} analysisData={analysisData} onSell={(s, b) => { const st = recommendations.find(r=>r.symbol===s) || {symbol:s} as any; openTradeModal(st, 'SELL', b);}} />
                 </div>
-            )}
 
-            {mobileTab === 'MORE' && (
-                <div className="space-y-4 animate-fade-in pb-20">
-                    <div className="flex justify-center pb-2">
-                        <InstallPWA />
+                <div className="grid grid-cols-3 gap-8">
+                    <div className="col-span-1 space-y-6">
+                        <div className="flex items-center justify-between">
+                        {renderMarketTabs()}
+                        <button onClick={loadMarketData} className="text-slate-500 hover:text-blue-400"><RefreshCw size={18} /></button>
+                        </div>
+                        {renderStockList()}
                     </div>
-                    {renderBotControls()}
-                    <ActivityFeed transactions={transactions} />
-                    <button onClick={() => setIsSettingsOpen(true)} className="w-full py-4 bg-slate-800 rounded-xl border border-slate-700 text-slate-300 font-bold flex items-center justify-center gap-2">
-                        <Settings size={18} /> Open Settings
-                    </button>
-                    <button onClick={manualSendTelegram} className="w-full py-4 bg-slate-800 rounded-xl border border-slate-700 text-blue-400 font-bold flex items-center justify-center gap-2">
-                        <Send size={18} /> Test Telegram
-                    </button>
-                    <button onClick={handleLogout} className="w-full py-4 bg-red-900/20 rounded-xl border border-red-900/50 text-red-400 font-bold flex items-center justify-center gap-2">
-                        <LogOut size={18} /> Sign Out
-                    </button>
-                </div>
-            )}
-        </div>
-
-        {/* === DESKTOP VIEW (Grid) === */}
-        <div className="hidden md:block space-y-8">
-            <div className="grid grid-cols-3 gap-6">
-                {renderFundsCard()}
-                {renderPnLCard()}
-                <div className="bg-surface p-6 rounded-2xl border border-slate-800 shadow-lg relative overflow-hidden">
-                     <div className="absolute top-0 right-0 p-4 opacity-10"><PieChart size={64} /></div>
-                    <h3 className="text-slate-400 text-sm font-medium uppercase tracking-wider mb-2">Positions</h3>
-                    <div className="text-3xl font-bold text-white font-mono">{allHoldings.length}</div>
-                    <p className="text-xs text-slate-500 mt-2">Active across {Object.values(settings.enabledMarkets).filter(Boolean).length} markets</p>
+                    <div className="col-span-2 space-y-8">
+                        <div>
+                            <h2 className="text-xl font-bold text-white mb-4">Portfolio Value</h2>
+                            <PortfolioChart data={history} baseline={totalInitial} />
+                        </div>
+                        <ActivityFeed transactions={transactions} />
+                    </div>
                 </div>
             </div>
-
-            <div>
-                <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-xl font-bold text-white">Open Positions</h2>
-                    <button onClick={handleAnalysis} disabled={isAnalyzing} className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold disabled:opacity-50 transition-colors">{isAnalyzing ? <RefreshCw className="animate-spin" size={14}/> : <Sparkles size={14} />} Analyze Portfolio</button>
-                </div>
-                <PortfolioTable portfolio={allHoldings} marketData={marketData} analysisData={analysisData} onSell={(s, b) => { const st = recommendations.find(r=>r.symbol===s) || {symbol:s} as any; openTradeModal(st, 'SELL', b);}} />
-            </div>
-
-            <div className="grid grid-cols-3 gap-8">
-                <div className="col-span-1 space-y-6">
-                    <div className="flex items-center justify-between">
-                       {renderMarketTabs()}
-                       <button onClick={loadMarketData} className="text-slate-500 hover:text-blue-400"><RefreshCw size={18} /></button>
-                    </div>
-                    {renderStockList()}
-                </div>
-                <div className="col-span-2 space-y-8">
-                    <div>
-                        <h2 className="text-xl font-bold text-white mb-4">Portfolio Value</h2>
-                        <PortfolioChart data={history} baseline={totalInitial} />
-                    </div>
-                    <ActivityFeed transactions={transactions} />
-                </div>
             </div>
         </div>
-        </div>
+        )}
       </main>
 
-      {/* MOBILE BOTTOM NAVIGATION - FIXED AT BOTTOM */}
+      {/* MOBILE BOTTOM NAVIGATION - FIXED AT BOTTOM (Only in Dashboard View) */}
+      {currentView === 'DASHBOARD' && (
       <div className="md:hidden flex-none bg-slate-900/95 backdrop-blur-md border-t border-slate-800 pb-safe z-50">
           <div className="flex justify-around items-center h-16">
-              <button onClick={() => setMobileTab('HOME')} className={`flex flex-col items-center gap-1 w-full h-full justify-center ${mobileTab === 'HOME' ? 'text-blue-400' : 'text-slate-500'}`}>
+              <button onClick={() => handleTabChange('HOME')} className={`flex flex-col items-center gap-1 w-full h-full justify-center ${mobileTab === 'HOME' ? 'text-blue-400' : 'text-slate-500'}`}>
                   <LayoutDashboard size={20} className={mobileTab === 'HOME' ? 'fill-blue-400/20' : ''}/>
                   <span className="text-[10px] font-medium">Home</span>
               </button>
-              <button onClick={() => setMobileTab('MARKET')} className={`flex flex-col items-center gap-1 w-full h-full justify-center ${mobileTab === 'MARKET' ? 'text-blue-400' : 'text-slate-500'}`}>
+              <button onClick={() => handleTabChange('MARKET')} className={`flex flex-col items-center gap-1 w-full h-full justify-center ${mobileTab === 'MARKET' ? 'text-blue-400' : 'text-slate-500'}`}>
                   <BarChart3 size={20} className={mobileTab === 'MARKET' ? 'fill-blue-400/20' : ''}/>
                   <span className="text-[10px] font-medium">Markets</span>
               </button>
-              <button onClick={() => setMobileTab('PORTFOLIO')} className={`flex flex-col items-center gap-1 w-full h-full justify-center ${mobileTab === 'PORTFOLIO' ? 'text-blue-400' : 'text-slate-500'}`}>
+              <button onClick={() => handleTabChange('PORTFOLIO')} className={`flex flex-col items-center gap-1 w-full h-full justify-center ${mobileTab === 'PORTFOLIO' ? 'text-blue-400' : 'text-slate-500'}`}>
                   <PieChart size={20} className={mobileTab === 'PORTFOLIO' ? 'fill-blue-400/20' : ''}/>
                   <span className="text-[10px] font-medium">Portfolio</span>
               </button>
-              <button onClick={() => setMobileTab('MORE')} className={`flex flex-col items-center gap-1 w-full h-full justify-center ${mobileTab === 'MORE' ? 'text-blue-400' : 'text-slate-500'}`}>
+              <button onClick={() => handleTabChange('MORE')} className={`flex flex-col items-center gap-1 w-full h-full justify-center ${mobileTab === 'MORE' ? 'text-blue-400' : 'text-slate-500'}`}>
                   <Menu size={20} />
                   <span className="text-[10px] font-medium">More</span>
               </button>
           </div>
       </div>
+      )}
 
-      {isSettingsOpen && <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} settings={settings} onSave={(s) => { setSettings(s); setIsSettingsOpen(false); if(JSON.stringify(s.initialFunds) !== JSON.stringify(settings.initialFunds)) setFunds(s.initialFunds); loadMarketData(); }} />}
       {selectedStock && <TradeModal isOpen={isTradeModalOpen} onClose={() => setIsTradeModalOpen(false)} stock={selectedStock} currentPrice={marketData[selectedStock.symbol]?.price || selectedStock.currentPrice} funds={funds} holdings={allHoldings.filter(p => p.symbol === selectedStock.symbol)} activeBrokers={settings.activeBrokers} initialBroker={tradeModalBroker as any} onBuy={(s, q, p, b) => handleBuy(s, q, p, b)} onSell={(s, q, p, b) => handleSell(s, q, p, b)} />}
     </div>
   );
