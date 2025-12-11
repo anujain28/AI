@@ -1,7 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { AppSettings, MarketSettings, Transaction } from '../types';
-import { checkAndRefreshStockList, getCompanyName } from '../services/stockListService';
-import { Save, Wallet, LayoutGrid, Building2, Bell, TrendingUp, Cpu, Globe, DollarSign, Key, Zap, Check, Trash2, Bot, Power, Search, List } from 'lucide-react';
+import { Save, Wallet, LayoutGrid, Building2, Bell, TrendingUp, Cpu, Globe, DollarSign, Key, Zap, Check, Trash2, Bot, Power } from 'lucide-react';
 
 interface PageConfigurationProps {
   settings: AppSettings;
@@ -11,21 +10,11 @@ interface PageConfigurationProps {
   onToggleBot: (broker: string) => void;
 }
 
-type TabType = 'GENERAL' | 'MARKETS' | 'BROKERS' | 'AUTO_TRADE' | 'NOTIFICATIONS' | 'UNIVERSE';
+type TabType = 'GENERAL' | 'MARKETS' | 'BROKERS' | 'AUTO_TRADE' | 'NOTIFICATIONS';
 
 export const PageConfiguration: React.FC<PageConfigurationProps> = ({ settings, onSave, transactions, activeBots, onToggleBot }) => {
   const [formData, setFormData] = useState<AppSettings>(settings);
   const [activeSubTab, setActiveSubTab] = useState<TabType>('GENERAL');
-  
-  // Stock Universe State
-  const [stockList, setStockList] = useState<string[]>([]);
-  const [searchTerm, setSearchTerm] = useState('');
-
-  useEffect(() => {
-      if (activeSubTab === 'UNIVERSE' && stockList.length === 0) {
-          checkAndRefreshStockList().then(list => setStockList(list));
-      }
-  }, [activeSubTab, stockList.length]);
 
   const toggleBroker = (broker: any) => {
     setFormData(prev => {
@@ -54,18 +43,12 @@ export const PageConfiguration: React.FC<PageConfigurationProps> = ({ settings, 
     }
   };
 
-  const filteredStocks = stockList.filter(s => 
-      s.includes(searchTerm.toUpperCase()) || 
-      getCompanyName(s).toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
   const tabs: {id: TabType, label: string, icon: React.ReactNode}[] = [
       { id: 'GENERAL', label: 'General', icon: <Wallet size={16}/> },
       { id: 'AUTO_TRADE', label: 'Auto-Trade', icon: <Bot size={16}/> },
       { id: 'MARKETS', label: 'Markets', icon: <LayoutGrid size={16}/> },
       { id: 'BROKERS', label: 'Brokers', icon: <Building2 size={16}/> },
       { id: 'NOTIFICATIONS', label: 'Alerts', icon: <Bell size={16}/> },
-      { id: 'UNIVERSE', label: 'Universe', icon: <List size={16}/> },
   ];
 
   return (
@@ -235,43 +218,6 @@ export const PageConfiguration: React.FC<PageConfigurationProps> = ({ settings, 
                         <div className="space-y-3">
                             <input type="text" value={formData.telegramBotToken} onChange={(e) => setFormData({...formData, telegramBotToken: e.target.value})} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-xs text-white" placeholder="Bot Token" />
                             <input type="text" value={formData.telegramChatId} onChange={(e) => setFormData({...formData, telegramChatId: e.target.value})} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-xs text-white" placeholder="Chat ID" />
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* === UNIVERSE TAB === */}
-            {activeSubTab === 'UNIVERSE' && (
-                <div className="space-y-4 animate-slide-up h-full flex flex-col">
-                    <div className="relative">
-                        <Search size={16} className="absolute left-3 top-3 text-slate-500" />
-                        <input 
-                            type="text" 
-                            placeholder="Search Stock Universe..." 
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                            className="w-full bg-slate-900 border border-slate-700 rounded-lg py-2.5 pl-10 pr-4 text-xs text-white focus:border-blue-500 outline-none"
-                        />
-                    </div>
-                    <div className="flex items-center justify-between text-xs text-slate-500">
-                        <span>Total Stocks: {stockList.length}</span>
-                        <span>Showing: {filteredStocks.length}</span>
-                    </div>
-                    <div className="flex-1 bg-surface border border-slate-800 rounded-xl overflow-hidden">
-                        <div className="h-full overflow-y-auto custom-scrollbar p-2">
-                            {filteredStocks.length > 0 ? (
-                                filteredStocks.map((symbol) => (
-                                    <div key={symbol} className="flex justify-between items-center p-3 border-b border-slate-800/50 hover:bg-slate-800/50 transition-colors">
-                                        <div>
-                                            <div className="text-xs font-bold text-white">{symbol}</div>
-                                            <div className="text-[10px] text-slate-500">{getCompanyName(symbol)}</div>
-                                        </div>
-                                        <div className="px-2 py-1 rounded bg-slate-900 text-[10px] text-blue-400 border border-slate-700">NSE</div>
-                                    </div>
-                                ))
-                            ) : (
-                                <div className="text-center p-8 text-slate-500 text-xs">No stocks found matching "{searchTerm}"</div>
-                            )}
                         </div>
                     </div>
                 </div>

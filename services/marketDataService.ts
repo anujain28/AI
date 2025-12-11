@@ -61,9 +61,6 @@ async function fetchYahooData(ticker: string, interval: string = '5m', range: st
 // 2. Dhan API - Fetch LTP if credentials exist
 async function fetchDhanData(symbol: string, settings: AppSettings): Promise<StockData | null> {
     if (!settings.dhanClientId || !settings.dhanAccessToken) return null;
-    
-    // Requires SecurityID mapping, which we lack. 
-    // Returning null to fallback to Yahoo which uses Symbols.
     return null; 
 }
 
@@ -129,14 +126,16 @@ export const fetchRealStockData = async (symbol: string, settings: AppSettings):
     let ticker = TICKER_MAP[symbol.toUpperCase()];
     
     if (!ticker) {
-        // Handle Indian Stock Logic
+        // Handle Indian Stock Logic - Always append .NS for NSE stocks
         const upperSymbol = symbol.toUpperCase();
         
-        // If symbol already ends with .NS or .BO, leave it alone, else append .NS
-        if (upperSymbol.endsWith('.NS') || upperSymbol.endsWith('.BO')) {
+        // If symbol already ends with .NS, use it, otherwise append it
+        if (upperSymbol.endsWith('.NS')) {
             ticker = upperSymbol;
+        } else if (upperSymbol.endsWith('.BO')) {
+            ticker = upperSymbol; // Respect BSE if explicitly requested
         } else {
-            // Default to NSE (.NS) for Indian Stocks
+            // Default to NSE (.NS) for all other Indian Stocks
             ticker = `${upperSymbol}.NS`;
         }
     }
@@ -145,17 +144,6 @@ export const fetchRealStockData = async (symbol: string, settings: AppSettings):
     if (yahooRaw) {
         const parsed = await parseYahooResponse(symbol, yahooRaw);
         if (parsed) return parsed;
-    }
-
-    // 3. Fallback: BSE
-    // If the .NS failed and it wasn't a manual suffix, try .BO
-    if (symbol.toUpperCase().indexOf('.') === -1 && !TICKER_MAP[symbol.toUpperCase()]) {
-         const bseTicker = `${symbol.toUpperCase()}.BO`;
-         const bseRaw = await fetchYahooData(bseTicker);
-         if (bseRaw) {
-             const parsed = await parseYahooResponse(symbol, bseRaw);
-             if (parsed) return parsed;
-         }
     }
 
     return null;
