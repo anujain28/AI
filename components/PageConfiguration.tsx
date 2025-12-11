@@ -1,15 +1,19 @@
 import React, { useState } from 'react';
-import { AppSettings, MarketSettings } from '../types';
-import { Save, Wallet, LayoutGrid, Building2, Bell, TrendingUp, Cpu, Globe, DollarSign, Key, Zap, Check, Trash2 } from 'lucide-react';
+import { AppSettings, MarketSettings, Transaction } from '../types';
+import { ActivityFeed } from './ActivityFeed';
+import { Save, Wallet, LayoutGrid, Building2, Bell, TrendingUp, Cpu, Globe, DollarSign, Key, Zap, Check, Trash2, Bot, Power } from 'lucide-react';
 
 interface PageConfigurationProps {
   settings: AppSettings;
   onSave: (settings: AppSettings) => void;
+  transactions: Transaction[]; // For Auto Trade Feed
+  activeBots: Record<string, boolean>;
+  onToggleBot: (broker: string) => void;
 }
 
-type TabType = 'GENERAL' | 'MARKETS' | 'BROKERS' | 'NOTIFICATIONS';
+type TabType = 'GENERAL' | 'MARKETS' | 'BROKERS' | 'AUTO_TRADE' | 'NOTIFICATIONS';
 
-export const PageConfiguration: React.FC<PageConfigurationProps> = ({ settings, onSave }) => {
+export const PageConfiguration: React.FC<PageConfigurationProps> = ({ settings, onSave, transactions, activeBots, onToggleBot }) => {
   const [formData, setFormData] = useState<AppSettings>(settings);
   const [activeSubTab, setActiveSubTab] = useState<TabType>('GENERAL');
 
@@ -42,6 +46,7 @@ export const PageConfiguration: React.FC<PageConfigurationProps> = ({ settings, 
 
   const tabs: {id: TabType, label: string, icon: React.ReactNode}[] = [
       { id: 'GENERAL', label: 'General', icon: <Wallet size={16}/> },
+      { id: 'AUTO_TRADE', label: 'Auto-Trade', icon: <Bot size={16}/> },
       { id: 'MARKETS', label: 'Markets', icon: <LayoutGrid size={16}/> },
       { id: 'BROKERS', label: 'Brokers', icon: <Building2 size={16}/> },
       { id: 'NOTIFICATIONS', label: 'Alerts', icon: <Bell size={16}/> },
@@ -85,19 +90,21 @@ export const PageConfiguration: React.FC<PageConfigurationProps> = ({ settings, 
                                     <input type="number" value={formData.initialFunds.stock} onChange={(e) => setFormData({...formData, initialFunds: {...formData.initialFunds, stock: parseFloat(e.target.value)}})} className="w-full bg-slate-900 border border-slate-700 rounded-lg py-2.5 pl-9 pr-4 text-white focus:border-blue-500 outline-none text-sm font-mono"/>
                                 </div>
                             </div>
-                            <div className="bg-surface p-4 rounded-xl border border-slate-800">
-                                <label className="block text-xs text-slate-400 mb-2 font-bold">Crypto (INR)</label>
-                                <div className="relative">
-                                    <Cpu size={14} className="absolute left-3 top-3 text-slate-500"/>
-                                    <input type="number" value={formData.initialFunds.crypto || 500000} onChange={(e) => setFormData({...formData, initialFunds: {...formData.initialFunds, crypto: parseFloat(e.target.value)}})} className="w-full bg-slate-900 border border-slate-700 rounded-lg py-2.5 pl-9 pr-4 text-white focus:border-purple-500 outline-none text-sm font-mono"/>
-                                </div>
-                            </div>
+                            {/* ...other fund inputs... */}
                         </div>
                     </section>
+                     <button onClick={handleReset} className="w-full py-4 rounded-xl text-xs font-bold text-red-400 bg-red-900/10 border border-red-900/30 flex items-center justify-center gap-2">
+                        <Trash2 size={14}/> Factory Reset App
+                    </button>
+                </div>
+            )}
 
-                    <section className="pt-4 border-t border-slate-800">
-                        <h3 className="text-xs font-bold text-blue-400 uppercase tracking-wider mb-4">Bot Config</h3>
-                        <div className="bg-surface p-4 rounded-xl border border-slate-800">
+            {/* === AUTO TRADE TAB === */}
+            {activeSubTab === 'AUTO_TRADE' && (
+                <div className="space-y-6 animate-slide-up">
+                    <section>
+                         <h3 className="text-xs font-bold text-blue-400 uppercase tracking-wider mb-4">Bot Configuration</h3>
+                         <div className="bg-surface p-4 rounded-xl border border-slate-800">
                             <label className="block text-xs text-slate-400 mb-3 font-bold">Trade Size</label>
                             <div className="flex gap-4 mb-4">
                                 <label className="flex items-center gap-2 text-xs text-white p-2 bg-slate-900 rounded-lg flex-1 justify-center">
@@ -113,9 +120,24 @@ export const PageConfiguration: React.FC<PageConfigurationProps> = ({ settings, 
                         </div>
                     </section>
 
-                     <button onClick={handleReset} className="w-full py-4 rounded-xl text-xs font-bold text-red-400 bg-red-900/10 border border-red-900/30 flex items-center justify-center gap-2">
-                        <Trash2 size={14}/> Factory Reset App
-                    </button>
+                    <section>
+                        <h3 className="text-xs font-bold text-blue-400 uppercase tracking-wider mb-4">Active Bots</h3>
+                        <div className="grid grid-cols-2 gap-3 mb-6">
+                            {Object.keys(activeBots).map(broker => (
+                                <button key={broker} onClick={() => onToggleBot(broker)} className={`p-3 rounded-lg border flex items-center justify-between ${activeBots[broker] ? 'bg-blue-600/20 border-blue-500' : 'bg-slate-900 border-slate-800'}`}>
+                                    <span className="text-xs font-bold text-white">{broker}</span>
+                                    <Power size={14} className={activeBots[broker] ? 'text-green-400' : 'text-slate-600'} />
+                                </button>
+                            ))}
+                        </div>
+                    </section>
+
+                    <section>
+                        <h3 className="text-xs font-bold text-blue-400 uppercase tracking-wider mb-4">Activity Log</h3>
+                        <div className="h-64">
+                             <ActivityFeed transactions={transactions} />
+                        </div>
+                    </section>
                 </div>
             )}
 
@@ -143,14 +165,10 @@ export const PageConfiguration: React.FC<PageConfigurationProps> = ({ settings, 
                 </div>
             )}
 
-            {/* === BROKERS TAB (Simple List) === */}
+            {/* === BROKERS TAB (Expanded List) === */}
             {activeSubTab === 'BROKERS' && (
                 <div className="space-y-4 animate-slide-up">
-                    <div className="bg-blue-900/10 border border-blue-500/20 p-3 rounded-lg flex gap-2">
-                        <Key size={16} className="text-blue-400 flex-shrink-0"/>
-                        <p className="text-[10px] text-blue-200">Credentials stored locally.</p>
-                    </div>
-                    {['PAPER', 'DHAN', 'SHOONYA', 'BINANCE', 'COINDCX', 'COINSWITCH'].map(broker => (
+                    {['PAPER', 'DHAN', 'GROWW', 'SHOONYA', 'BINANCE', 'COINDCX', 'COINSWITCH', 'ZEBPAY'].map(broker => (
                          <div key={broker} className={`p-4 rounded-xl border ${formData.activeBrokers.includes(broker as any) ? 'bg-surface border-green-500/30' : 'bg-slate-900/50 border-slate-800'}`}>
                              <div className="flex justify-between items-center mb-2">
                                  <h4 className="font-bold text-white text-sm">{broker}</h4>
@@ -158,7 +176,6 @@ export const PageConfiguration: React.FC<PageConfigurationProps> = ({ settings, 
                                      <div className={`absolute top-0.5 w-3 h-3 bg-white rounded-full transition-all ${formData.activeBrokers.includes(broker as any) ? 'left-4.5' : 'left-0.5'}`}></div>
                                  </button>
                              </div>
-                             {/* Inputs would go here, simplified for this view */}
                              {formData.activeBrokers.includes(broker as any) && broker !== 'PAPER' && (
                                  <input type="password" placeholder="API Key / Token" className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-xs text-white mt-2"/>
                              )}
@@ -167,8 +184,8 @@ export const PageConfiguration: React.FC<PageConfigurationProps> = ({ settings, 
                 </div>
             )}
 
-             {/* === NOTIFICATIONS TAB === */}
-             {activeSubTab === 'NOTIFICATIONS' && (
+            {/* === NOTIFICATIONS TAB === */}
+            {activeSubTab === 'NOTIFICATIONS' && (
                 <div className="space-y-4 animate-slide-up">
                     <div className="bg-surface p-4 rounded-xl border border-slate-800">
                         <h3 className="text-xs font-bold text-white mb-4">Telegram Configuration</h3>

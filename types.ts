@@ -37,13 +37,15 @@ export interface HoldingAnalysis {
   cagr: string;
 }
 
+export type BrokerID = 'PAPER' | 'DHAN' | 'SHOONYA' | 'GROWW' | 'BINANCE' | 'COINDCX' | 'COINSWITCH' | 'ZEBPAY';
+
 export interface PortfolioItem {
   symbol: string;
   type: AssetType;
   quantity: number;
   avgCost: number;
   totalCost: number;
-  broker: 'PAPER' | 'DHAN' | 'SHOONYA' | 'BINANCE' | 'COINDCX' | 'COINSWITCH';
+  broker: BrokerID;
   targets?: {
       t1: number; // 2x ATR
       t2: number; // 3x ATR
@@ -59,7 +61,7 @@ export interface Transaction {
   quantity: number;
   price: number;
   timestamp: number;
-  broker: 'PAPER' | 'DHAN' | 'SHOONYA' | 'BINANCE' | 'COINDCX' | 'COINSWITCH';
+  broker: BrokerID;
 }
 
 export interface Candle {
@@ -119,17 +121,19 @@ export interface AppSettings {
   autoTradeConfig: AutoTradeConfig;
   telegramBotToken: string;
   telegramChatId: string;
-  activeBrokers: ('PAPER' | 'DHAN' | 'SHOONYA' | 'BINANCE' | 'COINDCX' | 'COINSWITCH')[];
+  activeBrokers: BrokerID[];
   enabledMarkets: MarketSettings;
   // Stock Brokers
   dhanClientId?: string;
   dhanAccessToken?: string;
   shoonyaUserId?: string;
   shoonyaPassword?: string;
+  growwApiKey?: string; // Mock
   // Crypto Exchanges
   binanceApiKey?: string;
   binanceSecret?: string;
   coindcxApiKey?: string;
   coindcxSecret?: string;
   coinswitchApiKey?: string;
+  zebpayApiKey?: string;
 }

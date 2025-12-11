@@ -1,21 +1,19 @@
-import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { fetchTopStockPicks, analyzeHoldings } from './services/geminiService';
-import { fetchRealStockData } from './services/marketDataService';
-import { checkAndRefreshStockList, STATIC_MCX_LIST, STATIC_FOREX_LIST, STATIC_CRYPTO_LIST } from './services/stockListService';
-import { StockRecommendation, PortfolioItem, MarketData, PortfolioHistoryPoint, Transaction, AppSettings, AssetType, UserProfile, Funds, HoldingAnalysis } from './types';
+import { checkAndRefreshStockList } from './services/stockListService';
+import { StockRecommendation, PortfolioItem, MarketData, Transaction, AppSettings, UserProfile, Funds, HoldingAnalysis } from './types';
 import { AuthOverlay } from './components/AuthOverlay';
 import { TradeModal } from './components/TradeModal';
 import { analyzeStockTechnical } from './services/technicalAnalysis';
-import { generatePNLReport, sendTelegramMessage } from './services/telegramService';
-import { fetchDhanHoldings, fetchShoonyaHoldings, placeDhanOrder, placeShoonyaOrder, fetchBinanceHoldings, fetchCoinDCXHoldings, fetchCoinSwitchHoldings, placeBinanceOrder, placeCoinDCXOrder, placeCoinSwitchOrder, fetchBrokerBalance } from './services/brokerService';
+import { fetchBrokerBalance, fetchHoldings, placeOrder } from './services/brokerService';
 import { BarChart3, AlertCircle } from 'lucide-react';
 
 // NEW PAGE COMPONENTS
 import { BottomNav } from './components/BottomNav';
-import { PageRecommendations } from './components/PageRecommendations';
-import { PageAutoTrade } from './components/PageAutoTrade';
-import { PagePortfolio } from './components/PagePortfolio';
-import { PageLivePositions } from './components/PageLivePositions';
+import { PageMarket } from './components/PageMarket';
+import { PageCrypto } from './components/PageCrypto';
+import { PagePaperPNL } from './components/PagePaperPNL';
+import { PageLivePNL } from './components/PageLivePNL';
 import { PageConfiguration } from './components/PageConfiguration';
 
 const generateFallbackHistory = (startPrice: number, count: number) => {
@@ -35,13 +33,11 @@ const generateFallbackHistory = (startPrice: number, count: number) => {
 };
 
 const STORAGE_KEYS = {
-  SETTINGS: 'aitrade_settings_v8',
+  SETTINGS: 'aitrade_settings_v9',
   PORTFOLIO: 'aitrade_portfolio_v3',
   FUNDS: 'aitrade_funds_v2', 
   TRANSACTIONS: 'aitrade_transactions',
-  HISTORY: 'aitrade_history',
-  USER: 'aitrade_user_profile',
-  MARKET_BOTS: 'aitrade_market_bots_v1'
+  USER: 'aitrade_user_profile'
 };
 
 const SplashScreen = ({ visible }: { visible: boolean }) => {
@@ -62,7 +58,7 @@ const SplashScreen = ({ visible }: { visible: boolean }) => {
 
 export default function App() {
   const [showSplash, setShowSplash] = useState(true);
-  const [activePage, setActivePage] = useState(0); // 0: Market, 1: Auto, 2: Brokers, 3: Live, 4: Config
+  const [activePage, setActivePage] = useState(0); 
   
   const [user, setUser] = useState<UserProfile | null>(() => {
     const saved = localStorage.getItem(STORAGE_KEYS.USER);
@@ -74,7 +70,7 @@ export default function App() {
     const defaults = {
         initialFunds: { stock: 1000000, mcx: 500000, forex: 500000, crypto: 500000 },
         autoTradeConfig: { mode: 'PERCENTAGE', value: 5 },
-        activeBrokers: ['PAPER', 'DHAN', 'SHOONYA', 'BINANCE', 'COINDCX', 'COINSWITCH'], 
+        activeBrokers: ['PAPER', 'DHAN', 'GROWW', 'SHOONYA', 'BINANCE', 'COINDCX', 'COINSWITCH', 'ZEBPAY'], 
         enabledMarkets: { stocks: true, mcx: true, forex: true, crypto: true }, 
         telegramBotToken: '',
         telegramChatId: ''
@@ -93,7 +89,7 @@ export default function App() {
   const [paperPortfolio, setPaperPortfolio] = useState<PortfolioItem[]>(() => {
     const saved = localStorage.getItem(STORAGE_KEYS.PORTFOLIO);
     if (!saved) return [];
-    return JSON.parse(saved).filter((p: any) => p.broker === 'PAPER').map((p: any) => ({...p, type: p.type || 'STOCK'}));
+    return JSON.parse(saved).filter((p: any) => p.broker === 'PAPER');
   });
   const [externalHoldings, setExternalHoldings] = useState<PortfolioItem[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>(() => {
@@ -107,7 +103,7 @@ export default function App() {
   const [notification, setNotification] = useState<string | null>(null);
   const [analysisData, setAnalysisData] = useState<Record<string, HoldingAnalysis>>({});
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [activeBots, setActiveBots] = useState<{ [key: string]: boolean }>({ 'PAPER': true, 'DHAN': true, 'SHOONYA': true, 'BINANCE': true, 'COINDCX': true, 'COINSWITCH': true });
+  const [activeBots, setActiveBots] = useState<{ [key: string]: boolean }>({ 'PAPER': true });
   
   const [isTradeModalOpen, setIsTradeModalOpen] = useState(false);
   const [selectedStock, setSelectedStock] = useState<StockRecommendation | null>(null);
@@ -116,7 +112,6 @@ export default function App() {
 
   const allHoldings = useMemo(() => [...paperPortfolio, ...externalHoldings], [paperPortfolio, externalHoldings]);
 
-  // --- PERSISTENCE ---
   useEffect(() => { setTimeout(() => setShowSplash(false), 2000); }, []);
   useEffect(() => localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(settings)), [settings]);
   useEffect(() => localStorage.setItem(STORAGE_KEYS.FUNDS, JSON.stringify(funds)), [funds]);
@@ -133,7 +128,6 @@ export default function App() {
       setTimeout(() => setNotification(null), 3000);
   };
 
-  // --- SYNC EXTERNAL BROKERS ---
   const syncExternalPortfolios = useCallback(async () => {
       if (!user) return;
       const { activeBrokers } = settings;
@@ -143,12 +137,7 @@ export default function App() {
       activeBrokers.forEach(broker => {
           if (broker === 'PAPER') return;
           balPromises.push(fetchBrokerBalance(broker, settings).then(amt => ({ broker, amt })));
-          
-          if (broker === 'DHAN') promises.push(fetchDhanHoldings(settings));
-          else if (broker === 'SHOONYA') promises.push(fetchShoonyaHoldings(settings));
-          else if (broker === 'BINANCE') promises.push(fetchBinanceHoldings(settings));
-          else if (broker === 'COINDCX') promises.push(fetchCoinDCXHoldings(settings));
-          else if (broker === 'COINSWITCH') promises.push(fetchCoinSwitchHoldings(settings));
+          promises.push(fetchHoldings(broker, settings));
       });
 
       if (balPromises.length) {
@@ -169,7 +158,6 @@ export default function App() {
      if (user) { syncExternalPortfolios(); const i = setInterval(syncExternalPortfolios, 30000); return () => clearInterval(i); }
   }, [user, syncExternalPortfolios]);
 
-  // --- LOAD MARKET DATA ---
   const loadMarketData = useCallback(async () => {
     if (!user) return;
     setIsLoading(true);
@@ -185,7 +173,6 @@ export default function App() {
     const initialMarketData: MarketData = {};
     const symbols = new Set([...stocks.map(s => s.symbol), ...allHoldings.map(p => p.symbol)]);
     
-    // Simulate fetching
     for (const sym of symbols) {
          const rec = stocks.find(s => s.symbol === sym);
          const port = allHoldings.find(p => p.symbol === sym);
@@ -205,52 +192,44 @@ export default function App() {
 
   useEffect(() => { loadMarketData(); }, [user, loadMarketData]);
 
-  // --- TRADING LOGIC ---
   const handleBuy = async (symbol: string, quantity: number, price: number, broker: any) => {
-      // Simplification: Assume type based on symbol or rec
       const rec = recommendations.find(r => r.symbol === symbol) || allHoldings.find(h => h.symbol === symbol);
       const type = rec?.type || 'STOCK';
       
       if (broker === 'PAPER') {
-          // Check Funds
           const cost = quantity * price;
-          // ... Fund check logic omitted for brevity, assuming generic funds check passed ...
-          // Update Paper Portfolio
           const existing = paperPortfolio.find(p => p.symbol === symbol && p.broker === 'PAPER');
           if (existing) {
               setPaperPortfolio(prev => prev.map(p => p.symbol === symbol ? {...p, quantity: p.quantity + quantity, totalCost: p.totalCost + cost, avgCost: (p.totalCost + cost)/(p.quantity+quantity)} : p));
           } else {
               setPaperPortfolio(prev => [...prev, { symbol, type, quantity, avgCost: price, totalCost: cost, broker: 'PAPER' }]);
           }
-          // Deduct Funds (Simplified for this snippet)
-          setFunds(prev => ({...prev, stock: prev.stock - cost})); // Assuming stock for simplicity
+          setFunds(prev => ({...prev, stock: prev.stock - cost})); 
       } else {
-          // Execute Broker Order
-          if (broker === 'DHAN') await placeDhanOrder(symbol, quantity, 'BUY', price, type, settings);
-          // ... other brokers ...
+          await placeOrder(broker, symbol, quantity, 'BUY', price, type, settings);
           syncExternalPortfolios();
       }
-      
       setTransactions(prev => [...prev, { id: Date.now().toString(), type: 'BUY', symbol, assetType: type, quantity, price, timestamp: Date.now(), broker }]);
       showNotification(`BUY Executed: ${symbol}`);
   };
 
   const handleSell = async (symbol: string, quantity: number, price: number, broker: any) => {
+      const rec = recommendations.find(r => r.symbol === symbol) || allHoldings.find(h => h.symbol === symbol);
+      const type = rec?.type || 'STOCK';
+
       if (broker === 'PAPER') {
           const existing = paperPortfolio.find(p => p.symbol === symbol);
           if (existing && existing.quantity >= quantity) {
                const remaining = existing.quantity - quantity;
                if (remaining < 0.0001) setPaperPortfolio(prev => prev.filter(p => p.symbol !== symbol));
                else setPaperPortfolio(prev => prev.map(p => p.symbol === symbol ? {...p, quantity: remaining, totalCost: p.avgCost * remaining} : p));
-               // Add Funds back
                setFunds(prev => ({...prev, stock: prev.stock + (quantity * price)}));
           }
       } else {
-          // Broker Sell
-          // ... broker sell logic ...
+          await placeOrder(broker, symbol, quantity, 'SELL', price, type, settings);
           syncExternalPortfolios();
       }
-      setTransactions(prev => [...prev, { id: Date.now().toString(), type: 'SELL', symbol, assetType: 'STOCK', quantity, price, timestamp: Date.now(), broker }]);
+      setTransactions(prev => [...prev, { id: Date.now().toString(), type: 'SELL', symbol, assetType: type, quantity, price, timestamp: Date.now(), broker }]);
       showNotification(`SELL Executed: ${symbol}`);
   };
 
@@ -265,19 +244,11 @@ export default function App() {
       setIsAnalyzing(false);
   };
 
-  // --- RENDER ---
   if (showSplash) return <SplashScreen visible={true} />;
   if (!user) return <AuthOverlay onLogin={(u) => { handleLogin(u); loadMarketData(); }} />;
 
-  const currentVal = allHoldings.reduce((acc, h) => acc + ((marketData[h.symbol]?.price || h.avgCost) * h.quantity), 0);
-  const totalCost = allHoldings.reduce((acc, h) => acc + h.totalCost, 0);
-  const totalPnl = currentVal - totalCost;
-  const totalCapital = settings.initialFunds.stock + settings.initialFunds.mcx + settings.initialFunds.forex + settings.initialFunds.crypto;
-
   return (
     <div className="h-full flex flex-col bg-background text-slate-100 font-sans overflow-hidden">
-      
-      {/* Notifications */}
       {notification && (
           <div className="fixed top-4 left-4 right-4 z-[60] bg-slate-800 text-white px-4 py-3 rounded-xl shadow-xl border border-slate-700 flex items-center gap-3 animate-slide-up">
               <AlertCircle size={18} className="text-blue-400 flex-shrink-0" />
@@ -285,11 +256,9 @@ export default function App() {
           </div>
       )}
 
-      {/* Main Content Area */}
       <main className="flex-1 overflow-y-auto custom-scrollbar relative w-full max-w-lg mx-auto md:max-w-7xl md:border-x md:border-slate-800">
-        
         {activePage === 0 && (
-            <PageRecommendations 
+            <PageMarket 
                 recommendations={recommendations} 
                 marketData={marketData} 
                 onTrade={(s) => { setSelectedStock(s); setIsTradeModalOpen(true); }}
@@ -298,27 +267,19 @@ export default function App() {
                 enabledMarkets={settings.enabledMarkets}
             />
         )}
-
         {activePage === 1 && (
-            <PageAutoTrade 
-                activeBots={activeBots} 
-                onToggleBot={(b) => setActiveBots(p => ({...p, [b]: !p[b]}))}
-                transactions={transactions}
+            <PageCrypto 
+                recommendations={recommendations} 
+                marketData={marketData} 
+                onTrade={(s) => { setSelectedStock(s); setIsTradeModalOpen(true); }}
+                onRefresh={loadMarketData}
+                isLoading={isLoading}
+                enabledMarkets={settings.enabledMarkets}
             />
         )}
-
         {activePage === 2 && (
-            <PagePortfolio 
+            <PagePaperPNL 
                 holdings={allHoldings} 
-                brokerBalances={brokerBalances} 
-                paperFunds={funds.stock + funds.mcx + funds.forex + funds.crypto} // Simplified total
-                marketData={marketData}
-            />
-        )}
-
-        {activePage === 3 && (
-            <PageLivePositions 
-                holdings={allHoldings}
                 marketData={marketData}
                 analysisData={analysisData}
                 onSell={(s, b) => { 
@@ -329,24 +290,36 @@ export default function App() {
                 }}
                 onAnalyze={handleAnalysis}
                 isAnalyzing={isAnalyzing}
-                totalPnl={totalPnl}
-                totalCapital={totalCapital}
+                funds={funds}
             />
         )}
-
+        {activePage === 3 && (
+            <PageLivePNL 
+                holdings={allHoldings}
+                marketData={marketData}
+                analysisData={analysisData}
+                onSell={(s, b) => { 
+                     const stk = recommendations.find(r => r.symbol === s) || { symbol: s, type: 'STOCK', currentPrice: marketData[s]?.price || 0 } as any;
+                     setSelectedStock(stk);
+                     setTradeModalBroker(b);
+                     setIsTradeModalOpen(true);
+                }}
+                brokerBalances={brokerBalances}
+            />
+        )}
         {activePage === 4 && (
             <PageConfiguration 
                 settings={settings}
                 onSave={(s) => { setSettings(s); showNotification("Settings Saved"); }}
+                transactions={transactions}
+                activeBots={activeBots}
+                onToggleBot={(b) => setActiveBots(p => ({...p, [b]: !p[b]}))}
             />
         )}
-
       </main>
 
-      {/* Navigation */}
       <BottomNav activeTab={activePage} onChange={setActivePage} />
 
-      {/* Trade Modal */}
       {selectedStock && (
           <TradeModal 
             isOpen={isTradeModalOpen} 

@@ -2,22 +2,13 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { StockRecommendation, MarketSettings, PortfolioItem, HoldingAnalysis, MarketData } from "../types";
 import { STATIC_MCX_LIST, STATIC_FOREX_LIST, STATIC_CRYPTO_LIST } from "./stockListService";
 
-// Helper to safely get the AI client without crashing at module load time
-// This ensures that if process.env.API_KEY is missing during build/render, the app loads (and fails gracefully later)
 let aiInstance: GoogleGenAI | null = null;
 
 const getAI = () => {
     if (aiInstance) return aiInstance;
-    
-    // We access process.env.API_KEY directly as required
-    // The optional chaining ensures we don't crash if `process` is undefined in browser (handled by index.html polyfill usually, but safe here)
     const apiKey = typeof process !== 'undefined' ? process.env.API_KEY : '';
-    
-    if (!apiKey) {
-        console.warn("Gemini API Key is missing. AI features will use fallback data.");
-    }
-    
-    aiInstance = new GoogleGenAI({ apiKey: apiKey || 'dummy_key_to_prevent_crash' });
+    if (!apiKey) console.warn("Gemini API Key is missing.");
+    aiInstance = new GoogleGenAI({ apiKey: apiKey || 'dummy_key' });
     return aiInstance;
 };
 
@@ -40,35 +31,23 @@ export const fetchTopStockPicks = async (
   
   try {
     const ai = getAI();
-    
-    // Check if we have a valid key (heuristic check)
     if (!process.env.API_KEY) throw new Error("No API Key");
 
-    let universePrompt = "";
-    if (markets.stocks && stockUniverse.length > 0) universePrompt += `\nSTOCK UNIVERSE (NSE): [${stockUniverse.slice(0, 500).join(', ')}]...`;
-    if (markets.mcx) universePrompt += `\nCOMMODITIES UNIVERSE (MCX): [${STATIC_MCX_LIST.join(', ')}]`;
-    if (markets.forex) universePrompt += `\nFOREX UNIVERSE: [${STATIC_FOREX_LIST.join(', ')}]`;
-    if (markets.crypto) universePrompt += `\nCRYPTO UNIVERSE: [${STATIC_CRYPTO_LIST.join(', ')}]`;
-
     const requests: string[] = [];
-    if (markets.stocks) requests.push("3 Indian Stocks (NSE)");
+    if (markets.stocks) requests.push("5 Indian Stocks (NSE)");
     if (markets.mcx) requests.push("2 MCX Commodities");
-    if (markets.forex) requests.push("2 Forex Pairs (INR pairs preferred)");
-    if (markets.crypto) requests.push("2 Crypto Assets");
+    if (markets.forex) requests.push("2 Forex Pairs (INR pairs)");
+    if (markets.crypto) requests.push("3 Crypto Assets");
 
     if (requests.length === 0) return [];
 
-    const prompt = `Analyze the market acting as 'AI Robots' algorithmic trading engine. 
-    Current Strategy: ${strategyType}.
-    Task: Identify the best trading opportunities. 
-    REQUIREMENT: You must provide exactly: ${requests.join(', ')}.
-    Focus on Technical Analysis (RSI, Moving Averages, Breakouts).
-    IMPORTANT CONSTRAINTS:
+    const prompt = `Act as 'AI Robots' trading engine. Strategy: ${strategyType}.
+    REQUIREMENT: Provide exactly: ${requests.join(', ')}.
+    Focus on Technical Analysis.
+    IMPORTANT:
     1. Output ONLY the ticker symbol.
-    2. Assign 'Asset Type' correctly as 'STOCK', 'MCX', 'FOREX', or 'CRYPTO'.
-    3. For MCX/Forex, provide a standard lot size.
-    
-    ${universePrompt}
+    2. Assign 'Asset Type' correctly ('STOCK', 'MCX', 'FOREX', 'CRYPTO').
+    3. For MCX/Forex, provide lot size.
     
     Return the response as a JSON array.`;
 
@@ -76,7 +55,7 @@ export const fetchTopStockPicks = async (
       model: "gemini-2.5-flash",
       contents: prompt,
       config: {
-        systemInstruction: `You are an expert technical analyst. Time Context: ${isPostMarket ? 'After Market Close' : 'Live Market'}.`,
+        systemInstruction: `You are an expert technical analyst. Time: ${isPostMarket ? 'After Close' : 'Live'}.`,
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.ARRAY,
@@ -99,9 +78,7 @@ export const fetchTopStockPicks = async (
       }
     });
 
-    if (response.text) {
-      return JSON.parse(response.text) as StockRecommendation[];
-    }
+    if (response.text) return JSON.parse(response.text) as StockRecommendation[];
     return [];
   } catch (error) {
     console.error("Failed to fetch picks (Using Fallback):", error);
@@ -111,10 +88,13 @@ export const fetchTopStockPicks = async (
     if (markets.stocks) {
         fallback.push({ symbol: "TATAMOTORS", name: "Tata Motors", type: "STOCK", sector: "Auto", currentPrice: 980, reason: "Breakout", riskLevel: "Medium", targetPrice: 1020, lotSize: 1 });
         fallback.push({ symbol: "SBIN", name: "State Bank of India", type: "STOCK", sector: "Bank", currentPrice: 780, reason: "Support Bounce", riskLevel: "Low", targetPrice: 800, lotSize: 1 });
+        fallback.push({ symbol: "RELIANCE", name: "Reliance Ind", type: "STOCK", sector: "Energy", currentPrice: 2800, reason: "Consolidation", riskLevel: "Medium", targetPrice: 2900, lotSize: 1 });
+        fallback.push({ symbol: "INFY", name: "Infosys", type: "STOCK", sector: "IT", currentPrice: 1500, reason: "Value Buy", riskLevel: "Low", targetPrice: 1600, lotSize: 1 });
+        fallback.push({ symbol: "ITC", name: "ITC Ltd", type: "STOCK", sector: "FMCG", currentPrice: 420, reason: "Defensive", riskLevel: "Low", targetPrice: 450, lotSize: 1 });
     }
-    if (markets.mcx) fallback.push({ symbol: "GOLD", name: "Gold Futures", type: "MCX", sector: "Commodity", currentPrice: 72000, reason: "Safe Haven Buying", riskLevel: "Low", targetPrice: 72500, lotSize: 1 });
-    if (markets.forex) fallback.push({ symbol: "USDINR", name: "USD/INR", type: "FOREX", sector: "Currency", currentPrice: 83.50, reason: "Dollar Strength", riskLevel: "Low", targetPrice: 84.00, lotSize: 1000 });
-    if (markets.crypto) fallback.push({ symbol: "BTC", name: "Bitcoin", type: "CRYPTO", sector: "Digital Asset", currentPrice: 65000, reason: "ETF Inflow", riskLevel: "High", targetPrice: 66000, lotSize: 0.01 });
+    if (markets.mcx) fallback.push({ symbol: "GOLD", name: "Gold Futures", type: "MCX", sector: "Commodity", currentPrice: 72000, reason: "Safe Haven", riskLevel: "Low", targetPrice: 72500, lotSize: 1 });
+    if (markets.forex) fallback.push({ symbol: "USDINR", name: "USD/INR", type: "FOREX", sector: "Currency", currentPrice: 83.50, reason: "Uptrend", riskLevel: "Low", targetPrice: 84.00, lotSize: 1000 });
+    if (markets.crypto) fallback.push({ symbol: "BTC", name: "Bitcoin", type: "CRYPTO", sector: "Digital", currentPrice: 65000, reason: "ETF Inflow", riskLevel: "High", targetPrice: 66000, lotSize: 0.01 });
 
     return fallback;
   }
@@ -127,15 +107,11 @@ export const analyzeHoldings = async (holdings: PortfolioItem[], marketData: Mar
         .map(symbol => {
              const h = holdings.find(i => i.symbol === symbol);
              const data = marketData[symbol];
-             return {
-                 symbol: symbol,
-                 avgCost: h ? h.avgCost : 0,
-                 currentPrice: data ? data.price : (h ? h.avgCost : 0)
-             };
+             return { symbol, avgCost: h ? h.avgCost : 0, currentPrice: data ? data.price : (h ? h.avgCost : 0) };
         });
 
-    const prompt = `Analyze portfolio holdings. Provide BUY/SELL/HOLD, target, dividend yield, and CAGR.
-    Holdings: ${uniqueHoldings.map(h => `${h.symbol}: Cost ${h.avgCost}, Price ${h.currentPrice}`).join('; ')}`;
+    const prompt = `Analyze holdings. Provide BUY/SELL/HOLD, target.
+    Holdings: ${uniqueHoldings.map(h => `${h.symbol}: Cost ${h.avgCost}`).join('; ')}`;
 
     try {
         const ai = getAI();
@@ -164,9 +140,7 @@ export const analyzeHoldings = async (holdings: PortfolioItem[], marketData: Mar
 
         if (response.text) return JSON.parse(response.text) as HoldingAnalysis[];
         return [];
-
     } catch (e) {
-        console.error("Analysis failed", e);
         return [];
     }
 };
