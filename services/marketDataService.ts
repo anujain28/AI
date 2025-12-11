@@ -127,9 +127,18 @@ export const fetchRealStockData = async (symbol: string, settings: AppSettings):
 
     // 2. Try Yahoo Finance (Primary Public Source)
     let ticker = TICKER_MAP[symbol.toUpperCase()];
+    
     if (!ticker) {
-        const cleanSymbol = symbol.toUpperCase().replace('.NS', '').replace('.BO', '');
-        ticker = `${cleanSymbol}.NS`;
+        // Handle Indian Stock Logic
+        const upperSymbol = symbol.toUpperCase();
+        
+        // If symbol already ends with .NS or .BO, leave it alone, else append .NS
+        if (upperSymbol.endsWith('.NS') || upperSymbol.endsWith('.BO')) {
+            ticker = upperSymbol;
+        } else {
+            // Default to NSE (.NS) for Indian Stocks
+            ticker = `${upperSymbol}.NS`;
+        }
     }
 
     const yahooRaw = await fetchYahooData(ticker);
@@ -139,6 +148,7 @@ export const fetchRealStockData = async (symbol: string, settings: AppSettings):
     }
 
     // 3. Fallback: BSE
+    // If the .NS failed and it wasn't a manual suffix, try .BO
     if (symbol.toUpperCase().indexOf('.') === -1 && !TICKER_MAP[symbol.toUpperCase()]) {
          const bseTicker = `${symbol.toUpperCase()}.BO`;
          const bseRaw = await fetchYahooData(bseTicker);

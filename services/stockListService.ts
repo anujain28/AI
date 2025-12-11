@@ -555,7 +555,8 @@ export const getCompanyName = (symbol: string): string => {
     if (STATIC_FOREX_LIST.includes(symbol)) return `${symbol.substring(0,3)}/${symbol.substring(3)} Forex`;
     if (STATIC_CRYPTO_LIST.includes(symbol)) return `${symbol} Crypto`;
     
-    return symbol; // Fallback to symbol if not found
+    // Fallback: Return the symbol itself if no name found
+    return symbol; 
 };
 
 // Helper to parse CSV dynamically based on header
