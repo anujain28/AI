@@ -30,6 +30,7 @@ export const StockCard: React.FC<StockCardProps> = ({ stock, marketData, onTrade
   // Timeframe Badge Color
   const getTimeframeColor = (tf?: string) => {
       switch(tf) {
+          case 'INTRADAY': return 'bg-orange-500/20 text-orange-400 border-orange-500/30';
           case 'BTST': return 'bg-blue-500/20 text-blue-400 border-blue-500/30';
           case 'WEEKLY': return 'bg-purple-500/20 text-purple-400 border-purple-500/30';
           case 'MONTHLY': return 'bg-green-500/20 text-green-400 border-green-500/30';
@@ -40,10 +41,13 @@ export const StockCard: React.FC<StockCardProps> = ({ stock, marketData, onTrade
   return (
     <div className="bg-surface rounded-xl p-4 border border-slate-700 hover:border-blue-500 transition-all duration-200 shadow-lg group relative overflow-hidden">
       {/* Score Badge */}
-      <div className="absolute top-0 right-0 p-2">
-         <div className="bg-slate-900/80 backdrop-blur-sm border border-slate-700 rounded-lg px-2 py-1 text-xs font-bold font-mono flex items-center gap-1">
+      <div className="absolute top-0 right-0 p-2 text-right">
+         <div className="bg-slate-900/80 backdrop-blur-sm border border-slate-700 rounded-lg px-2 py-1 text-xs font-bold font-mono flex items-center justify-end gap-1 mb-1">
             <Zap size={10} className="text-yellow-400" />
             Score: {score.toFixed(0)}
+         </div>
+         <div className={`text-[10px] font-bold uppercase tracking-wider ${strengthColor}`}>
+             {strength}
          </div>
       </div>
 

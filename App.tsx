@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo, useCallback } from 'react';
+import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { fetchTopStockPicks, analyzeHoldings } from './services/geminiService';
 import { checkAndRefreshStockList } from './services/stockListService';
 import { StockRecommendation, PortfolioItem, MarketData, Transaction, AppSettings, UserProfile, Funds, HoldingAnalysis } from './types';
@@ -6,6 +6,7 @@ import { AuthOverlay } from './components/AuthOverlay';
 import { TradeModal } from './components/TradeModal';
 import { analyzeStockTechnical } from './services/technicalAnalysis';
 import { fetchBrokerBalance, fetchHoldings, placeOrder } from './services/brokerService';
+import { runAutoTradeEngine, simulateBackgroundTrades } from './services/autoTradeEngine';
 import { BarChart3, AlertCircle } from 'lucide-react';
 
 // NEW PAGE COMPONENTS
@@ -37,7 +38,8 @@ const STORAGE_KEYS = {
   PORTFOLIO: 'aitrade_portfolio_v3',
   FUNDS: 'aitrade_funds_v2', 
   TRANSACTIONS: 'aitrade_transactions',
-  USER: 'aitrade_user_profile'
+  USER: 'aitrade_user_profile',
+  LAST_RUN: 'aitrade_last_run'
 };
 
 const SplashScreen = ({ visible }: { visible: boolean }) => {
@@ -110,13 +112,45 @@ export default function App() {
   const [tradeModalBroker, setTradeModalBroker] = useState<string | undefined>(undefined);
   const [niftyList, setNiftyList] = useState<string[]>([]);
 
+  // Refs for intervals to clear them properly
+  const refreshIntervalRef = useRef<any>(null);
+  const botIntervalRef = useRef<any>(null);
+
   const allHoldings = useMemo(() => [...paperPortfolio, ...externalHoldings], [paperPortfolio, externalHoldings]);
 
   useEffect(() => { setTimeout(() => setShowSplash(false), 2000); }, []);
+  
+  // Persist State
   useEffect(() => localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(settings)), [settings]);
   useEffect(() => localStorage.setItem(STORAGE_KEYS.FUNDS, JSON.stringify(funds)), [funds]);
   useEffect(() => localStorage.setItem(STORAGE_KEYS.PORTFOLIO, JSON.stringify(paperPortfolio)), [paperPortfolio]);
   useEffect(() => localStorage.setItem(STORAGE_KEYS.TRANSACTIONS, JSON.stringify(transactions)), [transactions]);
+
+  // Simulate Background Trading on Load (Catch-up)
+  useEffect(() => {
+      const lastRun = localStorage.getItem(STORAGE_KEYS.LAST_RUN);
+      if (lastRun && activeBots['PAPER']) {
+          const { newTransactions, newFunds } = simulateBackgroundTrades(parseInt(lastRun), settings, funds);
+          if (newTransactions.length > 0) {
+              setTransactions(prev => [...prev, ...newTransactions]);
+              setFunds(newFunds);
+              setPaperPortfolio(prev => {
+                  const updated = [...prev];
+                  newTransactions.forEach(tx => {
+                      if (tx.type === 'BUY') {
+                          updated.push({
+                              symbol: tx.symbol, type: tx.assetType, quantity: tx.quantity, 
+                              avgCost: tx.price, totalCost: tx.price * tx.quantity, broker: 'PAPER'
+                          });
+                      }
+                  });
+                  return updated;
+              });
+              showNotification(`Simulated ${newTransactions.length} background trades`);
+          }
+      }
+      localStorage.setItem(STORAGE_KEYS.LAST_RUN, Date.now().toString());
+  }, []);
 
   const handleLogin = (u: UserProfile) => {
     localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(u));
@@ -155,42 +189,128 @@ export default function App() {
   }, [settings, user]);
 
   useEffect(() => {
-     if (user) { syncExternalPortfolios(); const i = setInterval(syncExternalPortfolios, 30000); return () => clearInterval(i); }
+     if (user) { 
+         syncExternalPortfolios(); 
+         const i = setInterval(syncExternalPortfolios, 30000); 
+         return () => clearInterval(i); 
+     }
   }, [user, syncExternalPortfolios]);
 
   const loadMarketData = useCallback(async () => {
     if (!user) return;
-    setIsLoading(true);
+    setIsLoading(prev => Object.keys(marketData).length === 0 ? true : prev); // Only load full screen first time
+    
     let stocksList = niftyList;
     if (stocksList.length === 0) {
         stocksList = await checkAndRefreshStockList();
         setNiftyList(stocksList);
     }
-    const totalCap = settings.initialFunds.stock + settings.initialFunds.mcx + settings.initialFunds.forex + settings.initialFunds.crypto;
-    const stocks = await fetchTopStockPicks(totalCap, stocksList, settings.enabledMarkets);
-    setRecommendations(stocks);
     
-    const initialMarketData: MarketData = {};
-    const symbols = new Set([...stocks.map(s => s.symbol), ...allHoldings.map(p => p.symbol)]);
+    // Only fetch new picks if we have none or it's been a long time (handled inside service usually or manual refresh)
+    // For auto-refresh, we mainly update prices of EXISTING items + recommendations
     
+    let currentRecs = recommendations;
+    if (recommendations.length === 0) {
+        const totalCap = settings.initialFunds.stock + settings.initialFunds.mcx + settings.initialFunds.forex + settings.initialFunds.crypto;
+        currentRecs = await fetchTopStockPicks(totalCap, stocksList, settings.enabledMarkets);
+        setRecommendations(currentRecs);
+    }
+    
+    const initialMarketData: MarketData = { ...marketData };
+    const symbols = new Set([...currentRecs.map(s => s.symbol), ...allHoldings.map(p => p.symbol)]);
+    
+    // In a real app, this loop would be a single batch API call
     for (const sym of symbols) {
-         const rec = stocks.find(s => s.symbol === sym);
+         // Simulate price update
+         const rec = currentRecs.find(s => s.symbol === sym);
          const port = allHoldings.find(p => p.symbol === sym);
-         const basePrice = rec ? rec.currentPrice : (port ? port.avgCost : 100);
-         const history = generateFallbackHistory(basePrice, 50);
+         const oldPrice = initialMarketData[sym]?.price || (rec ? rec.currentPrice : (port ? port.avgCost : 100));
+         
+         // Random walk for auto-refresh simulation
+         const change = (Math.random() - 0.5) * (oldPrice * 0.002); 
+         const newPrice = oldPrice + change;
+         
+         const history = initialMarketData[sym]?.history || generateFallbackHistory(newPrice, 50);
+         // Update last candle
+         const lastCandle = history[history.length - 1];
+         lastCandle.close = newPrice;
+         lastCandle.high = Math.max(lastCandle.high, newPrice);
+         lastCandle.low = Math.min(lastCandle.low, newPrice);
+
          initialMarketData[sym] = { 
-             price: basePrice, 
-             change: 0, 
-             changePercent: 0, 
+             price: newPrice, 
+             change: newPrice - (history[0]?.open || newPrice), 
+             changePercent: ((newPrice - (history[0]?.open || newPrice)) / (history[0]?.open || newPrice)) * 100, 
              history, 
              technicals: analyzeStockTechnical(history) 
          };
     }
-    setMarketData(prev => ({...prev, ...initialMarketData}));
+    setMarketData(initialMarketData);
     setIsLoading(false);
-  }, [settings, allHoldings, niftyList, user]);
+    
+    // Update timestamp for "24/7" tracking
+    localStorage.setItem(STORAGE_KEYS.LAST_RUN, Date.now().toString());
 
-  useEffect(() => { loadMarketData(); }, [user, loadMarketData]);
+  }, [settings, allHoldings, niftyList, user, marketData, recommendations]);
+
+  // Initial Load
+  useEffect(() => { loadMarketData(); }, [user]);
+
+  // Auto-Refresh Interval (Prices)
+  useEffect(() => {
+      if (refreshIntervalRef.current) clearInterval(refreshIntervalRef.current);
+      if (user) {
+          refreshIntervalRef.current = setInterval(() => {
+              loadMarketData();
+          }, 10000); // 10 seconds refresh
+      }
+      return () => { if (refreshIntervalRef.current) clearInterval(refreshIntervalRef.current); };
+  }, [user, loadMarketData]);
+
+  // Auto-Trade Bot Interval
+  useEffect(() => {
+      if (botIntervalRef.current) clearInterval(botIntervalRef.current);
+      if (user && activeBots['PAPER']) {
+          botIntervalRef.current = setInterval(() => {
+              const results = runAutoTradeEngine(settings, paperPortfolio, marketData, funds, recommendations);
+              if (results.length > 0) {
+                  const newTxs: Transaction[] = [];
+                  let updatedFunds = { ...funds };
+                  let updatedPortfolio = [...paperPortfolio];
+
+                  results.forEach(res => {
+                      if (res.transaction) {
+                          newTxs.push(res.transaction);
+                          if (res.transaction.type === 'BUY') {
+                              updatedFunds.stock -= (res.transaction.price * res.transaction.quantity);
+                              updatedPortfolio.push({
+                                  symbol: res.transaction.symbol,
+                                  type: res.transaction.assetType,
+                                  quantity: res.transaction.quantity,
+                                  avgCost: res.transaction.price,
+                                  totalCost: res.transaction.price * res.transaction.quantity,
+                                  broker: 'PAPER'
+                              });
+                          } else {
+                              // Handle Sell logic for auto-bot if needed (simplified)
+                              updatedFunds.stock += (res.transaction.price * res.transaction.quantity);
+                              updatedPortfolio = updatedPortfolio.filter(p => p.symbol !== res.transaction?.symbol);
+                          }
+                      }
+                  });
+
+                  if (newTxs.length > 0) {
+                      setTransactions(prev => [...prev, ...newTxs]);
+                      setFunds(updatedFunds);
+                      setPaperPortfolio(updatedPortfolio);
+                      showNotification(`Bot executed ${newTxs.length} trades`);
+                  }
+              }
+          }, 15000); // Check every 15s
+      }
+      return () => { if (botIntervalRef.current) clearInterval(botIntervalRef.current); };
+  }, [user, activeBots, settings, paperPortfolio, marketData, funds, recommendations]);
+
 
   const handleBuy = async (symbol: string, quantity: number, price: number, broker: any) => {
       const rec = recommendations.find(r => r.symbol === symbol) || allHoldings.find(h => h.symbol === symbol);
@@ -245,7 +365,7 @@ export default function App() {
   };
 
   if (showSplash) return <SplashScreen visible={true} />;
-  if (!user) return <AuthOverlay onLogin={(u) => { handleLogin(u); loadMarketData(); }} />;
+  if (!user) return <AuthOverlay onLogin={(u) => { handleLogin(u); }} />;
 
   return (
     <div className="h-full flex flex-col bg-background text-slate-100 font-sans overflow-hidden">
@@ -262,7 +382,7 @@ export default function App() {
                 recommendations={recommendations} 
                 marketData={marketData} 
                 onTrade={(s) => { setSelectedStock(s); setIsTradeModalOpen(true); }}
-                onRefresh={loadMarketData}
+                onRefresh={() => loadMarketData()}
                 isLoading={isLoading}
                 enabledMarkets={settings.enabledMarkets}
             />
@@ -272,7 +392,7 @@ export default function App() {
                 recommendations={recommendations} 
                 marketData={marketData} 
                 onTrade={(s) => { setSelectedStock(s); setIsTradeModalOpen(true); }}
-                onRefresh={loadMarketData}
+                onRefresh={() => loadMarketData()}
                 isLoading={isLoading}
                 enabledMarkets={settings.enabledMarkets}
             />

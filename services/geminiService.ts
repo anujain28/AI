@@ -34,11 +34,18 @@ export const fetchTopStockPicks = async (
 
     const requests: string[] = [];
     
-    // Construct Stock List String for prompt (Limit to first 100 to avoid token limits if list is huge, though Nifty 50 is small)
+    // Construct Stock List String for prompt. 
+    // We pass the full list to ensure Gemini picks from the specific CSV provided.
     const availableStocks = stockUniverse.length > 0 ? stockUniverse.join(', ') : "Top Liquid NSE Stocks";
 
     if (markets.stocks) {
-        requests.push(`5 Indian Stocks selected STRICTLY from this list: [${availableStocks}]. Categorize them exactly as: 2 for 'BTST' (Buy Today Sell Tomorrow), 2 for 'WEEKLY' (Short Term), and 1 for 'MONTHLY' (Positional).`);
+        requests.push(`Stock Recommendations selected STRICTLY from this provided list: [${availableStocks}]. 
+        Categorize them exactly as follows: 
+        - 2 stocks for 'INTRADAY' (High momentum, tight stop loss)
+        - 2 stocks for 'BTST' (Buy Today Sell Tomorrow) 
+        - 2 stocks for 'WEEKLY' (Short Term 5-7 days)
+        - 1 stock for 'MONTHLY' (Positional)
+        Provide entry price (current price), target price, and stop loss reasoning.`);
     }
     if (markets.mcx) requests.push("2 MCX Commodities (Intraday/Positional)");
     if (markets.forex) requests.push("2 Forex Pairs (INR pairs)");
@@ -49,11 +56,12 @@ export const fetchTopStockPicks = async (
     const prompt = `Act as 'AI Robots' trading engine.
     REQUIREMENT: Provide exactly: ${requests.join(', ')}.
     Focus on Technical Analysis.
-    IMPORTANT:
-    1. Output ONLY the ticker symbol.
-    2. Assign 'Asset Type' correctly ('STOCK', 'MCX', 'FOREX', 'CRYPTO').
+    
+    IMPORTANT JSON RULES:
+    1. Output ONLY the ticker symbol in 'symbol' field.
+    2. Assign 'type' correctly ('STOCK', 'MCX', 'FOREX', 'CRYPTO').
     3. For MCX/Forex, provide lot size.
-    4. For Stocks, explicitly set 'timeframe' to 'BTST', 'WEEKLY', or 'MONTHLY'.
+    4. For Stocks, explicitly set 'timeframe' to 'INTRADAY', 'BTST', 'WEEKLY', or 'MONTHLY'.
     
     Return the response as a JSON array.`;
 
@@ -93,6 +101,8 @@ export const fetchTopStockPicks = async (
     // Fallback Logic
     const fallback: StockRecommendation[] = [];
     if (markets.stocks) {
+        fallback.push({ symbol: "ADANIENT", name: "Adani Enterprises", type: "STOCK", sector: "Metals", currentPrice: 2450, reason: "Volume Spurt", riskLevel: "High", targetPrice: 2500, lotSize: 1, timeframe: "INTRADAY" });
+        fallback.push({ symbol: "TATASTEEL", name: "Tata Steel", type: "STOCK", sector: "Steel", currentPrice: 145, reason: "Momentum", riskLevel: "Medium", targetPrice: 148, lotSize: 1, timeframe: "INTRADAY" });
         fallback.push({ symbol: "TATAMOTORS", name: "Tata Motors", type: "STOCK", sector: "Auto", currentPrice: 980, reason: "Breakout", riskLevel: "Medium", targetPrice: 1020, lotSize: 1, timeframe: "BTST" });
         fallback.push({ symbol: "SBIN", name: "State Bank of India", type: "STOCK", sector: "Bank", currentPrice: 780, reason: "Support Bounce", riskLevel: "Low", targetPrice: 800, lotSize: 1, timeframe: "BTST" });
         fallback.push({ symbol: "RELIANCE", name: "Reliance Ind", type: "STOCK", sector: "Energy", currentPrice: 2800, reason: "Consolidation", riskLevel: "Medium", targetPrice: 2900, lotSize: 1, timeframe: "WEEKLY" });

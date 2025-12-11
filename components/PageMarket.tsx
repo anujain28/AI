@@ -1,7 +1,7 @@
 import React from 'react';
 import { StockRecommendation, MarketData, MarketSettings } from '../types';
 import { StockCard } from './StockCard';
-import { RefreshCw, Globe, TrendingUp, DollarSign, Clock, Calendar, BarChart } from 'lucide-react';
+import { RefreshCw, Globe, TrendingUp, DollarSign, Clock, Calendar, BarChart, Zap } from 'lucide-react';
 
 interface PageMarketProps {
   recommendations: StockRecommendation[];
@@ -22,11 +22,12 @@ export const PageMarket: React.FC<PageMarketProps> = ({
 }) => {
   
   // Categorize Stocks
+  const intradayRecs = recommendations.filter(r => r.type === 'STOCK' && r.timeframe === 'INTRADAY');
   const btstRecs = recommendations.filter(r => r.type === 'STOCK' && r.timeframe === 'BTST');
   const weeklyRecs = recommendations.filter(r => r.type === 'STOCK' && r.timeframe === 'WEEKLY');
   const monthlyRecs = recommendations.filter(r => r.type === 'STOCK' && r.timeframe === 'MONTHLY');
   // Fallback if no specific timeframe set but type is STOCK
-  const otherStocks = recommendations.filter(r => r.type === 'STOCK' && !['BTST', 'WEEKLY', 'MONTHLY'].includes(r.timeframe || ''));
+  const otherStocks = recommendations.filter(r => r.type === 'STOCK' && !['INTRADAY', 'BTST', 'WEEKLY', 'MONTHLY'].includes(r.timeframe || ''));
 
   const mcxRecs = recommendations.filter(r => r.type === 'MCX');
   const forexRecs = recommendations.filter(r => r.type === 'FOREX');
@@ -70,6 +71,7 @@ export const PageMarket: React.FC<PageMarketProps> = ({
 
       {enabledMarkets.stocks && (
         <>
+            {renderSection("Intraday Fire", intradayRecs, <Zap size={20}/>, "High Momentum Day Trades", "text-orange-400")}
             {renderSection("BTST Picks", btstRecs, <Clock size={20}/>, "Buy Today, Sell Tomorrow", "text-blue-400")}
             {renderSection("Weekly Picks", weeklyRecs, <Calendar size={20}/>, "Short Term Holding (5-7 Days)", "text-purple-400")}
             {renderSection("Monthly Picks", monthlyRecs, <BarChart size={20}/>, "Positional Trades (1 Month+)", "text-green-400")}
