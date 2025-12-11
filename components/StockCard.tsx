@@ -1,6 +1,6 @@
 import React from 'react';
 import { StockRecommendation, MarketData } from '../types';
-import { TrendingUp, TrendingDown, Activity, AlertCircle, Zap, BarChart2, Globe, DollarSign, Box, Cpu } from 'lucide-react';
+import { TrendingUp, TrendingDown, Activity, AlertCircle, Zap, BarChart2, Globe, DollarSign, Box, Cpu, Target, Clock } from 'lucide-react';
 
 interface StockCardProps {
   stock: StockRecommendation;
@@ -27,6 +27,16 @@ export const StockCard: React.FC<StockCardProps> = ({ stock, marketData, onTrade
   // Asset Icon
   const AssetIcon = stock.type === 'MCX' ? Globe : stock.type === 'FOREX' ? DollarSign : stock.type === 'CRYPTO' ? Cpu : BarChart2;
 
+  // Timeframe Badge Color
+  const getTimeframeColor = (tf?: string) => {
+      switch(tf) {
+          case 'BTST': return 'bg-blue-500/20 text-blue-400 border-blue-500/30';
+          case 'WEEKLY': return 'bg-purple-500/20 text-purple-400 border-purple-500/30';
+          case 'MONTHLY': return 'bg-green-500/20 text-green-400 border-green-500/30';
+          default: return 'bg-slate-700 text-slate-300 border-slate-600';
+      }
+  };
+
   return (
     <div className="bg-surface rounded-xl p-4 border border-slate-700 hover:border-blue-500 transition-all duration-200 shadow-lg group relative overflow-hidden">
       {/* Score Badge */}
@@ -42,9 +52,11 @@ export const StockCard: React.FC<StockCardProps> = ({ stock, marketData, onTrade
           <h3 className="text-lg font-bold text-white flex items-center gap-2">
             <AssetIcon size={16} className="text-slate-500" />
             {stock.symbol}
-            <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-700 text-slate-300 font-normal">
-              {stock.sector}
-            </span>
+            {stock.timeframe && (
+                <span className={`text-[9px] px-1.5 py-0.5 rounded border font-bold uppercase ${getTimeframeColor(stock.timeframe)}`}>
+                    {stock.timeframe}
+                </span>
+            )}
           </h3>
           <p className="text-xs text-slate-400">{stock.name}</p>
         </div>
@@ -61,8 +73,8 @@ export const StockCard: React.FC<StockCardProps> = ({ stock, marketData, onTrade
             </div>
           </div>
           <div className="text-right">
-             <div className={`text-sm font-bold ${strengthColor}`}>{strength}</div>
-             <div className="text-[10px] text-slate-500">Signal Strength</div>
+             <div className="text-[10px] text-slate-400 flex items-center justify-end gap-1 mb-0.5"><Target size={10}/> Target</div>
+             <div className="text-lg font-bold text-green-400 font-mono">₹{stock.targetPrice}</div>
           </div>
       </div>
 

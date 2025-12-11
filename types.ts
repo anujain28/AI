@@ -26,6 +26,7 @@ export interface StockRecommendation {
   riskLevel: 'Low' | 'Medium' | 'High';
   targetPrice: number;
   lotSize: number;
+  timeframe?: 'INTRADAY' | 'BTST' | 'WEEKLY' | 'MONTHLY';
 }
 
 export interface HoldingAnalysis {

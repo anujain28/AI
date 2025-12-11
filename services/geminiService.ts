@@ -27,27 +27,33 @@ export const fetchTopStockPicks = async (
   
   const currentMinutes = getISTTimeMinutes();
   const isPostMarket = currentMinutes > 930; 
-  const strategyType = isPostMarket ? 'BTST / Positional' : 'Intraday';
   
   try {
     const ai = getAI();
     if (!process.env.API_KEY) throw new Error("No API Key");
 
     const requests: string[] = [];
-    if (markets.stocks) requests.push("5 Indian Stocks (NSE)");
-    if (markets.mcx) requests.push("2 MCX Commodities");
+    
+    // Construct Stock List String for prompt (Limit to first 100 to avoid token limits if list is huge, though Nifty 50 is small)
+    const availableStocks = stockUniverse.length > 0 ? stockUniverse.join(', ') : "Top Liquid NSE Stocks";
+
+    if (markets.stocks) {
+        requests.push(`5 Indian Stocks selected STRICTLY from this list: [${availableStocks}]. Categorize them exactly as: 2 for 'BTST' (Buy Today Sell Tomorrow), 2 for 'WEEKLY' (Short Term), and 1 for 'MONTHLY' (Positional).`);
+    }
+    if (markets.mcx) requests.push("2 MCX Commodities (Intraday/Positional)");
     if (markets.forex) requests.push("2 Forex Pairs (INR pairs)");
     if (markets.crypto) requests.push("3 Crypto Assets");
 
     if (requests.length === 0) return [];
 
-    const prompt = `Act as 'AI Robots' trading engine. Strategy: ${strategyType}.
+    const prompt = `Act as 'AI Robots' trading engine.
     REQUIREMENT: Provide exactly: ${requests.join(', ')}.
     Focus on Technical Analysis.
     IMPORTANT:
     1. Output ONLY the ticker symbol.
     2. Assign 'Asset Type' correctly ('STOCK', 'MCX', 'FOREX', 'CRYPTO').
     3. For MCX/Forex, provide lot size.
+    4. For Stocks, explicitly set 'timeframe' to 'BTST', 'WEEKLY', or 'MONTHLY'.
     
     Return the response as a JSON array.`;
 
@@ -70,7 +76,8 @@ export const fetchTopStockPicks = async (
               reason: { type: Type.STRING },
               riskLevel: { type: Type.STRING, enum: ["Low", "Medium", "High"] },
               targetPrice: { type: Type.NUMBER },
-              lotSize: { type: Type.NUMBER }
+              lotSize: { type: Type.NUMBER },
+              timeframe: { type: Type.STRING, enum: ["INTRADAY", "BTST", "WEEKLY", "MONTHLY"] }
             },
             required: ["symbol", "name", "type", "sector", "currentPrice", "reason", "riskLevel", "targetPrice", "lotSize"]
           }
@@ -86,15 +93,15 @@ export const fetchTopStockPicks = async (
     // Fallback Logic
     const fallback: StockRecommendation[] = [];
     if (markets.stocks) {
-        fallback.push({ symbol: "TATAMOTORS", name: "Tata Motors", type: "STOCK", sector: "Auto", currentPrice: 980, reason: "Breakout", riskLevel: "Medium", targetPrice: 1020, lotSize: 1 });
-        fallback.push({ symbol: "SBIN", name: "State Bank of India", type: "STOCK", sector: "Bank", currentPrice: 780, reason: "Support Bounce", riskLevel: "Low", targetPrice: 800, lotSize: 1 });
-        fallback.push({ symbol: "RELIANCE", name: "Reliance Ind", type: "STOCK", sector: "Energy", currentPrice: 2800, reason: "Consolidation", riskLevel: "Medium", targetPrice: 2900, lotSize: 1 });
-        fallback.push({ symbol: "INFY", name: "Infosys", type: "STOCK", sector: "IT", currentPrice: 1500, reason: "Value Buy", riskLevel: "Low", targetPrice: 1600, lotSize: 1 });
-        fallback.push({ symbol: "ITC", name: "ITC Ltd", type: "STOCK", sector: "FMCG", currentPrice: 420, reason: "Defensive", riskLevel: "Low", targetPrice: 450, lotSize: 1 });
+        fallback.push({ symbol: "TATAMOTORS", name: "Tata Motors", type: "STOCK", sector: "Auto", currentPrice: 980, reason: "Breakout", riskLevel: "Medium", targetPrice: 1020, lotSize: 1, timeframe: "BTST" });
+        fallback.push({ symbol: "SBIN", name: "State Bank of India", type: "STOCK", sector: "Bank", currentPrice: 780, reason: "Support Bounce", riskLevel: "Low", targetPrice: 800, lotSize: 1, timeframe: "BTST" });
+        fallback.push({ symbol: "RELIANCE", name: "Reliance Ind", type: "STOCK", sector: "Energy", currentPrice: 2800, reason: "Consolidation", riskLevel: "Medium", targetPrice: 2900, lotSize: 1, timeframe: "WEEKLY" });
+        fallback.push({ symbol: "INFY", name: "Infosys", type: "STOCK", sector: "IT", currentPrice: 1500, reason: "Value Buy", riskLevel: "Low", targetPrice: 1600, lotSize: 1, timeframe: "WEEKLY" });
+        fallback.push({ symbol: "ITC", name: "ITC Ltd", type: "STOCK", sector: "FMCG", currentPrice: 420, reason: "Defensive", riskLevel: "Low", targetPrice: 450, lotSize: 1, timeframe: "MONTHLY" });
     }
-    if (markets.mcx) fallback.push({ symbol: "GOLD", name: "Gold Futures", type: "MCX", sector: "Commodity", currentPrice: 72000, reason: "Safe Haven", riskLevel: "Low", targetPrice: 72500, lotSize: 1 });
-    if (markets.forex) fallback.push({ symbol: "USDINR", name: "USD/INR", type: "FOREX", sector: "Currency", currentPrice: 83.50, reason: "Uptrend", riskLevel: "Low", targetPrice: 84.00, lotSize: 1000 });
-    if (markets.crypto) fallback.push({ symbol: "BTC", name: "Bitcoin", type: "CRYPTO", sector: "Digital", currentPrice: 65000, reason: "ETF Inflow", riskLevel: "High", targetPrice: 66000, lotSize: 0.01 });
+    if (markets.mcx) fallback.push({ symbol: "GOLD", name: "Gold Futures", type: "MCX", sector: "Commodity", currentPrice: 72000, reason: "Safe Haven", riskLevel: "Low", targetPrice: 72500, lotSize: 1, timeframe: "INTRADAY" });
+    if (markets.forex) fallback.push({ symbol: "USDINR", name: "USD/INR", type: "FOREX", sector: "Currency", currentPrice: 83.50, reason: "Uptrend", riskLevel: "Low", targetPrice: 84.00, lotSize: 1000, timeframe: "INTRADAY" });
+    if (markets.crypto) fallback.push({ symbol: "BTC", name: "Bitcoin", type: "CRYPTO", sector: "Digital", currentPrice: 65000, reason: "ETF Inflow", riskLevel: "High", targetPrice: 66000, lotSize: 0.01, timeframe: "INTRADAY" });
 
     return fallback;
   }
