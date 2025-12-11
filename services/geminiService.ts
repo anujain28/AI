@@ -2,18 +2,24 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { StockRecommendation, MarketSettings, PortfolioItem, HoldingAnalysis, MarketData } from "../types";
 import { STATIC_MCX_LIST, STATIC_FOREX_LIST, STATIC_CRYPTO_LIST } from "./stockListService";
 
-// Initialize AI Client
-// We use a lazy initialization or direct check to ensure it doesn't crash build tools if env is missing during static analysis
-const getAIClient = () => {
-  const apiKey = process.env.API_KEY;
-  if (!apiKey) {
-    console.warn("API_KEY is missing in process.env");
-    // Return a dummy or throw, but here we just proceed to let the library throw if used
-  }
-  return new GoogleGenAI({ apiKey: apiKey || '' });
-};
+// Helper to safely get the AI client without crashing at module load time
+// This ensures that if process.env.API_KEY is missing during build/render, the app loads (and fails gracefully later)
+let aiInstance: GoogleGenAI | null = null;
 
-const ai = getAIClient();
+const getAI = () => {
+    if (aiInstance) return aiInstance;
+    
+    // We access process.env.API_KEY directly as required
+    // The optional chaining ensures we don't crash if `process` is undefined in browser (handled by index.html polyfill usually, but safe here)
+    const apiKey = typeof process !== 'undefined' ? process.env.API_KEY : '';
+    
+    if (!apiKey) {
+        console.warn("Gemini API Key is missing. AI features will use fallback data.");
+    }
+    
+    aiInstance = new GoogleGenAI({ apiKey: apiKey || 'dummy_key_to_prevent_crash' });
+    return aiInstance;
+};
 
 const getISTTimeMinutes = () => {
     const now = new Date();
@@ -30,26 +36,20 @@ export const fetchTopStockPicks = async (
   
   const currentMinutes = getISTTimeMinutes();
   const isPostMarket = currentMinutes > 930; 
-
   const strategyType = isPostMarket ? 'BTST / Positional' : 'Intraday';
   
   try {
-    let universePrompt = "";
+    const ai = getAI();
     
-    if (markets.stocks && stockUniverse.length > 0) {
-        universePrompt += `\nSTOCK UNIVERSE (NSE): [${stockUniverse.slice(0, 500).join(', ')}]... (Sample)`;
-    }
-    if (markets.mcx) {
-        universePrompt += `\nCOMMODITIES UNIVERSE (MCX): [${STATIC_MCX_LIST.join(', ')}]`;
-    }
-    if (markets.forex) {
-        universePrompt += `\nFOREX UNIVERSE: [${STATIC_FOREX_LIST.join(', ')}]`;
-    }
-    if (markets.crypto) {
-        universePrompt += `\nCRYPTO UNIVERSE: [${STATIC_CRYPTO_LIST.join(', ')}]`;
-    }
+    // Check if we have a valid key (heuristic check)
+    if (!process.env.API_KEY) throw new Error("No API Key");
 
-    // Build specific request counts based on enabled markets
+    let universePrompt = "";
+    if (markets.stocks && stockUniverse.length > 0) universePrompt += `\nSTOCK UNIVERSE (NSE): [${stockUniverse.slice(0, 500).join(', ')}]...`;
+    if (markets.mcx) universePrompt += `\nCOMMODITIES UNIVERSE (MCX): [${STATIC_MCX_LIST.join(', ')}]`;
+    if (markets.forex) universePrompt += `\nFOREX UNIVERSE: [${STATIC_FOREX_LIST.join(', ')}]`;
+    if (markets.crypto) universePrompt += `\nCRYPTO UNIVERSE: [${STATIC_CRYPTO_LIST.join(', ')}]`;
+
     const requests: string[] = [];
     if (markets.stocks) requests.push("3 Indian Stocks (NSE)");
     if (markets.mcx) requests.push("2 MCX Commodities");
@@ -60,17 +60,13 @@ export const fetchTopStockPicks = async (
 
     const prompt = `Analyze the market acting as 'AI Robots' algorithmic trading engine. 
     Current Strategy: ${strategyType}.
-    
     Task: Identify the best trading opportunities. 
     REQUIREMENT: You must provide exactly: ${requests.join(', ')}.
-    
     Focus on Technical Analysis (RSI, Moving Averages, Breakouts).
-    
     IMPORTANT CONSTRAINTS:
-    1. Output ONLY the ticker symbol (e.g., 'RELIANCE', 'GOLD', 'USDINR', 'BTC').
+    1. Output ONLY the ticker symbol.
     2. Assign 'Asset Type' correctly as 'STOCK', 'MCX', 'FOREX', or 'CRYPTO'.
-    3. For MCX/Forex, provide a standard lot size. For Stocks, lotSize=1. For Crypto, lotSize is small (e.g. 0.01 for BTC).
-    4. Provide realistic targets.
+    3. For MCX/Forex, provide a standard lot size.
     
     ${universePrompt}
     
@@ -80,7 +76,7 @@ export const fetchTopStockPicks = async (
       model: "gemini-2.5-flash",
       contents: prompt,
       config: {
-        systemInstruction: `You are an expert technical analyst for Indian Markets and Global Crypto. Time Context: ${isPostMarket ? 'After Market Close' : 'Live Market'}.`,
+        systemInstruction: `You are an expert technical analyst. Time Context: ${isPostMarket ? 'After Market Close' : 'Live Market'}.`,
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.ARRAY,
@@ -108,24 +104,17 @@ export const fetchTopStockPicks = async (
     }
     return [];
   } catch (error) {
-    console.error("Failed to fetch picks:", error);
+    console.error("Failed to fetch picks (Using Fallback):", error);
     
-    // Fallback based on enabled markets
+    // Fallback Logic
     const fallback: StockRecommendation[] = [];
-    
     if (markets.stocks) {
         fallback.push({ symbol: "TATAMOTORS", name: "Tata Motors", type: "STOCK", sector: "Auto", currentPrice: 980, reason: "Breakout", riskLevel: "Medium", targetPrice: 1020, lotSize: 1 });
         fallback.push({ symbol: "SBIN", name: "State Bank of India", type: "STOCK", sector: "Bank", currentPrice: 780, reason: "Support Bounce", riskLevel: "Low", targetPrice: 800, lotSize: 1 });
     }
-    if (markets.mcx) {
-        fallback.push({ symbol: "GOLD", name: "Gold Futures", type: "MCX", sector: "Commodity", currentPrice: 72000, reason: "Safe Haven Buying", riskLevel: "Low", targetPrice: 72500, lotSize: 1 });
-    }
-    if (markets.forex) {
-        fallback.push({ symbol: "USDINR", name: "USD/INR", type: "FOREX", sector: "Currency", currentPrice: 83.50, reason: "Dollar Strength", riskLevel: "Low", targetPrice: 84.00, lotSize: 1000 });
-    }
-    if (markets.crypto) {
-        fallback.push({ symbol: "BTC", name: "Bitcoin", type: "CRYPTO", sector: "Digital Asset", currentPrice: 65000, reason: "ETF Inflow", riskLevel: "High", targetPrice: 66000, lotSize: 0.01 });
-    }
+    if (markets.mcx) fallback.push({ symbol: "GOLD", name: "Gold Futures", type: "MCX", sector: "Commodity", currentPrice: 72000, reason: "Safe Haven Buying", riskLevel: "Low", targetPrice: 72500, lotSize: 1 });
+    if (markets.forex) fallback.push({ symbol: "USDINR", name: "USD/INR", type: "FOREX", sector: "Currency", currentPrice: 83.50, reason: "Dollar Strength", riskLevel: "Low", targetPrice: 84.00, lotSize: 1000 });
+    if (markets.crypto) fallback.push({ symbol: "BTC", name: "Bitcoin", type: "CRYPTO", sector: "Digital Asset", currentPrice: 65000, reason: "ETF Inflow", riskLevel: "High", targetPrice: 66000, lotSize: 0.01 });
 
     return fallback;
   }
@@ -134,7 +123,6 @@ export const fetchTopStockPicks = async (
 export const analyzeHoldings = async (holdings: PortfolioItem[], marketData: MarketData): Promise<HoldingAnalysis[]> => {
     if (holdings.length === 0) return [];
     
-    // Deduplicate symbols for query
     const uniqueHoldings = Array.from(new Set(holdings.map(h => h.symbol)))
         .map(symbol => {
              const h = holdings.find(i => i.symbol === symbol);
@@ -146,25 +134,15 @@ export const analyzeHoldings = async (holdings: PortfolioItem[], marketData: Mar
              };
         });
 
-    const prompt = `Analyze the following investment portfolio holdings and provide a recommendation (BUY, SELL, HOLD).
-    For each stock, provide:
-    1. Action: BUY, SELL, or HOLD.
-    2. Reason: Short, concise reasoning based on Fundamentals (Estimate Dividend Yield, 3Y CAGR) and Technicals.
-    3. Target Price: A realistic short-to-medium term target.
-    4. Dividend Yield: Estimated current yield %.
-    5. CAGR: Estimated 3-Year Compounded Annual Growth Rate %.
-
-    Holdings Data:
-    ${uniqueHoldings.map(h => `- ${h.symbol}: Avg Cost ${h.avgCost.toFixed(2)}, Current Price ${h.currentPrice.toFixed(2)}`).join('\n')}
-
-    Return as a JSON Array.`;
+    const prompt = `Analyze portfolio holdings. Provide BUY/SELL/HOLD, target, dividend yield, and CAGR.
+    Holdings: ${uniqueHoldings.map(h => `${h.symbol}: Cost ${h.avgCost}, Price ${h.currentPrice}`).join('; ')}`;
 
     try {
+        const ai = getAI();
         const response = await ai.models.generateContent({
             model: "gemini-2.5-flash",
             contents: prompt,
             config: {
-                systemInstruction: "You are a financial advisor. Use realistic market data for Dividend Yield and CAGR where known, or estimate based on sector standards. Keep reasons concise.",
                 responseMimeType: "application/json",
                 responseSchema: {
                     type: Type.ARRAY,
@@ -184,9 +162,7 @@ export const analyzeHoldings = async (holdings: PortfolioItem[], marketData: Mar
             }
         });
 
-        if (response.text) {
-            return JSON.parse(response.text) as HoldingAnalysis[];
-        }
+        if (response.text) return JSON.parse(response.text) as HoldingAnalysis[];
         return [];
 
     } catch (e) {
