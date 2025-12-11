@@ -2,7 +2,18 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { StockRecommendation, MarketSettings, PortfolioItem, HoldingAnalysis, MarketData } from "../types";
 import { STATIC_MCX_LIST, STATIC_FOREX_LIST, STATIC_CRYPTO_LIST } from "./stockListService";
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// Initialize AI Client
+// We use a lazy initialization or direct check to ensure it doesn't crash build tools if env is missing during static analysis
+const getAIClient = () => {
+  const apiKey = process.env.API_KEY;
+  if (!apiKey) {
+    console.warn("API_KEY is missing in process.env");
+    // Return a dummy or throw, but here we just proceed to let the library throw if used
+  }
+  return new GoogleGenAI({ apiKey: apiKey || '' });
+};
+
+const ai = getAIClient();
 
 const getISTTimeMinutes = () => {
     const now = new Date();
