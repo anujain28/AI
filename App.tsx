@@ -5,7 +5,6 @@ import { fetchRealStockData } from './services/marketDataService';
 import { StockRecommendation, PortfolioItem, MarketData, Transaction, AppSettings, UserProfile, Funds, HoldingAnalysis } from './types';
 import { AuthOverlay } from './components/AuthOverlay';
 import { TradeModal } from './components/TradeModal';
-import { analyzeStockTechnical } from './services/technicalAnalysis';
 import { fetchBrokerBalance, fetchHoldings, placeOrder } from './services/brokerService';
 import { runAutoTradeEngine, simulateBackgroundTrades } from './services/autoTradeEngine';
 import { BarChart3, AlertCircle, Briefcase, Cpu } from 'lucide-react';
@@ -232,8 +231,8 @@ export default function App() {
          results.forEach(({ symbol, data }) => {
              if (data) {
                  nextMarketData[symbol] = data;
-             } 
-             // Removed fallback generation logic here
+             }
+             // No fallback logic here anymore
          });
          return nextMarketData;
     });

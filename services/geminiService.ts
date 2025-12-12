@@ -31,7 +31,7 @@ export const fetchTopStockPicks = async (
   // 1. SELECT STOCKS (ALGORITHMIC)
   if (markets.stocks && stockUniverse.length > 0) {
       // Scan a subset of stocks to avoid rate limits
-      const candidates = shuffleArray([...stockUniverse]).slice(0, 30); 
+      const candidates = shuffleArray([...stockUniverse]).slice(0, 40); 
       
       const promises = candidates.map(async (sym) => {
           try {
