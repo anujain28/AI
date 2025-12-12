@@ -6,7 +6,7 @@ import {
   MarketData
 } from "../types";
 import { getCompanyName, checkAndRefreshStockList } from "./stockListService";
-import { fetchRealStockData } from "./realtimeDataService"; // your second file
+import { fetchRealStockData } from "./marketDataService.ts"; // your second file
 
 const getISTTimeMinutes = () => {
   const now = new Date();
