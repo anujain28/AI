@@ -6,7 +6,7 @@ import {
   MarketData
 } from "../types";
 import { getCompanyName, checkAndRefreshStockList } from "./stockListService";
-import { fetchRealStockData } from "./marketDataService"; // no ".ts" in path [web:89][web:92]
+import { fetchRealStockData } from "./marketDataService"; // no ".ts" in import
 
 const getISTTimeMinutes = () => {
   const now = new Date();
@@ -45,7 +45,7 @@ export const fetchTopStockPicks = async (
     if (markets.stocks) {
       // Shuffle to avoid alphabetical bias
       const shuffled = shuffle(universe);
-      // Limit to avoid hammering Yahoo / yfinance [web:52][web:10]
+      // Limit to avoid hammering Yahoo / yfinance
       const sample = shuffled.slice(0, 80);
 
       const results: { symbol: string; data: MarketData }[] = [];
@@ -66,7 +66,7 @@ export const fetchTopStockPicks = async (
             });
           }
         } catch {
-          // ignore bad/failed symbols
+          // ignore failed symbols
         }
       }
 
@@ -107,7 +107,7 @@ export const fetchTopStockPicks = async (
           type: "STOCK",
           sector: "NSE Stock",
           currentPrice: s.price,
-          reason: `Momentum pick (${timeframe}, ${isPostMarket ? "EOD" : "Live"})`,
+          reason: "Momentum pick (" + timeframe + ", " + (isPostMarket ? "EOD" : "Live") + ")",
           riskLevel: timeframe === "MONTHLY" ? "Low" : "Medium",
           targetPrice: target,
           lotSize: 1,
