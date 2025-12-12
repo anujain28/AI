@@ -1,89 +1,61 @@
-import React from 'react';
-import { PortfolioItem, MarketData, HoldingAnalysis } from '../types';
-import { PortfolioTable } from './PortfolioTable';
-import { Activity, Building2, Wallet } from 'lucide-react';
+// app/page.tsx (or wherever Live PNL tab is rendered)
+import { LivePnl } from '@/components/LivePnl';
 
-interface PageLivePNLProps {
-  holdings: PortfolioItem[];
-  marketData: MarketData;
-  analysisData: Record<string, HoldingAnalysis>;
-  onSell: (symbol: string, broker: any) => void;
-  brokerBalances: Record<string, number>;
-}
+export default function LivePnlPage() {
+  const brokerCash = [
+    { name: 'DHAN', amount: 0 },
+    { name: 'GROWW', amount: 120000 },
+    { name: 'SHOONYA', amount: 0 },
+    { name: 'BINANCE', amount: 0 },
+    { name: 'COINDCX', amount: 0 },
+    { name: 'COINSWITCH', amount: 0 },
+    { name: 'ZEBPAY', amount: 0 },
+  ];
 
-export const PageLivePNL: React.FC<PageLivePNLProps> = ({ 
-  holdings, marketData, analysisData, onSell, brokerBalances
-}) => {
-  
-  // Filter Live Holdings (Not Paper)
-  const liveHoldings = holdings.filter(h => h.broker !== 'PAPER');
-  
-  const currentVal = liveHoldings.reduce((acc, h) => acc + ((marketData[h.symbol]?.price || h.avgCost) * h.quantity), 0);
-  const totalCost = liveHoldings.reduce((acc, h) => acc + h.totalCost, 0);
-  const totalPnl = currentVal - totalCost;
-  const pnlPercent = totalCost > 0 ? (totalPnl / totalCost) * 100 : 0;
-  
-  const totalCash = Object.values(brokerBalances).reduce((a, b) => a + b, 0);
+  const positions = [
+    {
+      symbol: 'TATASTEEL',
+      type: 'EQ',
+      broker: 'DHAN',
+      qty: 150,
+      avgCost: 142.5,
+      current: 171.89,
+      pnl: 4408.5,
+      pnlPct: 20.62,
+      aiInsight: 'Trend intact; trail SL near recent swing low.',
+    },
+    {
+      symbol: 'GOLD',
+      type: 'FUT',
+      broker: 'DHAN',
+      qty: 1,
+      avgCost: 71500,
+      current: 4371.2,
+      pnl: -67128.8,
+      pnlPct: -93.89,
+      aiInsight: 'Deep drawdown; evaluate exit or hedge.',
+    },
+    {
+      symbol: 'ZOMATO',
+      type: 'EQ',
+      broker: 'GROWW',
+      qty: 500,
+      avgCost: 160,
+      current: 160.23,
+      pnl: 115.74,
+      pnlPct: 0.14,
+      aiInsight: 'Sideways; wait for stronger signal.',
+    },
+  ];
 
   return (
-    <div className="p-4 pb-20 animate-fade-in space-y-6">
-       <div className="flex items-center gap-3 mb-2">
-          <div className="p-3 bg-blue-600/20 rounded-xl text-blue-400"><Activity size={24} /></div>
-          <div>
-            <h1 className="text-2xl font-bold text-white">Broker Live PNL</h1>
-            <p className="text-xs text-slate-400">Real Money Performance</p>
-          </div>
-       </div>
-
-        {/* Live Summary Card */}
-       <div className="bg-surface rounded-2xl border border-slate-700 p-6 shadow-xl">
-            <div className="grid grid-cols-2 gap-8 mb-4">
-                <div>
-                    <p className="text-slate-400 text-xs font-bold uppercase tracking-wider mb-1">Live P&L</p>
-                    <div className={`text-3xl font-mono font-bold ${totalPnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                        {totalPnl >= 0 ? '+' : ''}₹{totalPnl.toLocaleString(undefined, {maximumFractionDigits: 0})}
-                    </div>
-                    <div className={`text-sm font-bold mt-1 ${totalPnl >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                        {pnlPercent.toFixed(2)}% Return
-                    </div>
-                </div>
-                <div className="text-right">
-                    <p className="text-slate-400 text-xs font-bold uppercase tracking-wider mb-1">Total Invested</p>
-                    <div className="text-2xl font-mono font-bold text-white">
-                        ₹{totalCost.toLocaleString(undefined, {maximumFractionDigits: 0})}
-                    </div>
-                    <p className="text-xs text-slate-500 mt-2">Value: ₹{currentVal.toLocaleString(undefined, {maximumFractionDigits:0})}</p>
-                </div>
-            </div>
-            
-            <div className="bg-slate-900/50 p-3 rounded-xl border border-slate-800 flex justify-between items-center">
-                 <div className="flex items-center gap-2 text-slate-400 text-xs"><Wallet size={14}/> Connected Broker Cash</div>
-                 <div className="font-mono font-bold text-white">₹{totalCash.toLocaleString(undefined, {maximumFractionDigits: 0})}</div>
-            </div>
-       </div>
-       
-       {/* Broker Breakdown (Mini Cards) */}
-       <div className="grid grid-cols-2 gap-3">
-           {Object.entries(brokerBalances).map(([broker, balance]) => (
-               <div key={broker} className="p-3 bg-slate-800/50 rounded-lg border border-slate-700">
-                   <div className="flex items-center gap-2 mb-1 text-xs font-bold text-slate-300">
-                       <Building2 size={12}/> {broker}
-                   </div>
-                   <div className="text-sm font-mono text-white">₹{balance.toLocaleString()}</div>
-               </div>
-           ))}
-       </div>
-
-       {/* Holdings List */}
-       <div>
-            <h3 className="text-lg font-bold text-white mb-4">Live Positions ({liveHoldings.length})</h3>
-            <PortfolioTable 
-                portfolio={liveHoldings} 
-                marketData={marketData} 
-                analysisData={analysisData} 
-                onSell={onSell} 
-            />
-       </div>
-    </div>
+    <LivePnl
+      livePnl={-62605}
+      livePnlPct={-36.21}
+      totalInvested={172875}
+      currentValue={110270}
+      brokerCash={brokerCash}
+      positions={positions}
+    />
   );
-};
+}
