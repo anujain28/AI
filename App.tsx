@@ -8,12 +8,12 @@ import { TradeModal } from './components/TradeModal';
 import { analyzeStockTechnical } from './services/technicalAnalysis';
 import { fetchBrokerBalance, fetchHoldings, placeOrder } from './services/brokerService';
 import { runAutoTradeEngine, simulateBackgroundTrades } from './services/autoTradeEngine';
-import { BarChart3, AlertCircle } from 'lucide-react';
+import { BarChart3, AlertCircle, Briefcase, Cpu } from 'lucide-react';
 
 // NEW PAGE COMPONENTS
 import { BottomNav } from './components/BottomNav';
 import { PageMarket } from './components/PageMarket';
-import { PagePaperTrading } from './components/PagePaperTrading'; // Merged Page
+import { PagePaperTrading } from './components/PagePaperTrading';
 import { PageLivePNL } from './components/PageLivePNL';
 import { PageConfiguration } from './components/PageConfiguration';
 
@@ -41,6 +41,9 @@ const STORAGE_KEYS = {
   USER: 'aitrade_user_profile',
   LAST_RUN: 'aitrade_last_run'
 };
+
+const STOCK_BROKERS = ['DHAN', 'SHOONYA', 'GROWW'];
+const CRYPTO_BROKERS = ['BINANCE', 'COINDCX', 'COINSWITCH', 'ZEBPAY'];
 
 const SplashScreen = ({ visible }: { visible: boolean }) => {
     if (!visible) return null;
@@ -116,6 +119,22 @@ export default function App() {
   const botIntervalRef = useRef<any>(null);
 
   const allHoldings = useMemo(() => [...paperPortfolio, ...externalHoldings], [paperPortfolio, externalHoldings]);
+
+  // Derived Portfolios for new tabs
+  const stockHoldings = useMemo(() => allHoldings.filter(h => STOCK_BROKERS.includes(h.broker)), [allHoldings]);
+  const stockBalances = useMemo(() => {
+    const bals: Record<string, number> = {};
+    Object.entries(brokerBalances).forEach(([b, v]) => { if(STOCK_BROKERS.includes(b)) bals[b] = v as number; });
+    return bals;
+  }, [brokerBalances]);
+
+  const cryptoHoldings = useMemo(() => allHoldings.filter(h => CRYPTO_BROKERS.includes(h.broker)), [allHoldings]);
+  const cryptoBalances = useMemo(() => {
+    const bals: Record<string, number> = {};
+    Object.entries(brokerBalances).forEach(([b, v]) => { if(CRYPTO_BROKERS.includes(b)) bals[b] = v as number; });
+    return bals;
+  }, [brokerBalances]);
+
 
   useEffect(() => { setTimeout(() => setShowSplash(false), 2000); }, []);
   
@@ -378,7 +397,7 @@ export default function App() {
       )}
 
       <main className="flex-1 overflow-y-auto custom-scrollbar relative w-full max-w-lg mx-auto md:max-w-7xl md:border-x md:border-slate-800">
-        {/* Page 0: Stock Market */}
+        {/* Page 0: Stock Market (Ideas) */}
         {activePage === 0 && (
             <PageMarket 
                 recommendations={recommendations} 
@@ -390,7 +409,7 @@ export default function App() {
                 allowedTypes={['STOCK']}
             />
         )}
-        {/* Page 1: Crypto/F&O Market */}
+        {/* Page 1: F&O/Crypto Market */}
         {activePage === 1 && (
             <PageMarket 
                 recommendations={recommendations} 
@@ -402,7 +421,7 @@ export default function App() {
                 allowedTypes={['MCX', 'FOREX', 'CRYPTO']}
             />
         )}
-        {/* Page 2: Merged Paper & AutoBot Page */}
+        {/* Page 2: Paper & AutoBot */}
         {activePage === 2 && (
             <PagePaperTrading 
                 holdings={allHoldings} 
@@ -422,10 +441,13 @@ export default function App() {
                 transactions={transactions}
             />
         )}
-        {/* Page 3: Live PNL */}
+        {/* Page 3: Stock Portfolio (Dhan, Shoonya, Groww) */}
         {activePage === 3 && (
             <PageLivePNL 
-                holdings={allHoldings}
+                title="My Stocks"
+                subtitle="Dhan, Shoonya & Groww Portfolio"
+                icon={Briefcase}
+                holdings={stockHoldings}
                 marketData={marketData}
                 analysisData={analysisData}
                 onSell={(s, b) => { 
@@ -434,11 +456,29 @@ export default function App() {
                      setTradeModalBroker(b);
                      setIsTradeModalOpen(true);
                 }}
-                brokerBalances={brokerBalances}
+                brokerBalances={stockBalances}
             />
         )}
-        {/* Page 4: Config */}
+        {/* Page 4: Crypto Portfolio (Binance, CoinDCX, CoinSwitch, Zebpay) */}
         {activePage === 4 && (
+            <PageLivePNL 
+                title="My Crypto"
+                subtitle="Binance, CoinDCX, CoinSwitch & Zebpay"
+                icon={Cpu}
+                holdings={cryptoHoldings}
+                marketData={marketData}
+                analysisData={analysisData}
+                onSell={(s, b) => { 
+                     const stk = recommendations.find(r => r.symbol === s) || { symbol: s, type: 'CRYPTO', currentPrice: marketData[s]?.price || 0 } as any;
+                     setSelectedStock(stk);
+                     setTradeModalBroker(b);
+                     setIsTradeModalOpen(true);
+                }}
+                brokerBalances={cryptoBalances}
+            />
+        )}
+        {/* Page 5: Config */}
+        {activePage === 5 && (
             <PageConfiguration 
                 settings={settings}
                 onSave={(s) => { setSettings(s); showNotification("Settings Saved"); }}

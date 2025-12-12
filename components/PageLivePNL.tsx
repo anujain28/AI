@@ -1,9 +1,12 @@
 import React from 'react';
 import { PortfolioItem, MarketData, HoldingAnalysis } from '../types';
 import { PortfolioTable } from './PortfolioTable';
-import { Activity, Building2, Wallet, Briefcase } from 'lucide-react';
+import { Activity, Building2, Wallet } from 'lucide-react';
 
 interface PageLivePNLProps {
+  title: string;
+  subtitle: string;
+  icon: React.ElementType;
   holdings: PortfolioItem[];
   marketData: MarketData;
   analysisData: Record<string, HoldingAnalysis>;
@@ -12,10 +15,11 @@ interface PageLivePNLProps {
 }
 
 export const PageLivePNL: React.FC<PageLivePNLProps> = ({ 
-  holdings, marketData, analysisData, onSell, brokerBalances
+  title, subtitle, icon: Icon, holdings, marketData, analysisData, onSell, brokerBalances
 }) => {
   
-  // Filter Live Holdings (Not Paper) - Focusing on Stock Brokers
+  // Filter Live Holdings (Not Paper) - This component now expects pre-filtered lists ideally, 
+  // but we keep this check just in case mixed data is passed.
   const liveHoldings = holdings.filter(h => h.broker !== 'PAPER');
   
   const currentVal = liveHoldings.reduce((acc, h) => acc + ((marketData[h.symbol]?.price || h.avgCost) * h.quantity), 0);
@@ -28,10 +32,10 @@ export const PageLivePNL: React.FC<PageLivePNLProps> = ({
   return (
     <div className="p-4 pb-20 animate-fade-in space-y-6">
        <div className="flex items-center gap-3 mb-2">
-          <div className="p-3 bg-blue-600/20 rounded-xl text-blue-400"><Briefcase size={24} /></div>
+          <div className="p-3 bg-blue-600/20 rounded-xl text-blue-400"><Icon size={24} /></div>
           <div>
-            <h1 className="text-2xl font-bold text-white">My Stocks</h1>
-            <p className="text-xs text-slate-400">Dhan, Shoonya & Groww Portfolio</p>
+            <h1 className="text-2xl font-bold text-white">{title}</h1>
+            <p className="text-xs text-slate-400">{subtitle}</p>
           </div>
        </div>
 
