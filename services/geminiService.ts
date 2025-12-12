@@ -33,7 +33,6 @@ export const fetchTopStockPicks = async (
 
   let universe = stockUniverse;
 
-  // If no explicit universe passed, use static NSE list
   if (universe.length === 0 && markets.stocks) {
     universe = await checkAndRefreshStockList();
   }
@@ -41,9 +40,7 @@ export const fetchTopStockPicks = async (
   const picks: StockRecommendation[] = [];
 
   if (markets.stocks) {
-    // Shuffle to avoid alphabetical bias
     const shuffled = shuffle(universe);
-    // Limit to avoid hammering Yahoo / yfinance
     const sample = shuffled.slice(0, 80);
 
     const results: { symbol: string; data: MarketData }[] = [];
@@ -64,7 +61,7 @@ export const fetchTopStockPicks = async (
           });
         }
       } catch {
-        // ignore bad/failed symbols
+        // ignore
       }
     }
 
@@ -118,12 +115,11 @@ export const fetchTopStockPicks = async (
     picks.push(...topBtst.map((s) => toRec(s, "BTST")));
     picks.push(...topWeekly.map((s) => toRec(s, "WEEKLY")));
     picks.push(...topMonthly.map((s) => toRec(s, "MONTHLY")));
-  }
+  } // <-- this is the ONLY closing brace for if (markets.stocks)
 
   // No fallback: if nothing fetched, this returns []
   return picks;
-};
-
+}; // <-- single final brace for the function
 
 
       // Build a simple array with change %
