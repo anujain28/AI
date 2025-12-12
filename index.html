@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
   <head>
@@ -113,20 +114,14 @@
     <script>
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
-          // Use relative path ./sw.js to help with subpath deployments
-          // Wrap in try/catch to suppress errors in preview environments with strict origin policies
-          try {
-            navigator.serviceWorker.register('./sw.js')
-              .then(registration => {
-                console.log('SW registered: ', registration);
-              })
-              .catch(registrationError => {
-                // Log as warning instead of error to reduce noise in preview consoles
-                console.warn('SW registration skipped (preview env):', registrationError.message);
-              });
-          } catch (e) {
-            console.warn('SW registration failed:', e);
-          }
+          // Add version param to force update check
+          navigator.serviceWorker.register('./sw.js?v=' + Date.now())
+            .then(registration => {
+              console.log('SW registered: ', registration);
+            })
+            .catch(registrationError => {
+              console.warn('SW registration skipped:', registrationError.message);
+            });
         });
       }
     </script>

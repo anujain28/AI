@@ -56,15 +56,15 @@ export const PortfolioTable: React.FC<PortfolioTableProps> = ({
       <table className="w-full text-left border-collapse">
         <thead>
           <tr className="border-b border-slate-700 bg-slate-800/80 text-slate-400 text-[10px] md:text-xs uppercase tracking-wider backdrop-blur-sm sticky top-0 z-10">
-            <th className="p-3 font-bold">Symbol</th>
-            <th className="p-3 font-bold text-right hidden md:table-cell">Qty</th>
-            <th className="p-3 font-bold text-right hidden md:table-cell">Avg</th>
-            <th className="p-3 font-bold text-right">LTP</th>
-            <th className="p-3 font-bold text-right hidden md:table-cell text-slate-300">Invested</th>
-            <th className="p-3 font-bold text-right hidden md:table-cell text-white">Value</th>
-            <th className="p-3 font-bold text-right">P&L</th>
-            {showAiInsights && <th className="p-3 font-bold text-center hidden md:table-cell">AI</th>}
-            <th className="p-3 font-bold text-center w-16">Act</th>
+            <th className="p-2 md:p-3 font-bold">Symbol</th>
+            <th className="p-2 md:p-3 font-bold text-right hidden md:table-cell">Qty</th>
+            <th className="p-2 md:p-3 font-bold text-right hidden md:table-cell">Avg</th>
+            <th className="p-2 md:p-3 font-bold text-right">LTP</th>
+            <th className="p-2 md:p-3 font-bold text-right hidden md:table-cell text-slate-300">Invested</th>
+            <th className="p-2 md:p-3 font-bold text-right hidden md:table-cell text-white">Value</th>
+            <th className="p-2 md:p-3 font-bold text-right">P&L</th>
+            {showAiInsights && <th className="p-2 md:p-3 font-bold text-center hidden md:table-cell">AI</th>}
+            <th className="p-2 md:p-3 font-bold text-center w-12 md:w-16">Act</th>
           </tr>
         </thead>
         <tbody>
@@ -84,17 +84,17 @@ export const PortfolioTable: React.FC<PortfolioTableProps> = ({
               <tr key={`${item.symbol}-${item.broker}-${idx}`} className="border-b border-slate-800/50 hover:bg-slate-800/50 transition-colors text-xs md:text-sm group">
                 
                 {/* Symbol Col */}
-                <td className="p-3">
+                <td className="p-2 md:p-3">
                     <div className="flex items-center gap-2 md:gap-3">
                         <div className="p-1.5 md:p-2 bg-slate-800 rounded-lg border border-slate-700/50 hidden md:block">
                             {getAssetIcon(item.type)}
                         </div>
                         <div>
-                            <div className="font-bold text-white tracking-wide text-xs md:text-sm">{item.symbol}</div>
+                            <div className="font-bold text-white tracking-wide text-xs md:text-sm truncate max-w-[80px] md:max-w-none">{item.symbol}</div>
                             <div className="flex gap-1 mt-0.5">
                                 {!hideBroker && getBrokerBadge(item.broker)}
                                 {/* Show Qty on Mobile */}
-                                <span className="md:hidden text-[9px] text-slate-400 bg-slate-800 px-1 rounded border border-slate-700">Q: {item.quantity}</span>
+                                <span className="md:hidden text-[9px] text-slate-400 bg-slate-800 px-1 rounded border border-slate-700 whitespace-nowrap">Q: {item.quantity}</span>
                             </div>
                         </div>
                     </div>
@@ -105,7 +105,7 @@ export const PortfolioTable: React.FC<PortfolioTableProps> = ({
                 <td className="p-3 text-right text-slate-400 font-mono hidden md:table-cell">{formatCurrency(item.avgCost)}</td>
                 
                 {/* LTP */}
-                <td className="p-3 text-right text-white font-mono font-medium">
+                <td className="p-2 md:p-3 text-right text-white font-mono font-medium text-xs md:text-sm">
                     {formatCurrency(currentPrice)}
                 </td>
                 
@@ -118,10 +118,10 @@ export const PortfolioTable: React.FC<PortfolioTableProps> = ({
                 </td>
 
                 {/* P&L */}
-                <td className={`p-3 text-right font-bold font-mono ${isProfit ? 'text-green-400' : 'text-red-400'}`}>
+                <td className={`p-2 md:p-3 text-right font-bold font-mono ${isProfit ? 'text-green-400' : 'text-red-400'}`}>
                   <div className="flex flex-col items-end">
-                    <span>{pl > 0 ? '+' : ''}{formatCurrency(pl)}</span>
-                    <span className={`text-[9px] px-1 py-0.5 rounded ${isProfit ? 'bg-green-500/10 text-green-300' : 'bg-red-500/10 text-red-300'}`}>
+                    <span className="whitespace-nowrap">{pl > 0 ? '+' : ''}{formatCurrency(pl)}</span>
+                    <span className={`text-[9px] px-1 py-0.5 rounded mt-0.5 ${isProfit ? 'bg-green-500/10 text-green-300' : 'bg-red-500/10 text-red-300'}`}>
                         {plPercent.toFixed(1)}%
                     </span>
                   </div>
@@ -147,7 +147,7 @@ export const PortfolioTable: React.FC<PortfolioTableProps> = ({
                 )}
 
                 {/* Action */}
-                <td className="p-3 text-center">
+                <td className="p-2 md:p-3 text-center">
                   <button
                     onClick={() => onSell(item.symbol, item.broker)}
                     className="p-1.5 md:px-3 md:py-1.5 text-xs font-bold text-red-400 bg-red-500/10 hover:bg-red-500/20 rounded-lg border border-red-500/20 transition-colors"

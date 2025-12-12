@@ -10,10 +10,9 @@ export interface TradeResult {
     reason?: string;
 }
 
-// Config Constants
-const MAX_GLOBAL_POSITIONS = 5; // User asked for "Best 5"
-const TARGET_ALLOCATION_PER_ASSET = 0.20; // Target using 20% of bucket capital per asset
-const SLICE_PERCENTAGE = 1.0; // BUY 100% AT ONCE (No Slicing) to adhere to "5 trades max" rule
+// STRICT LIMIT: Max 5 concurrent positions
+const MAX_GLOBAL_POSITIONS = 5; 
+const TARGET_ALLOCATION_PER_ASSET = 0.20; // 20% per trade (100% / 5 trades)
 
 export const runAutoTradeEngine = (
     settings: AppSettings, 
@@ -44,7 +43,7 @@ export const runAutoTradeEngine = (
     // 1. MANAGE EXITS (Stop Loss / Take Profit)
     paperPortfolio.forEach(item => {
         const marketStatus = getMarketStatus(item.type);
-        // Allow exits even if market is technically closed if we are simulating, but ideally check status
+        // Crypto runs 24/7, others check status
         if (!marketStatus.isOpen && item.type !== 'CRYPTO') return; 
 
         const data = marketData[item.symbol];
@@ -55,9 +54,9 @@ export const runAutoTradeEngine = (
         const score = data.technicals.score;
 
         let action = null;
-        if (pnlPercent <= -3.0) action = 'STOP_LOSS'; // Tightened SL
-        else if (pnlPercent >= 6.0) action = 'TARGET_HIT'; // profit target
-        else if (score < 25) action = 'WEAK_SIGNAL'; // Technical breakdown
+        if (pnlPercent <= -3.0) action = 'STOP_LOSS'; // Strict SL
+        else if (pnlPercent >= 7.0) action = 'TARGET_HIT'; // Take Profit
+        else if (score < 20) action = 'WEAK_SIGNAL'; // Technical Breakdown
         
         if (action) {
             const fundKey = getFundKey(item.type);
@@ -77,87 +76,73 @@ export const runAutoTradeEngine = (
         }
     });
 
-    // 2. ENTRY LOGIC (Best 5 Selection)
+    // 2. ENTRY LOGIC (Strictly Best 5)
     
-    // Step A: Rank all recommendations by live Technical Score
+    // Step A: Filter & Rank Candidates
     const rankedCandidates = recommendations
         .map(rec => {
             const data = marketData[rec.symbol];
             return {
                 ...rec,
-                liveScore: data ? data.technicals.score : 0,
-                signal: data ? data.technicals.signalStrength : 'HOLD'
+                liveScore: data ? data.technicals.score : 0
             };
         })
         .filter(rec => {
-            // Must be enabled in settings
+            // Must have data and high score
+            if (rec.liveScore < 60) return false;
+            
+            // Must be enabled market
             const settingsKey = rec.type === 'STOCK' ? 'stocks' : rec.type.toLowerCase() as keyof typeof settings.enabledMarkets;
             if (!settings.enabledMarkets[settingsKey]) return false;
 
-            // Must be Market Open
+            // Must be Open
             const status = getMarketStatus(rec.type);
             if (!status.isOpen && rec.type !== 'CRYPTO') return false;
 
-            // Must be Strong Buy or Buy with high score
-            return rec.liveScore > 60; 
+            return true;
         })
         .sort((a, b) => b.liveScore - a.liveScore); // Highest score first
 
     // Step B: Execution Loop
-    // Limit: Max 5 positions total. One entry per position.
     
     for (const rec of rankedCandidates) {
+        // Stop if we have results to process (execute one per cycle)
+        if (results.length > 0) break;
+
         const data = marketData[rec.symbol];
         if (!data) continue;
 
         const fundKey = getFundKey(rec.type);
         const availableCapital = currentFunds[fundKey];
-        
-        // If we have no money for this asset class, skip
         if (availableCapital <= 0) continue;
 
         const existingPosition = paperPortfolio.find(p => p.symbol === rec.symbol);
         
-        // --- FUND ALLOCATION ---
-        // Calculate Total Capital for this Asset Bucket (Cash + Invested)
+        // STRICT RULE: Only 5 Max Positions. No Scale-Ins.
+        if (existingPosition) continue; // Already have it, skip.
+        if (paperPortfolio.length >= MAX_GLOBAL_POSITIONS) break; // Full, stop scanning.
+
+        // Calculate Position Size (Allocating ~20% of total intended capital per trade)
+        // We estimate "Total Capital" as Available + Invested for that bucket
         const investedInBucket = paperPortfolio
             .filter(p => p.type === rec.type)
             .reduce((acc, p) => acc + (p.avgCost * p.quantity), 0);
         
         const totalBucketCapital = availableCapital + investedInBucket;
-        
-        // Max Allocation for this specific Asset
-        const targetPositionValue = totalBucketCapital * TARGET_ALLOCATION_PER_ASSET;
+        const tradeAmount = totalBucketCapital * TARGET_ALLOCATION_PER_ASSET;
 
-        // Slice Size: 100% of target (No scale in, just 1 trade)
-        const sliceValue = targetPositionValue * SLICE_PERCENTAGE;
+        let qtyToBuy = tradeAmount / data.price;
 
-        let qtyToBuy = 0;
-
-        // SCENARIO 1: Scale In
-        if (existingPosition) {
-            // DISABLE SCALE-IN to strictly limit to "5 trades" interpretation (5 distinct positions, 1 entry each).
-            qtyToBuy = 0; 
-        } 
-        // SCENARIO 2: New Entry
-        else if (openSymbols.length < MAX_GLOBAL_POSITIONS) {
-            qtyToBuy = sliceValue / data.price;
-        }
-
-        // --- FRACTIONAL HANDLING ---
         if (qtyToBuy > 0) {
             if (rec.type === 'CRYPTO') {
                 qtyToBuy = parseFloat(qtyToBuy.toFixed(6));
             } else {
-                // Stocks/MCX/Forex assume integers
                 qtyToBuy = Math.floor(qtyToBuy);
             }
             
-            // Final check: Do we have enough cash?
             const cost = qtyToBuy * data.price;
             
             if (qtyToBuy > 0 && availableCapital >= cost) {
-                // EXECUTE
                 currentFunds[fundKey] -= cost;
                 
                 const tx: Transaction = {
@@ -175,11 +160,8 @@ export const runAutoTradeEngine = (
                     executed: true, 
                     transaction: tx, 
                     newFunds: { ...currentFunds }, 
-                    reason: "Auto Entry (Top 5 Pick)" 
+                    reason: "Auto Entry (Top Pick)" 
                 });
-                
-                // Only take 1 trade per cycle
-                break; 
             }
         }
     }

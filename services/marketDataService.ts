@@ -5,13 +5,7 @@ import { analyzeStockTechnical } from "./technicalAnalysis";
 const YAHOO_CHART_BASE = "https://query1.finance.yahoo.com/v8/finance/chart/";
 export const USD_INR_RATE = 84.50; // Exported for UI conversions
 
-// Realistic Base Prices (Used only for reference or very strict fallbacks if needed, but we are disabling sim)
-const INR_BASE_PRICES: { [key: string]: number } = {
-    'GOLD': 76500, 'SILVER': 92000, 'CRUDEOIL': 6050, 'NATURALGAS': 245, 'COPPER': 860,
-    'BTC/USDT': 96000 * USD_INR_RATE, 'ETH/USDT': 3600 * USD_INR_RATE,
-    'USDINR': 84.50, 'EURINR': 91.20, 'EURUSD': 1.08
-};
-
+// Map Symbols to Yahoo Finance Tickers
 const TICKER_MAP: { [key: string]: string } = {
     // MCX (Proxies to US Futures)
     'GOLD': 'GC=F',       
@@ -25,6 +19,8 @@ const TICKER_MAP: { [key: string]: string } = {
     'EURINR': 'EURINR=X',
     'GBPINR': 'GBPINR=X',
     'EURUSD': 'EURUSD=X',
+    'GBPUSD': 'GBPUSD=X',
+    'JPYINR': 'JPYINR=X',
 
     // CRYPTO (Map USDT pairs to Yahoo USD tickers)
     'BTC/USDT': 'BTC-USD',
@@ -60,7 +56,8 @@ async function fetchWithProxy(targetUrl: string): Promise<any> {
 }
 
 async function fetchYahooData(ticker: string): Promise<any> {
-    const cb = Math.floor(Math.random() * 100000);
+    // Cache buster to ensure fresh rates
+    const cb = Math.floor(Math.random() * 1000000);
     const targetUrl = `${YAHOO_CHART_BASE}${ticker}?interval=5m&range=1d&_cb=${cb}`;
     return await fetchWithProxy(targetUrl);
 }
@@ -138,6 +135,7 @@ export const fetchRealStockData = async (symbol: string, settings: AppSettings):
         console.warn(`Fetch failed for ${symbol}`);
     }
 
-    // STRICT MODE: Return null if API fails. No simulated data.
+    // STRICT MODE: Return null if API fails. 
+    // NO SIMULATION FALLBACK allowed as per user request.
     return null;
 };
