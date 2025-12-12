@@ -233,7 +233,6 @@ export default function App() {
              if (data) {
                  nextMarketData[symbol] = data;
              }
-             // No fallback logic here anymore
          });
          return nextMarketData;
     });
@@ -268,7 +267,7 @@ export default function App() {
                   results.forEach(res => {
                       if (res.transaction && res.newFunds) {
                           newTxs.push(res.transaction);
-                          updatedFunds = res.newFunds; // Use the funds returned by the engine
+                          updatedFunds = res.newFunds; 
                           
                           if (res.transaction.type === 'BUY') {
                               // Add/Update Portfolio
@@ -451,6 +450,7 @@ export default function App() {
                 activeBots={activeBots}
                 onToggleBot={(b) => setActiveBots(p => ({...p, [b]: !p[b]}))}
                 transactions={transactions}
+                onUpdateFunds={(f) => setFunds(f)}
             />
         )}
         {/* Page 3: Stock Portfolio (Dhan, Shoonya) */}

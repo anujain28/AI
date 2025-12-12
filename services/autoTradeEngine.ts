@@ -11,8 +11,9 @@ export interface TradeResult {
 }
 
 // Config Constants
-const MAX_POSITIONS = 5;
-const SLICE_PERCENTAGE = 0.25; // Buy 25% of target allocation per slice (sliced manner)
+const MAX_GLOBAL_POSITIONS = 5; // User asked for "Best 5"
+const TARGET_ALLOCATION_PER_ASSET = 0.20; // Target using 20% of bucket capital per asset
+const SLICE_PERCENTAGE = 0.25; // Buy 25% of target allocation per slice (Scale in)
 
 export const runAutoTradeEngine = (
     settings: AppSettings, 
@@ -40,11 +41,11 @@ export const runAutoTradeEngine = (
         return 'stock';
     };
 
-    // 1. MANAGE EXITS & HOLDING (Check Existing Positions)
+    // 1. MANAGE EXITS (Stop Loss / Take Profit)
     paperPortfolio.forEach(item => {
-        // CHECK MARKET STATUS
         const marketStatus = getMarketStatus(item.type);
-        if (!marketStatus.isOpen && item.type !== 'CRYPTO') return; // Hold if market closed
+        // Allow exits even if market is technically closed if we are simulating, but ideally check status
+        if (!marketStatus.isOpen && item.type !== 'CRYPTO') return; 
 
         const data = marketData[item.symbol];
         if (!data) return;
@@ -53,19 +54,15 @@ export const runAutoTradeEngine = (
         const pnlPercent = ((price - item.avgCost) / item.avgCost) * 100;
         const score = data.technicals.score;
 
-        // EXIT RULES
-        // Sell if:
-        // 1. Stop Loss Hit (-2%)
-        // 2. Target Hit (+5%)
-        // 3. Technical Score drops below 30 (Weakness)
         let action = null;
-        if (pnlPercent <= -2) action = 'STOP_LOSS';
-        else if (pnlPercent >= 5) action = 'TARGET_HIT';
-        else if (score < 30) action = 'WEAK_SIGNAL';
+        // Dynamic Stop Loss based on volatility (ATR) could be added here, currently fixed %
+        if (pnlPercent <= -3.0) action = 'STOP_LOSS'; // Tightened SL
+        else if (pnlPercent >= 6.0) action = 'TARGET_HIT'; // profit target
+        else if (score < 25) action = 'WEAK_SIGNAL'; // Technical breakdown
         
         if (action) {
             const fundKey = getFundKey(item.type);
-            currentFunds[fundKey] += (price * item.quantity); // Add back to specific fund
+            currentFunds[fundKey] += (price * item.quantity); 
             
             const tx: Transaction = {
                 id: `auto-sell-${Date.now()}-${Math.random()}`,
@@ -81,99 +78,120 @@ export const runAutoTradeEngine = (
         }
     });
 
-    // 2. MANAGE ENTRIES (Sliced Entry for Best 5)
-    // We check slots PER ASSET TYPE ideally, but for now we keep a global max of 5 active paper trades to control risk
-    // Or we can allow 5 per category. Let's stick to global MAX_POSITIONS for safety or 5 per category if funds allow.
-    // The prompt implied "Best 5 stock recommendations", so let's try to trade the best ones available.
+    // 2. ENTRY LOGIC (Best 5 Selection)
     
-    // Filter recommendations for "Strong Buy" signals
-    // Sorted by Score (High to Low) to get "Best" candidates
-    const candidates = recommendations
+    // Step A: Rank all recommendations by live Technical Score
+    const rankedCandidates = recommendations
+        .map(rec => {
+            const data = marketData[rec.symbol];
+            return {
+                ...rec,
+                liveScore: data ? data.technicals.score : 0,
+                signal: data ? data.technicals.signalStrength : 'HOLD'
+            };
+        })
         .filter(rec => {
-            // Check if market enabled in settings
+            // Must be enabled in settings
             const settingsKey = rec.type === 'STOCK' ? 'stocks' : rec.type.toLowerCase() as keyof typeof settings.enabledMarkets;
             if (!settings.enabledMarkets[settingsKey]) return false;
 
+            // Must be Market Open
             const status = getMarketStatus(rec.type);
             if (!status.isOpen && rec.type !== 'CRYPTO') return false;
-            
-            const data = marketData[rec.symbol];
-            return data && data.technicals.signalStrength === 'STRONG BUY';
-        })
-        .sort((a, b) => {
-            const scoreA = marketData[a.symbol]?.technicals.score || 0;
-            const scoreB = marketData[b.symbol]?.technicals.score || 0;
-            return scoreB - scoreA;
-        });
 
-    for (const rec of candidates) {
+            // Must be Strong Buy or Buy with high score
+            return rec.liveScore > 60; 
+        })
+        .sort((a, b) => b.liveScore - a.liveScore); // Highest score first
+
+    // Step B: Execution Loop
+    // We only want to hold max 5 positions total (Global Best 5)
+    
+    // We can add to existing positions (Scale In) OR Open new ones if count < 5
+    for (const rec of rankedCandidates) {
         const data = marketData[rec.symbol];
         if (!data) continue;
 
         const fundKey = getFundKey(rec.type);
+        const availableCapital = currentFunds[fundKey];
+        
+        // If we have no money for this asset class, skip
+        if (availableCapital <= 0) continue;
+
         const existingPosition = paperPortfolio.find(p => p.symbol === rec.symbol);
         
-        // Calculate Target Trade Size based on Capital in that specific bucket
-        // If FIXED mode: use fixed amount.
-        // If PERCENTAGE mode: use % of THAT bucket's total capital (Cash + Invested in that bucket)
+        // --- SMART FUND ALLOCATION ---
+        // 1. Calculate Total Capital for this Asset Bucket (Cash + Invested)
+        const investedInBucket = paperPortfolio
+            .filter(p => p.type === rec.type)
+            .reduce((acc, p) => acc + (p.avgCost * p.quantity), 0);
         
-        let allocationPerTrade = 0;
-        if (settings.autoTradeConfig.mode === 'FIXED') {
-            allocationPerTrade = settings.autoTradeConfig.value;
-        } else {
-            // Calculate total capital for this asset class
-            const investedInType = paperPortfolio
-                .filter(p => p.type === rec.type)
-                .reduce((acc, p) => acc + (p.avgCost * p.quantity), 0);
-            
-            const totalTypeCapital = currentFunds[fundKey] + investedInType;
-            allocationPerTrade = totalTypeCapital * (settings.autoTradeConfig.value / 100);
-        }
+        const totalBucketCapital = availableCapital + investedInBucket;
         
-        // Sliced Entry Amount (e.g., 25% of target allocation)
-        const sliceAmount = allocationPerTrade * SLICE_PERCENTAGE;
+        // 2. Determine Max Allocation for this specific Asset
+        // e.g., If Total Bucket is 1,00,000, Target is 20,000 per trade.
+        const targetPositionValue = totalBucketCapital * TARGET_ALLOCATION_PER_ASSET;
 
-        // Scenario A: Adding to existing position (Slicing In)
+        // 3. Determine Slice Size (We enter in pieces to average cost)
+        const sliceValue = targetPositionValue * SLICE_PERCENTAGE;
+
+        let qtyToBuy = 0;
+
+        // SCENARIO 1: Scale In (Add to existing)
         if (existingPosition) {
-            const currentInvested = existingPosition.avgCost * existingPosition.quantity;
-            if (currentInvested < allocationPerTrade) {
-                // We have room to add a slice
-                const qty = Math.floor(sliceAmount / data.price);
-                // Check specific fund balance
-                if (qty > 0 && currentFunds[fundKey] >= (qty * data.price)) {
-                    currentFunds[fundKey] -= (qty * data.price);
-                    const tx: Transaction = {
-                        id: `auto-buy-slice-${Date.now()}-${Math.random()}`,
-                        type: 'BUY',
-                        symbol: rec.symbol,
-                        assetType: rec.type,
-                        quantity: qty,
-                        price: data.price,
-                        timestamp: Date.now(),
-                        broker: 'PAPER'
-                    };
-                    results.push({ executed: true, transaction: tx, newFunds: { ...currentFunds }, reason: "Auto Slice-In (Trend Confirmation)" });
-                    break; 
-                }
+            const currentPositionValue = existingPosition.quantity * existingPosition.avgCost;
+            
+            // Only add if we haven't reached full target size AND technicals are still strong
+            if (currentPositionValue < targetPositionValue && rec.liveScore > 70) {
+                // Calculate quantity based on slice value
+                qtyToBuy = sliceValue / data.price;
             }
         } 
-        // Scenario B: New Entry (If slots available)
-        else if (openSymbols.length < MAX_POSITIONS) {
-            const qty = Math.floor(sliceAmount / data.price);
-            // Check specific fund balance
-            if (qty > 0 && currentFunds[fundKey] >= (qty * data.price)) {
-                currentFunds[fundKey] -= (qty * data.price);
+        // SCENARIO 2: New Entry
+        else if (openSymbols.length < MAX_GLOBAL_POSITIONS) {
+            qtyToBuy = sliceValue / data.price;
+        }
+
+        // --- FRACTIONAL HANDLING ---
+        if (qtyToBuy > 0) {
+            if (rec.type === 'CRYPTO') {
+                // Crypto supports fractions, keep 6 decimals
+                qtyToBuy = parseFloat(qtyToBuy.toFixed(6));
+            } else if (rec.type === 'FOREX') {
+                 // Forex usually lots, let's assume mini lots or units
+                 qtyToBuy = Math.floor(qtyToBuy);
+            } else {
+                // Stocks/MCX usually integers (unless fractional shares supported, assume integer for paper)
+                qtyToBuy = Math.floor(qtyToBuy);
+            }
+            
+            // Final check: Do we have enough cash for this slice?
+            const cost = qtyToBuy * data.price;
+            
+            if (qtyToBuy > 0 && availableCapital >= cost) {
+                // EXECUTE
+                currentFunds[fundKey] -= cost;
+                
                 const tx: Transaction = {
-                    id: `auto-buy-new-${Date.now()}-${Math.random()}`,
+                    id: `auto-buy-${Date.now()}-${Math.random()}`,
                     type: 'BUY',
                     symbol: rec.symbol,
                     assetType: rec.type,
-                    quantity: qty,
+                    quantity: qtyToBuy,
                     price: data.price,
                     timestamp: Date.now(),
                     broker: 'PAPER'
                 };
-                results.push({ executed: true, transaction: tx, newFunds: { ...currentFunds }, reason: "Auto Entry (Top Pick)" });
+                
+                results.push({ 
+                    executed: true, 
+                    transaction: tx, 
+                    newFunds: { ...currentFunds }, 
+                    reason: existingPosition ? "Auto Scale-In (Profit Max)" : "Auto Entry (Top 5 Pick)" 
+                });
+                
+                // If we executed a trade, let's break to simulate receiving one fill at a time per interval
+                // This prevents dumping all cash in one millisecond
                 break; 
             }
         }
@@ -182,7 +200,6 @@ export const runAutoTradeEngine = (
     return results;
 };
 
-// Simulate "Offline" trades
 export const simulateBackgroundTrades = (
     lastRunTime: number, 
     settings: AppSettings, 

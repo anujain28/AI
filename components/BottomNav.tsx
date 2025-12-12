@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { TrendingUp, Bot, Briefcase, Settings, Globe, Cpu } from 'lucide-react';
 
@@ -17,8 +18,8 @@ export const BottomNav: React.FC<BottomNavProps> = ({ activeTab, onChange }) => 
   ];
 
   return (
-    <div className="flex-none bg-slate-900/95 backdrop-blur-md border-t border-slate-800 pb-safe z-50 animate-slide-up">
-      <div className="flex justify-between px-2 items-center h-16">
+    <div className="fixed bottom-0 left-0 right-0 bg-slate-900/80 backdrop-blur-xl border-t border-white/5 pb-safe z-50 animate-slide-up shadow-[0_-5px_20px_-5px_rgba(0,0,0,0.5)]">
+      <div className="flex justify-between px-2 items-center h-16 max-w-lg mx-auto md:max-w-7xl">
         {tabs.map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
@@ -26,14 +27,16 @@ export const BottomNav: React.FC<BottomNavProps> = ({ activeTab, onChange }) => 
             <button
               key={tab.id}
               onClick={() => onChange(tab.id)}
-              className={`flex flex-col items-center gap-1 w-full h-full justify-center transition-colors min-w-[50px] ${
-                isActive ? 'text-blue-400' : 'text-slate-500 hover:text-slate-400'
-              }`}
+              className={`flex flex-col items-center gap-1 w-full h-full justify-center transition-all duration-300 min-w-[50px] relative group`}
             >
-              <div className={`p-1 rounded-xl transition-all ${isActive ? 'bg-blue-500/10' : ''}`}>
-                <Icon size={18} className={isActive ? 'fill-current' : ''} />
+              {isActive && (
+                  <div className="absolute top-0 w-8 h-1 bg-gradient-to-r from-blue-500 to-purple-500 rounded-b-full shadow-[0_0_10px_rgba(59,130,246,0.5)]"></div>
+              )}
+              
+              <div className={`p-1.5 rounded-xl transition-all duration-300 ${isActive ? 'bg-gradient-to-br from-blue-500/20 to-purple-500/20 text-blue-400 -translate-y-1' : 'text-slate-500 group-hover:text-slate-300'}`}>
+                <Icon size={20} className={isActive ? 'drop-shadow-[0_0_5px_rgba(59,130,246,0.5)]' : ''} />
               </div>
-              <span className="text-[9px] font-medium">{tab.label}</span>
+              <span className={`text-[9px] font-bold transition-colors ${isActive ? 'text-blue-400' : 'text-slate-500'}`}>{tab.label}</span>
             </button>
           );
         })}

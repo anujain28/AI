@@ -22,8 +22,8 @@ export const PortfolioTable: React.FC<PortfolioTableProps> = ({
 }) => {
   if (portfolio.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center h-64 text-slate-500 bg-surface rounded-xl border border-slate-800">
-        <DollarSign size={48} className="mb-2 opacity-50" />
+      <div className="flex flex-col items-center justify-center h-64 text-slate-500 bg-surface rounded-xl border border-slate-800 border-dashed">
+        <DollarSign size={48} className="mb-2 opacity-50 text-slate-600" />
         <p>No holdings yet. Start trading!</p>
       </div>
     );
@@ -40,10 +40,10 @@ export const PortfolioTable: React.FC<PortfolioTableProps> = ({
 
   const getBrokerBadge = (broker: string) => {
       let colorClass = 'bg-slate-700 border-slate-600 text-slate-300';
-      if (broker === 'DHAN') colorClass = 'bg-purple-900/30 border-purple-700 text-purple-300';
-      else if (broker === 'SHOONYA') colorClass = 'bg-orange-900/30 border-orange-700 text-orange-300';
-      else if (broker === 'BINANCE') colorClass = 'bg-yellow-900/30 border-yellow-700 text-yellow-300';
-      else if (broker === 'COINDCX') colorClass = 'bg-blue-900/30 border-blue-700 text-blue-300';
+      if (broker === 'DHAN') colorClass = 'bg-purple-900/30 border-purple-700/50 text-purple-300';
+      else if (broker === 'SHOONYA') colorClass = 'bg-orange-900/30 border-orange-700/50 text-orange-300';
+      else if (broker === 'BINANCE') colorClass = 'bg-yellow-900/30 border-yellow-700/50 text-yellow-300';
+      else if (broker === 'COINDCX') colorClass = 'bg-blue-900/30 border-blue-700/50 text-blue-300';
       return <span className={`text-[10px] px-2 py-0.5 rounded border ${colorClass}`}>{broker}</span>;
   };
 
@@ -52,10 +52,10 @@ export const PortfolioTable: React.FC<PortfolioTableProps> = ({
   };
 
   return (
-    <div className="overflow-x-auto bg-surface rounded-xl border border-slate-800 shadow-lg custom-scrollbar">
+    <div className="overflow-x-auto bg-surface rounded-xl border border-slate-800 shadow-xl custom-scrollbar">
       <table className="w-full text-left border-collapse">
         <thead>
-          <tr className="border-b border-slate-700 bg-slate-800/50 text-slate-400 text-xs uppercase tracking-wider">
+          <tr className="border-b border-slate-700 bg-slate-800/80 text-slate-400 text-xs uppercase tracking-wider backdrop-blur-sm sticky top-0 z-10">
             <th className="p-4 font-bold text-center w-20">Action</th>
             <th className="p-4 font-bold">Symbol</th>
             <th className="p-4 font-bold text-right">Qty</th>
@@ -81,20 +81,22 @@ export const PortfolioTable: React.FC<PortfolioTableProps> = ({
             const analysis = analysisData[item.symbol];
 
             return (
-              <tr key={`${item.symbol}-${item.broker}-${idx}`} className="border-b border-slate-800/50 hover:bg-slate-800/30 transition-colors text-sm">
+              <tr key={`${item.symbol}-${item.broker}-${idx}`} className="border-b border-slate-800/50 hover:bg-slate-800/50 transition-colors text-sm group">
                 <td className="p-4 text-center">
                   <button
                     onClick={() => onSell(item.symbol, item.broker)}
-                    className="px-3 py-1.5 text-xs font-bold text-red-400 bg-red-400/10 hover:bg-red-400/20 rounded-lg border border-red-400/20 transition-colors"
+                    className="px-3 py-1.5 text-xs font-bold text-red-400 bg-red-500/10 hover:bg-red-500/20 rounded-lg border border-red-500/20 transition-colors opacity-80 group-hover:opacity-100"
                   >
                     SELL
                   </button>
                 </td>
                 <td className="p-4">
-                    <div className="flex items-center gap-2">
-                        {getAssetIcon(item.type)}
+                    <div className="flex items-center gap-3">
+                        <div className="p-2 bg-slate-800 rounded-lg border border-slate-700/50">
+                            {getAssetIcon(item.type)}
+                        </div>
                         <div>
-                            <div className="font-bold text-white">{item.symbol}</div>
+                            <div className="font-bold text-white tracking-wide">{item.symbol}</div>
                             {!hideBroker && getBrokerBadge(item.broker)}
                         </div>
                     </div>
@@ -111,10 +113,12 @@ export const PortfolioTable: React.FC<PortfolioTableProps> = ({
                     {formatCurrency(currentValue)}
                 </td>
 
-                <td className={`p-4 text-right font-bold font-mono ${isProfit ? 'text-success' : 'text-danger'}`}>
+                <td className={`p-4 text-right font-bold font-mono ${isProfit ? 'text-green-400' : 'text-red-400'}`}>
                   <div className="flex flex-col items-end">
                     <span>{pl > 0 ? '+' : ''}{formatCurrency(pl)}</span>
-                    <span className="text-[10px] opacity-75">({plPercent.toFixed(2)}%)</span>
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded ${isProfit ? 'bg-green-500/10 text-green-300' : 'bg-red-500/10 text-red-300'}`}>
+                        {plPercent.toFixed(2)}%
+                    </span>
                   </div>
                 </td>
                 
@@ -122,7 +126,7 @@ export const PortfolioTable: React.FC<PortfolioTableProps> = ({
                     <td className="p-4 text-center">
                     {analysis ? (
                         <div className="group/tooltip relative flex justify-center">
-                            <span className={`cursor-help px-2 py-1 rounded text-[10px] font-bold border ${
+                            <span className={`cursor-help px-2 py-1 rounded text-[10px] font-bold border shadow-sm ${
                                 analysis.action === 'BUY' ? 'bg-green-500/20 text-green-400 border-green-500/30' : 
                                 analysis.action === 'SELL' ? 'bg-red-500/20 text-red-400 border-red-500/30' : 
                                 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30'
