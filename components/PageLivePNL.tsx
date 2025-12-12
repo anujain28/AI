@@ -1,5 +1,5 @@
 // app/page.tsx (or wherever Live PNL tab is rendered)
-import { LivePnl } from '@/components/LivePnl';
+import { LivePnl } from 'LivePnl';
 
 export default function LivePnlPage() {
   const brokerCash = [
