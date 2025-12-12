@@ -1,7 +1,7 @@
 import React from 'react';
 import { PortfolioItem, MarketData, HoldingAnalysis } from '../types';
 import { PortfolioTable } from './PortfolioTable';
-import { Activity, Building2, Wallet } from 'lucide-react';
+import { Activity, Building2, Wallet, Briefcase } from 'lucide-react';
 
 interface PageLivePNLProps {
   holdings: PortfolioItem[];
@@ -15,7 +15,7 @@ export const PageLivePNL: React.FC<PageLivePNLProps> = ({
   holdings, marketData, analysisData, onSell, brokerBalances
 }) => {
   
-  // Filter Live Holdings (Not Paper)
+  // Filter Live Holdings (Not Paper) - Focusing on Stock Brokers
   const liveHoldings = holdings.filter(h => h.broker !== 'PAPER');
   
   const currentVal = liveHoldings.reduce((acc, h) => acc + ((marketData[h.symbol]?.price || h.avgCost) * h.quantity), 0);
@@ -23,15 +23,15 @@ export const PageLivePNL: React.FC<PageLivePNLProps> = ({
   const totalPnl = currentVal - totalCost;
   const pnlPercent = totalCost > 0 ? (totalPnl / totalCost) * 100 : 0;
   
-  const totalCash = Object.values(brokerBalances).reduce((a: number, b) => a + (b as number), 0);
+  const totalCash = (Object.values(brokerBalances) as number[]).reduce((a, b) => a + Number(b), 0);
 
   return (
     <div className="p-4 pb-20 animate-fade-in space-y-6">
        <div className="flex items-center gap-3 mb-2">
-          <div className="p-3 bg-blue-600/20 rounded-xl text-blue-400"><Activity size={24} /></div>
+          <div className="p-3 bg-blue-600/20 rounded-xl text-blue-400"><Briefcase size={24} /></div>
           <div>
-            <h1 className="text-2xl font-bold text-white">Broker Live PNL</h1>
-            <p className="text-xs text-slate-400">Real Money Performance</p>
+            <h1 className="text-2xl font-bold text-white">My Stocks</h1>
+            <p className="text-xs text-slate-400">Dhan, Shoonya & Groww Portfolio</p>
           </div>
        </div>
 
@@ -39,7 +39,7 @@ export const PageLivePNL: React.FC<PageLivePNLProps> = ({
        <div className="bg-surface rounded-2xl border border-slate-700 p-6 shadow-xl">
             <div className="grid grid-cols-2 gap-8 mb-4">
                 <div>
-                    <p className="text-slate-400 text-xs font-bold uppercase tracking-wider mb-1">Live P&L</p>
+                    <p className="text-slate-400 text-xs font-bold uppercase tracking-wider mb-1">Total P&L</p>
                     <div className={`text-3xl font-mono font-bold ${totalPnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                         {totalPnl >= 0 ? '+' : ''}₹{Math.round(totalPnl || 0).toLocaleString()}
                     </div>
@@ -57,26 +57,28 @@ export const PageLivePNL: React.FC<PageLivePNLProps> = ({
             </div>
             
             <div className="bg-slate-900/50 p-3 rounded-xl border border-slate-800 flex justify-between items-center">
-                 <div className="flex items-center gap-2 text-slate-400 text-xs"><Wallet size={14}/> Connected Broker Cash</div>
+                 <div className="flex items-center gap-2 text-slate-400 text-xs"><Wallet size={14}/> Total Broker Cash</div>
                  <div className="font-mono font-bold text-white">₹{Math.round(totalCash || 0).toLocaleString()}</div>
             </div>
        </div>
        
        {/* Broker Breakdown (Mini Cards) */}
-       <div className="grid grid-cols-2 gap-3">
-           {Object.entries(brokerBalances).map(([broker, balance]) => (
-               <div key={broker} className="p-3 bg-slate-800/50 rounded-lg border border-slate-700">
-                   <div className="flex items-center gap-2 mb-1 text-xs font-bold text-slate-300">
-                       <Building2 size={12}/> {broker}
-                   </div>
-                   <div className="text-sm font-mono text-white">₹{Math.round(Number(balance)).toLocaleString()}</div>
-               </div>
-           ))}
-       </div>
+       {Object.keys(brokerBalances).length > 0 && (
+        <div className="grid grid-cols-2 gap-3">
+            {Object.entries(brokerBalances).map(([broker, balance]) => (
+                <div key={broker} className="p-3 bg-slate-800/50 rounded-lg border border-slate-700">
+                    <div className="flex items-center gap-2 mb-1 text-xs font-bold text-slate-300">
+                        <Building2 size={12}/> {broker}
+                    </div>
+                    <div className="text-sm font-mono text-white">₹{Math.round(Number(balance)).toLocaleString()}</div>
+                </div>
+            ))}
+        </div>
+       )}
 
        {/* Holdings List */}
        <div>
-            <h3 className="text-lg font-bold text-white mb-4">Live Positions ({liveHoldings.length})</h3>
+            <h3 className="text-lg font-bold text-white mb-4">Holdings ({liveHoldings.length})</h3>
             <PortfolioTable 
                 portfolio={liveHoldings} 
                 marketData={marketData} 
