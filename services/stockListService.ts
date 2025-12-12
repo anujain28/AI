@@ -543,7 +543,7 @@ export const getCompanyName = (symbol: string): string => {
     if (STATIC_CRYPTO_LIST.includes(symbol)) return `${symbol} Crypto`;
     
     // Fallback: Return the symbol itself
-    return symbol; 
+    return symbol.NS; 
 };
 
 // Helper to parse CSV dynamically based on header
