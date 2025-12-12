@@ -7,7 +7,6 @@ import {
 } from "../types";
 import { getCompanyName, checkAndRefreshStockList } from "./stockListService";
 import { fetchRealStockData } from "./marketDataService.ts"; // your second file
-
 const getISTTimeMinutes = () => {
   const now = new Date();
   const istString = now.toLocaleString("en-US", { timeZone: "Asia/Kolkata" });
