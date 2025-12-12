@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { PortfolioItem, MarketData, Funds, HoldingAnalysis, Transaction, AssetType } from '../types';
 import { PortfolioTable } from './PortfolioTable';
 import { ActivityFeed } from './ActivityFeed';
-import { Wallet, PieChart, Sparkles, RefreshCw, Power, Globe, DollarSign, Cpu, BarChart2, TrendingUp } from 'lucide-react';
+import { getMarketStatus } from '../services/marketStatusService';
+import { Wallet, PieChart, Sparkles, RefreshCw, Power, Globe, DollarSign, Cpu, BarChart2, TrendingUp, Circle } from 'lucide-react';
 
 interface PagePaperTradingProps {
   holdings: PortfolioItem[];
@@ -223,6 +224,19 @@ export const PagePaperTrading: React.FC<PagePaperTradingProps> = ({
            </div>
        ) : (
            <div className="space-y-6 animate-slide-up">
+               {/* Market Status Alerts */}
+               <div className="flex gap-2 flex-wrap">
+                   {['STOCK', 'MCX', 'FOREX', 'CRYPTO'].map((t) => {
+                       const status = getMarketStatus(t as AssetType);
+                       return (
+                           <div key={t} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-bold ${status.isOpen ? 'bg-green-500/10 text-green-400 border-green-500/20' : 'bg-red-500/10 text-red-400 border-red-500/20'}`}>
+                               <Circle size={8} fill="currentColor" className={status.isOpen ? 'animate-pulse' : ''}/>
+                               {t}: {status.message}
+                           </div>
+                       )
+                   })}
+               </div>
+
                {/* Bot Controls */}
                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {Object.entries(activeBots).map(([broker, isActive]) => (
@@ -242,6 +256,11 @@ export const PagePaperTrading: React.FC<PagePaperTradingProps> = ({
                                 {isActive ? 'RUNNING' : 'STOPPED'}
                             </span>
                         </div>
+                        {isActive && (
+                            <p className="text-[10px] text-slate-400 mt-2">
+                                *Trades will only execute when market status is OPEN.
+                            </p>
+                        )}
                     </div>
                   ))}
                </div>

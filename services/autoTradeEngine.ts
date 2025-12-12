@@ -1,4 +1,5 @@
 import { AppSettings, MarketData, PortfolioItem, StockRecommendation, Transaction, Funds } from "../types";
+import { getMarketStatus } from "./marketStatusService";
 
 export interface TradeResult {
     executed: boolean;
@@ -27,6 +28,10 @@ export const runAutoTradeEngine = (
     currentPortfolio.forEach(item => {
         if (item.broker !== 'PAPER') return; // Only automate paper for now
         
+        // CHECK MARKET STATUS
+        const marketStatus = getMarketStatus(item.type);
+        if (!marketStatus.isOpen && item.type !== 'CRYPTO') return; // Skip if market closed (allow Crypto always)
+
         const data = marketData[item.symbol];
         if (!data) return;
 
@@ -58,6 +63,10 @@ export const runAutoTradeEngine = (
 
     // 2. Check for Entries
     recommendations.forEach(rec => {
+        // CHECK MARKET STATUS
+        const marketStatus = getMarketStatus(rec.type);
+        if (!marketStatus.isOpen && rec.type !== 'CRYPTO') return;
+
         // Skip if already in portfolio
         if (currentPortfolio.find(p => p.symbol === rec.symbol)) return;
 
@@ -112,6 +121,10 @@ export const simulateBackgroundTrades = (
     let simulatedFunds = { ...funds };
 
     const demoStocks = ["RELIANCE", "TATASTEEL", "INFY", "HDFCBANK"];
+
+    // Check if market is generally open for simulation purposes (Rough check)
+    const marketStatus = getMarketStatus('STOCK');
+    if (!marketStatus.isOpen) return { newTransactions: [], newFunds: funds };
 
     for (let i = 0; i < tradeCount; i++) {
         const isBuy = Math.random() > 0.5;

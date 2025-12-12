@@ -1,7 +1,8 @@
 import React from 'react';
 import { StockRecommendation, MarketData, MarketSettings, AssetType } from '../types';
 import { StockCard } from './StockCard';
-import { RefreshCw, Globe, TrendingUp, DollarSign, Clock, Calendar, BarChart, Zap, Cpu, TrendingDown, ArrowUpRight, ArrowDownRight, Minus } from 'lucide-react';
+import { getMarketStatus } from '../services/marketStatusService';
+import { RefreshCw, Globe, TrendingUp, DollarSign, Clock, Calendar, BarChart, Zap, Cpu, TrendingDown, ArrowUpRight, ArrowDownRight, Minus, Circle } from 'lucide-react';
 
 interface PageMarketProps {
   recommendations: StockRecommendation[];
@@ -26,6 +27,26 @@ export const PageMarket: React.FC<PageMarketProps> = ({
   // Helper to check if type is allowed
   const isTypeAllowed = (type: AssetType) => {
     return !allowedTypes || allowedTypes.includes(type);
+  };
+
+  // Generate Status Badges
+  const renderMarketStatus = () => {
+      const typesToCheck: AssetType[] = allowedTypes || ['STOCK'];
+      // Unique set of types if generic page
+      const statuses = typesToCheck.map(t => ({ type: t, status: getMarketStatus(t) }));
+      
+      // Filter out duplicate status messages if multiple assets have same status (optional, but keeping simple)
+      
+      return (
+          <div className="flex flex-col items-end gap-1">
+              {statuses.map((s, idx) => (
+                  <div key={idx} className={`flex items-center gap-1.5 text-[10px] font-bold px-2 py-0.5 rounded-full border bg-slate-800/80 ${s.status.isOpen ? 'border-green-500/30 text-green-400' : 'border-red-500/30 text-red-400'}`}>
+                      <Circle size={6} fill="currentColor" className={s.status.isOpen ? 'animate-pulse' : ''} />
+                      {s.type === 'STOCK' ? 'NSE' : s.type}: {s.status.message}
+                  </div>
+              ))}
+          </div>
+      );
   };
 
   // Categorize Stocks
@@ -134,16 +155,20 @@ export const PageMarket: React.FC<PageMarketProps> = ({
 
   return (
     <div className="p-4 pb-20 animate-fade-in">
-      <div className="flex justify-between items-center mb-6">
+      <div className="flex justify-between items-start mb-6">
          <div>
              <h1 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-white">
                  {allowedTypes && !allowedTypes.includes('STOCK') ? 'F&O / Crypto' : 'Stock Market'}
              </h1>
              <p className="text-xs text-slate-400">AI-Powered Technical Analysis</p>
          </div>
-         <button onClick={onRefresh} className={`p-2 bg-blue-600 rounded-full text-white shadow-lg ${isLoading ? 'animate-spin' : ''}`}>
-            <RefreshCw size={18} />
-         </button>
+         <div className="flex flex-col items-end gap-2">
+            <button onClick={onRefresh} className={`p-2 bg-blue-600 rounded-full text-white shadow-lg ${isLoading ? 'animate-spin' : ''}`}>
+                <RefreshCw size={18} />
+            </button>
+            {/* Market Status Indicators */}
+            {renderMarketStatus()}
+         </div>
       </div>
       
       {/* Crypto Trend Board - Special Section */}
