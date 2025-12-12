@@ -13,7 +13,7 @@ export interface TradeResult {
 // Config Constants
 const MAX_GLOBAL_POSITIONS = 5; // User asked for "Best 5"
 const TARGET_ALLOCATION_PER_ASSET = 0.20; // Target using 20% of bucket capital per asset
-const SLICE_PERCENTAGE = 0.25; // Buy 25% of target allocation per slice (Scale in)
+const SLICE_PERCENTAGE = 1.0; // BUY 100% AT ONCE (No Slicing) to adhere to "5 trades max" rule
 
 export const runAutoTradeEngine = (
     settings: AppSettings, 
@@ -55,7 +55,6 @@ export const runAutoTradeEngine = (
         const score = data.technicals.score;
 
         let action = null;
-        // Dynamic Stop Loss based on volatility (ATR) could be added here, currently fixed %
         if (pnlPercent <= -3.0) action = 'STOP_LOSS'; // Tightened SL
         else if (pnlPercent >= 6.0) action = 'TARGET_HIT'; // profit target
         else if (score < 25) action = 'WEAK_SIGNAL'; // Technical breakdown
@@ -105,9 +104,8 @@ export const runAutoTradeEngine = (
         .sort((a, b) => b.liveScore - a.liveScore); // Highest score first
 
     // Step B: Execution Loop
-    // We only want to hold max 5 positions total (Global Best 5)
+    // Limit: Max 5 positions total. One entry per position.
     
-    // We can add to existing positions (Scale In) OR Open new ones if count < 5
     for (const rec of rankedCandidates) {
         const data = marketData[rec.symbol];
         if (!data) continue;
@@ -120,32 +118,26 @@ export const runAutoTradeEngine = (
 
         const existingPosition = paperPortfolio.find(p => p.symbol === rec.symbol);
         
-        // --- SMART FUND ALLOCATION ---
-        // 1. Calculate Total Capital for this Asset Bucket (Cash + Invested)
+        // --- FUND ALLOCATION ---
+        // Calculate Total Capital for this Asset Bucket (Cash + Invested)
         const investedInBucket = paperPortfolio
             .filter(p => p.type === rec.type)
             .reduce((acc, p) => acc + (p.avgCost * p.quantity), 0);
         
         const totalBucketCapital = availableCapital + investedInBucket;
         
-        // 2. Determine Max Allocation for this specific Asset
-        // e.g., If Total Bucket is 1,00,000, Target is 20,000 per trade.
+        // Max Allocation for this specific Asset
         const targetPositionValue = totalBucketCapital * TARGET_ALLOCATION_PER_ASSET;
 
-        // 3. Determine Slice Size (We enter in pieces to average cost)
+        // Slice Size: 100% of target (No scale in, just 1 trade)
         const sliceValue = targetPositionValue * SLICE_PERCENTAGE;
 
         let qtyToBuy = 0;
 
-        // SCENARIO 1: Scale In (Add to existing)
+        // SCENARIO 1: Scale In
         if (existingPosition) {
-            const currentPositionValue = existingPosition.quantity * existingPosition.avgCost;
-            
-            // Only add if we haven't reached full target size AND technicals are still strong
-            if (currentPositionValue < targetPositionValue && rec.liveScore > 70) {
-                // Calculate quantity based on slice value
-                qtyToBuy = sliceValue / data.price;
-            }
+            // DISABLE SCALE-IN to strictly limit to "5 trades" interpretation (5 distinct positions, 1 entry each).
+            qtyToBuy = 0; 
         } 
         // SCENARIO 2: New Entry
         else if (openSymbols.length < MAX_GLOBAL_POSITIONS) {
@@ -155,17 +147,13 @@ export const runAutoTradeEngine = (
         // --- FRACTIONAL HANDLING ---
         if (qtyToBuy > 0) {
             if (rec.type === 'CRYPTO') {
-                // Crypto supports fractions, keep 6 decimals
                 qtyToBuy = parseFloat(qtyToBuy.toFixed(6));
-            } else if (rec.type === 'FOREX') {
-                 // Forex usually lots, let's assume mini lots or units
-                 qtyToBuy = Math.floor(qtyToBuy);
             } else {
-                // Stocks/MCX usually integers (unless fractional shares supported, assume integer for paper)
+                // Stocks/MCX/Forex assume integers
                 qtyToBuy = Math.floor(qtyToBuy);
             }
             
-            // Final check: Do we have enough cash for this slice?
+            // Final check: Do we have enough cash?
             const cost = qtyToBuy * data.price;
             
             if (qtyToBuy > 0 && availableCapital >= cost) {
@@ -187,11 +175,10 @@ export const runAutoTradeEngine = (
                     executed: true, 
                     transaction: tx, 
                     newFunds: { ...currentFunds }, 
-                    reason: existingPosition ? "Auto Scale-In (Profit Max)" : "Auto Entry (Top 5 Pick)" 
+                    reason: "Auto Entry (Top 5 Pick)" 
                 });
                 
-                // If we executed a trade, let's break to simulate receiving one fill at a time per interval
-                // This prevents dumping all cash in one millisecond
+                // Only take 1 trade per cycle
                 break; 
             }
         }
