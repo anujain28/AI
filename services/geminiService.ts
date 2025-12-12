@@ -1,6 +1,8 @@
+
 import { GoogleGenAI, Type } from "@google/genai";
-import { StockRecommendation, MarketSettings, PortfolioItem, HoldingAnalysis, MarketData } from "../types";
+import { StockRecommendation, MarketSettings, PortfolioItem, HoldingAnalysis, MarketData, AppSettings } from "../types";
 import { getCompanyName } from "./stockListService";
+import { fetchRealStockData } from "./marketDataService";
 
 let aiInstance: GoogleGenAI | null = null;
 
@@ -12,144 +14,139 @@ const getAI = () => {
     return aiInstance;
 };
 
-const getISTTimeMinutes = () => {
-    const now = new Date();
-    const istString = now.toLocaleString("en-US", {timeZone: "Asia/Kolkata"});
-    const istDate = new Date(istString);
-    return istDate.getHours() * 60 + istDate.getMinutes();
-};
+// Shuffles array in place
+function shuffleArray<T>(array: T[]): T[] {
+    for (let i = array.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [array[i], array[j]] = [array[j], array[i]];
+    }
+    return array;
+}
 
+// Algorithmic Selection using Yahoo Finance Data (via Proxy)
 export const fetchTopStockPicks = async (
     totalCapital: number, 
     stockUniverse: string[] = [], 
     markets: MarketSettings = { stocks: true, mcx: false, forex: false, crypto: false }
 ): Promise<StockRecommendation[]> => {
   
-  const currentMinutes = getISTTimeMinutes();
-  const isPostMarket = currentMinutes > 930; 
-  
-  try {
-    const ai = getAI();
-    if (!process.env.API_KEY) throw new Error("No API Key");
+  const picks: StockRecommendation[] = [];
+  const dummySettings: AppSettings = {
+      initialFunds: { stock: 0, mcx: 0, forex: 0, crypto: 0 },
+      autoTradeConfig: { mode: 'FIXED', value: 0 },
+      activeBrokers: [],
+      enabledMarkets: markets,
+      telegramBotToken: '',
+      telegramChatId: ''
+  };
 
-    const requests: string[] = [];
-    
-    // We pass the universe for context, but we will ask the AI to be precise with symbols
-    const availableStocks = stockUniverse.length > 0 ? stockUniverse.join(', ') : "Top Liquid NSE Stocks";
+  // 1. SELECT STOCKS (ALGORITHMIC)
+  if (markets.stocks && stockUniverse.length > 0) {
+      // Shuffle universe and pick a subset to scan to avoid rate limits/slow load
+      // We scan 15 random stocks to find opportunities
+      const candidates = shuffleArray([...stockUniverse]).slice(0, 15);
+      
+      const promises = candidates.map(async (sym) => {
+          try {
+              const data = await fetchRealStockData(sym, dummySettings);
+              if (!data) return null;
 
-    if (markets.stocks) {
-        requests.push(`Stock Recommendations selected STRICTLY from this provided list: [${availableStocks}]. 
-        Categorize them exactly as follows: 
-        - 2 stocks for 'INTRADAY' (High momentum, tight stop loss)
-        - 2 stocks for 'BTST' (Buy Today Sell Tomorrow) 
-        - 2 stocks for 'WEEKLY' (Short Term 5-7 days)
-        - 1 stock for 'MONTHLY' (Positional)`);
-    }
-    if (markets.mcx) requests.push("2 MCX Commodities (Intraday/Positional)");
-    if (markets.forex) requests.push("2 Forex Pairs (INR pairs)");
-    if (markets.crypto) requests.push("3 Crypto Assets (Top Gainers/Breakouts)");
+              const { technicals, price } = data;
+              if (!technicals) return null;
 
-    if (requests.length === 0) return [];
+              let type: 'INTRADAY' | 'BTST' | 'WEEKLY' | 'MONTHLY' | null = null;
+              let reason = "";
+              let pattern = "Trend Following";
 
-    const prompt = `Act as 'AI Robots' trading engine powered by Advanced Technical Analysis.
-    REQUIREMENT: Provide exactly: ${requests.join(', ')}.
-    
-    ANALYSIS METHODOLOGY:
-    You must simulate analyzing the Live Trading Charts (Candlestick patterns).
-    For each pick, identify a specific 'Chart Pattern' (e.g., Bull Flag, Cup & Handle, Double Bottom, Ascending Triangle).
-    
-    IMPORTANT JSON RULES:
-    1. Output ONLY the official ticker symbol in 'symbol' field (e.g. TATAMOTORS, RELIANCE).
-    2. Assign 'type' correctly ('STOCK', 'MCX', 'FOREX', 'CRYPTO').
-    3. For MCX/Forex, provide lot size.
-    4. For Stocks, explicitly set 'timeframe' to 'INTRADAY', 'BTST', 'WEEKLY', or 'MONTHLY'.
-    5. Include the identified 'chartPattern'.
-    
-    Return the response as a JSON array.`;
+              // Logic for Categorization
+              if (technicals.rsi > 60 && technicals.adx > 25 && technicals.ema.ema9 > technicals.ema.ema21) {
+                  type = 'INTRADAY';
+                  reason = `Strong Momentum (RSI ${technicals.rsi.toFixed(0)}) + EMA Crossover`;
+                  pattern = "Bullish Breakout";
+              } else if (technicals.rsi < 35) {
+                  type = 'MONTHLY';
+                  reason = `Oversold (RSI ${technicals.rsi.toFixed(0)}) - Value Buy`;
+                  pattern = "Reversal / Dip Buy";
+              } else if (technicals.macd.histogram > 0 && technicals.macd.macd > technicals.macd.signal) {
+                  type = 'BTST';
+                  reason = "MACD Bullish Crossover";
+                  pattern = "Momentum Swing";
+              } else if (technicals.bollinger.percentB < 0.1) {
+                  type = 'WEEKLY';
+                  reason = "Bollinger Band Squeeze/Support";
+                  pattern = "Mean Reversion";
+              }
 
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents: prompt,
-      config: {
-        systemInstruction: `You are an expert technical analyst using Moving Averages, RSI, MACD, and Price Action. Time: ${isPostMarket ? 'After Close' : 'Live'}.`,
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.ARRAY,
-          items: {
-            type: Type.OBJECT,
-            properties: {
-              symbol: { type: Type.STRING },
-              name: { type: Type.STRING },
-              type: { type: Type.STRING, enum: ["STOCK", "MCX", "FOREX", "CRYPTO"] },
-              sector: { type: Type.STRING },
-              currentPrice: { type: Type.NUMBER },
-              reason: { type: Type.STRING },
-              chartPattern: { type: Type.STRING, description: "e.g., Bull Flag, Head & Shoulders" },
-              riskLevel: { type: Type.STRING, enum: ["Low", "Medium", "High"] },
-              targetPrice: { type: Type.NUMBER },
-              lotSize: { type: Type.NUMBER },
-              timeframe: { type: Type.STRING, enum: ["INTRADAY", "BTST", "WEEKLY", "MONTHLY"] }
-            },
-            required: ["symbol", "name", "type", "sector", "currentPrice", "reason", "riskLevel", "targetPrice", "lotSize", "chartPattern"]
-          }
-        }
-      }
-    });
+              if (type) {
+                   return {
+                      symbol: sym,
+                      name: getCompanyName(sym),
+                      type: 'STOCK',
+                      sector: 'Equity',
+                      currentPrice: price,
+                      reason: reason,
+                      riskLevel: type === 'INTRADAY' ? 'High' : 'Medium',
+                      targetPrice: Math.round(price * 1.05), // 5% Target
+                      lotSize: 1,
+                      timeframe: type,
+                      chartPattern: pattern
+                   } as StockRecommendation;
+              }
+          } catch (e) { console.error(e); }
+          return null;
+      });
 
-    let data: StockRecommendation[] = [];
-    if (response.text) {
-        data = JSON.parse(response.text) as StockRecommendation[];
-        // FORCE SYMBOL AS NAME FOR STOCKS to avoid confusion
-        data = data.map(item => {
-            const upperSymbol = item.symbol.toUpperCase();
-            let finalName = item.name;
-            
-            if (item.type === 'STOCK') {
-                // Try to get official name from CSV lookup
-                const csvName = getCompanyName(upperSymbol);
-                // If the CSV name differs from symbol (meaning lookup succeeded), use it.
-                // Or if the API didn't give a descriptive name, use CSV name.
-                if (csvName !== upperSymbol) {
-                    finalName = csvName;
-                } else if (item.name === item.symbol) {
-                     // Fallback if API returned symbol as name and no CSV match (unlikely for big stocks)
-                     finalName = upperSymbol;
-                }
-            }
-
-            return {
-                ...item,
-                name: finalName,
-                symbol: upperSymbol
-            };
-        });
-    }
-    return data;
-
-  } catch (error) {
-    console.error("Failed to fetch picks (Using Fallback):", error);
-    
-    // Fallback Logic
-    const fallback: StockRecommendation[] = [];
-    if (markets.stocks) {
-        // Tata Stocks Included per user request
-        fallback.push({ symbol: "TATASTEEL", name: getCompanyName("TATASTEEL"), type: "STOCK", sector: "Metals", currentPrice: 150, reason: "Global Infra Push", riskLevel: "Medium", targetPrice: 160, lotSize: 1, timeframe: "WEEKLY", chartPattern: "Ascending Triangle" });
-        fallback.push({ symbol: "TATAMOTORS", name: getCompanyName("TATAMOTORS"), type: "STOCK", sector: "Auto", currentPrice: 980, reason: "EV Sales Growth", riskLevel: "High", targetPrice: 1050, lotSize: 1, timeframe: "BTST", chartPattern: "Bull Flag" });
-        fallback.push({ symbol: "TATAPOWER", name: getCompanyName("TATAPOWER"), type: "STOCK", sector: "Power", currentPrice: 410, reason: "Green Energy Demand", riskLevel: "Medium", targetPrice: 440, lotSize: 1, timeframe: "MONTHLY", chartPattern: "Cup and Handle" });
-        fallback.push({ symbol: "TCS", name: getCompanyName("TCS"), type: "STOCK", sector: "IT", currentPrice: 4000, reason: "Deal Wins", riskLevel: "Low", targetPrice: 4200, lotSize: 1, timeframe: "MONTHLY", chartPattern: "Double Bottom" });
-        
-        // Other Picks
-        fallback.push({ symbol: "RELIANCE", name: getCompanyName("RELIANCE"), type: "STOCK", sector: "Energy", currentPrice: 2900, reason: "Telecom ARPU", riskLevel: "Medium", targetPrice: 3000, lotSize: 1, timeframe: "WEEKLY", chartPattern: "Channel Up" });
-        fallback.push({ symbol: "SBIN", name: getCompanyName("SBIN"), type: "STOCK", sector: "Bank", currentPrice: 780, reason: "Support Bounce", riskLevel: "Low", targetPrice: 800, lotSize: 1, timeframe: "BTST", chartPattern: "Double Bottom" });
-        fallback.push({ symbol: "ITC", name: getCompanyName("ITC"), type: "STOCK", sector: "FMCG", currentPrice: 420, reason: "Defensive", riskLevel: "Low", targetPrice: 450, lotSize: 1, timeframe: "MONTHLY", chartPattern: "Channel Up" });
-    }
-    if (markets.mcx) fallback.push({ symbol: "GOLD", name: "Gold Futures (MCX)", type: "MCX", sector: "Commodity", currentPrice: 72000, reason: "Safe Haven", riskLevel: "Low", targetPrice: 72500, lotSize: 1, timeframe: "INTRADAY", chartPattern: "Cup and Handle" });
-    if (markets.crypto) fallback.push({ symbol: "BTC", name: "Bitcoin", type: "CRYPTO", sector: "Digital", currentPrice: 65000, reason: "ETF Inflow", riskLevel: "High", targetPrice: 66000, lotSize: 0.01, timeframe: "INTRADAY", chartPattern: "Golden Cross" });
-
-    return fallback;
+      const stockResults = await Promise.all(promises);
+      stockResults.forEach(r => { if(r) picks.push(r); });
   }
+
+  // 2. ADD CRYPTO (Simulated Technicals)
+  if (markets.crypto) {
+      const cryptos = ['BTC', 'ETH', 'SOL'];
+      for (const c of cryptos) {
+          const data = await fetchRealStockData(c, dummySettings);
+          if (data) {
+             picks.push({
+                 symbol: c,
+                 name: getCompanyName(c),
+                 type: 'CRYPTO',
+                 sector: 'Digital',
+                 currentPrice: data.price,
+                 reason: "Crypto Market Momentum",
+                 riskLevel: 'High',
+                 targetPrice: data.price * 1.1,
+                 lotSize: c === 'BTC' ? 0.01 : 1,
+                 timeframe: 'INTRADAY',
+                 chartPattern: "Volatile Swing"
+             });
+          }
+      }
+  }
+
+  // 3. ADD MCX (Simulated)
+  if (markets.mcx) {
+      const data = await fetchRealStockData('GOLD', dummySettings);
+      if (data) {
+          picks.push({
+            symbol: 'GOLD',
+            name: 'Gold Futures',
+            type: 'MCX',
+            sector: 'Commodity',
+            currentPrice: data.price,
+            reason: "Safe Haven Asset",
+            riskLevel: 'Low',
+            targetPrice: data.price * 1.02,
+            lotSize: 1,
+            timeframe: 'WEEKLY',
+            chartPattern: "Consolidation"
+          });
+      }
+  }
+
+  return picks;
 };
 
+// Keep AI only for Analysis of Holdings (Text Generation)
 export const analyzeHoldings = async (holdings: PortfolioItem[], marketData: MarketData): Promise<HoldingAnalysis[]> => {
     if (holdings.length === 0) return [];
     

@@ -1,3 +1,4 @@
+
 import { Candle, StockData, TechnicalSignals, AppSettings, AssetType } from "../types";
 import { analyzeStockTechnical } from "./technicalAnalysis";
 
@@ -126,14 +127,12 @@ export const fetchRealStockData = async (symbol: string, settings: AppSettings):
     let ticker = TICKER_MAP[symbol.toUpperCase()];
     
     if (!ticker) {
-        // Handle Indian Stock Logic - Always append .NS for NSE stocks
+        // Handle Indian Stock Logic
         const upperSymbol = symbol.toUpperCase();
         
-        // If symbol already ends with .NS, use it, otherwise append it
-        if (upperSymbol.endsWith('.NS')) {
+        // Check if already ends with .NS or .BO
+        if (upperSymbol.endsWith('.NS') || upperSymbol.endsWith('.BO')) {
             ticker = upperSymbol;
-        } else if (upperSymbol.endsWith('.BO')) {
-            ticker = upperSymbol; // Respect BSE if explicitly requested
         } else {
             // Default to NSE (.NS) for all other Indian Stocks
             ticker = `${upperSymbol}.NS`;

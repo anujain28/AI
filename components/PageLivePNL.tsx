@@ -69,7 +69,7 @@ export const PageLivePNL: React.FC<PageLivePNLProps> = ({
                    <div className="flex items-center gap-2 mb-1 text-xs font-bold text-slate-300">
                        <Building2 size={12}/> {broker}
                    </div>
-                   <div className="text-sm font-mono text-white">₹{Math.round(balance as number).toLocaleString()}</div>
+                   <div className="text-sm font-mono text-white">₹{Math.round(Number(balance)).toLocaleString()}</div>
                </div>
            ))}
        </div>

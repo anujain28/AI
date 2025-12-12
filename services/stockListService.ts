@@ -527,28 +527,47 @@ const initNameCache = () => {
         const line = lines[i].trim();
         if (!line) continue;
         const parts = line.split(',');
-        const sym = parts[0].trim().toUpperCase();
+        let sym = parts[0].trim().toUpperCase();
+        
+        // Ensure .NS in cache keys
+        if (sym && !sym.endsWith('.NS')) {
+             sym = sym + '.NS';
+        }
+
         if (sym) {
-            NAME_CACHE.set(sym, sym); // Map symbol to itself as name since CSV has no names
+            NAME_CACHE.set(sym, sym); 
         }
     }
 };
 
 export const getCompanyName = (symbol: string): string => {
+    // If not cached, try to init
     if (!NAME_CACHE) initNameCache();
+    
+    const upperSymbol = symbol.toUpperCase();
+    
     // Try exact match
-    if (NAME_CACHE?.has(symbol)) return NAME_CACHE.get(symbol)!;
+    if (NAME_CACHE?.has(upperSymbol)) return NAME_CACHE.get(upperSymbol)!;
     
-    // Try common commodities
-    if (STATIC_MCX_LIST.includes(symbol)) return `${symbol} Futures (MCX)`;
-    if (STATIC_FOREX_LIST.includes(symbol)) return `${symbol.substring(0,3)}/${symbol.substring(3)} Forex`;
-    if (STATIC_CRYPTO_LIST.includes(symbol)) return `${symbol} Crypto`;
+    // Try adding .NS if missing
+    if (!upperSymbol.endsWith('.NS') && NAME_CACHE?.has(upperSymbol + '.NS')) {
+        return NAME_CACHE.get(upperSymbol + '.NS')!;
+    }
     
-    // Fallback: Return the symbol itself
-    return symbol; 
+    // Common Commodities
+    if (STATIC_MCX_LIST.includes(upperSymbol)) return `${upperSymbol} Futures`;
+    if (STATIC_FOREX_LIST.includes(upperSymbol)) return `${upperSymbol.substring(0,3)}/${upperSymbol.substring(3)}`;
+    if (STATIC_CRYPTO_LIST.includes(upperSymbol)) return `${upperSymbol} Crypto`;
+    
+    // Force .NS for unknown stocks if not special
+    if (!upperSymbol.includes('.') && !STATIC_MCX_LIST.includes(upperSymbol) && !STATIC_FOREX_LIST.includes(upperSymbol) && !STATIC_CRYPTO_LIST.includes(upperSymbol)) {
+        return upperSymbol + '.NS';
+    }
+
+    return upperSymbol; 
 };
 
-// Helper to parse CSV dynamically based on header
+// Helper to parse CSV dynamically
 const parseCSV = (text: string): string[] => {
     const lines = text.split('\n');
     if (lines.length < 2) return [];
@@ -559,12 +578,15 @@ const parseCSV = (text: string): string[] => {
         const line = lines[i].trim();
         if (!line) continue;
         
-        // Assume first column is symbol
         const cols = line.split(',');
-        const sym = cols[0].trim();
+        let sym = cols[0].trim().toUpperCase();
             
-        if (sym && /^[A-Z0-9&]+$/.test(sym) && sym !== 'Symbol') {
-            symbols.add(sym);
+        if (sym && /^[A-Z0-9&]+$/.test(sym) && sym !== 'SYMBOL') {
+             // Append .NS here so the whole app uses it
+             if (!sym.endsWith('.NS')) {
+                 sym = sym + '.NS';
+             }
+             symbols.add(sym);
         }
     }
     
