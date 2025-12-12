@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { fetchTopStockPicks, analyzeHoldings } from './services/geminiService';
 import { checkAndRefreshStockList } from './services/stockListService';
@@ -18,23 +17,6 @@ import { PagePaperTrading } from './components/PagePaperTrading';
 import { PageLivePNL } from './components/PageLivePNL';
 import { PageConfiguration } from './components/PageConfiguration';
 
-const generateFallbackHistory = (startPrice: number, count: number) => {
-    const candles = [];
-    let price = startPrice;
-    let time = Date.now() - (count * 300000); 
-    for(let i=0; i<count; i++) {
-        const change = (Math.random() - 0.5) * 0.004;
-        const close = price * (1 + change);
-        const high = Math.max(price, close) * (1 + Math.random() * 0.001);
-        const low = Math.min(price, close) * (1 - Math.random() * 0.001);
-        candles.push({ time, open: price, high, low, close, volume: Math.floor(Math.random() * 10000) });
-        price = close;
-        time += 300000;
-    }
-    return candles;
-};
-
-// Updated keys to reset data as requested
 const STORAGE_KEYS = {
   SETTINGS: 'aitrade_settings_v10',
   PORTFOLIO: 'aitrade_portfolio_v4',
@@ -250,26 +232,8 @@ export default function App() {
          results.forEach(({ symbol, data }) => {
              if (data) {
                  nextMarketData[symbol] = data;
-             } else {
-                 const rec = currentRecs.find(s => s.symbol === symbol);
-                 const port = allHoldings.find(p => p.symbol === symbol);
-                 const oldPrice = prevMarketData[symbol]?.price || (rec ? rec.currentPrice : (port ? port.avgCost : 100));
-                 
-                 const change = (Math.random() - 0.5) * (oldPrice * 0.001); 
-                 const newPrice = oldPrice + change;
-                 
-                 const history = prevMarketData[symbol]?.history || generateFallbackHistory(newPrice, 50);
-                 const lastCandle = { ...history[history.length - 1] };
-                 lastCandle.close = newPrice;
-                 
-                 nextMarketData[symbol] = { 
-                     price: newPrice, 
-                     change: newPrice - (history[0]?.open || newPrice), 
-                     changePercent: ((newPrice - (history[0]?.open || newPrice)) / (history[0]?.open || newPrice)) * 100, 
-                     history, 
-                     technicals: analyzeStockTechnical(history) 
-                 };
-             }
+             } 
+             // Removed fallback generation logic here
          });
          return nextMarketData;
     });

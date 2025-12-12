@@ -81,7 +81,7 @@ export const StockCard: React.FC<StockCardProps> = ({ stock, marketData, onTrade
           </div>
           <div className="text-right">
              <div className="text-[10px] text-slate-400 flex items-center justify-end gap-1 mb-0.5"><Target size={10}/> Target</div>
-             <div className="text-lg font-bold text-green-400 font-mono">₹{stock.targetPrice}</div>
+             <div className="text-lg font-bold text-green-400 font-mono">₹{stock.targetPrice.toFixed(2)}</div>
           </div>
       </div>
 

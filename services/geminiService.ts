@@ -1,18 +1,6 @@
-
-import { GoogleGenAI, Type } from "@google/genai";
 import { StockRecommendation, MarketSettings, PortfolioItem, HoldingAnalysis, MarketData, AppSettings } from "../types";
 import { getCompanyName } from "./stockListService";
 import { fetchRealStockData } from "./marketDataService";
-
-let aiInstance: GoogleGenAI | null = null;
-
-const getAI = () => {
-    if (aiInstance) return aiInstance;
-    const apiKey = typeof process !== 'undefined' ? process.env.API_KEY : '';
-    if (!apiKey) console.warn("Gemini API Key is missing.");
-    aiInstance = new GoogleGenAI({ apiKey: apiKey || 'dummy_key' });
-    return aiInstance;
-};
 
 // Shuffles array in place
 function shuffleArray<T>(array: T[]): T[] {
@@ -23,7 +11,7 @@ function shuffleArray<T>(array: T[]): T[] {
     return array;
 }
 
-// Algorithmic Selection using Yahoo Finance Data (via Proxy)
+// Algorithmic Selection (Replaces AI)
 export const fetchTopStockPicks = async (
     totalCapital: number, 
     stockUniverse: string[] = [], 
@@ -42,8 +30,8 @@ export const fetchTopStockPicks = async (
 
   // 1. SELECT STOCKS (ALGORITHMIC)
   if (markets.stocks && stockUniverse.length > 0) {
-      // Shuffle universe and pick a larger subset to scan (100 stocks)
-      const candidates = shuffleArray([...stockUniverse]).slice(0, 100);
+      // Scan a subset of stocks to avoid rate limits
+      const candidates = shuffleArray([...stockUniverse]).slice(0, 30); 
       
       const promises = candidates.map(async (sym) => {
           try {
@@ -53,8 +41,8 @@ export const fetchTopStockPicks = async (
               const { technicals, price } = data;
               if (!technicals) return null;
 
-              // Filter out low scores immediately to save processing
-              if (technicals.score < 50) return null;
+              // Filter out low scores
+              if (technicals.score < 40) return null;
 
               let type: 'INTRADAY' | 'BTST' | 'WEEKLY' | 'MONTHLY' | null = null;
               let reason = "";
@@ -63,26 +51,23 @@ export const fetchTopStockPicks = async (
               // Logic for Categorization
               if (technicals.rsi > 60 && technicals.adx > 25 && technicals.ema.ema9 > technicals.ema.ema21) {
                   type = 'INTRADAY';
-                  reason = `Strong Momentum (RSI ${technicals.rsi.toFixed(0)}) + EMA Crossover`;
+                  reason = `Strong Momentum (RSI ${technicals.rsi.toFixed(0)})`;
                   pattern = "Bullish Breakout";
               } else if (technicals.rsi < 35) {
                   type = 'MONTHLY';
-                  reason = `Oversold (RSI ${technicals.rsi.toFixed(0)}) - Value Buy`;
-                  pattern = "Reversal / Dip Buy";
+                  reason = `Oversold (RSI ${technicals.rsi.toFixed(0)})`;
+                  pattern = "Reversal";
               } else if (technicals.macd.histogram > 0 && technicals.macd.macd > technicals.macd.signal) {
                   type = 'BTST';
                   reason = "MACD Bullish Crossover";
                   pattern = "Momentum Swing";
               } else if (technicals.bollinger.percentB < 0.1) {
                   type = 'WEEKLY';
-                  reason = "Bollinger Band Squeeze/Support";
+                  reason = "Bollinger Squeeze";
                   pattern = "Mean Reversion";
-              }
-
-              // Fallback for high score stocks without specific category
-              if (!type && technicals.score > 70) {
+              } else if (technicals.score > 60) {
                   type = 'WEEKLY';
-                  reason = `High Technical Score (${technicals.score.toFixed(0)})`;
+                  reason = `Technical Score ${technicals.score.toFixed(0)}`;
                   pattern = "Strong Trend";
               }
 
@@ -96,7 +81,7 @@ export const fetchTopStockPicks = async (
                         currentPrice: price,
                         reason: reason,
                         riskLevel: type === 'INTRADAY' ? 'High' : 'Medium',
-                        targetPrice: Math.round(price * 1.05 * 100) / 100, // 5% Target, rounded 2 decimals
+                        targetPrice: Math.round(price * 1.05 * 100) / 100, // 5% Target
                         lotSize: 1,
                         timeframe: type,
                         chartPattern: pattern
@@ -104,13 +89,12 @@ export const fetchTopStockPicks = async (
                       score: technicals.score
                    };
               }
-          } catch (e) { console.error(e); }
+          } catch (e) { }
           return null;
       });
 
       const stockResults = await Promise.all(promises);
       
-      // Sort by Technical Score and take top 10
       const sortedResults = stockResults
         .filter((r): r is { rec: StockRecommendation, score: number } => r !== null)
         .sort((a, b) => b.score - a.score)
@@ -119,7 +103,7 @@ export const fetchTopStockPicks = async (
       sortedResults.forEach(r => picks.push(r.rec));
   }
 
-  // 2. ADD CRYPTO (Simulated Technicals)
+  // 2. CRYPTO
   if (markets.crypto) {
       const cryptos = ['BTC', 'ETH', 'SOL'];
       for (const c of cryptos) {
@@ -131,82 +115,76 @@ export const fetchTopStockPicks = async (
                  type: 'CRYPTO',
                  sector: 'Digital',
                  currentPrice: data.price,
-                 reason: "Crypto Market Momentum",
+                 reason: "Crypto Momentum",
                  riskLevel: 'High',
-                 targetPrice: data.price * 1.1,
+                 targetPrice: data.price * 1.05,
                  lotSize: c === 'BTC' ? 0.01 : 1,
                  timeframe: 'INTRADAY',
-                 chartPattern: "Volatile Swing"
+                 chartPattern: "Volatile"
              });
           }
       }
   }
 
-  // 3. ADD MCX (Simulated)
+  // 3. MCX
   if (markets.mcx) {
-      const data = await fetchRealStockData('GOLD', dummySettings);
-      if (data) {
-          picks.push({
-            symbol: 'GOLD',
-            name: 'Gold Futures',
-            type: 'MCX',
-            sector: 'Commodity',
-            currentPrice: data.price,
-            reason: "Safe Haven Asset",
-            riskLevel: 'Low',
-            targetPrice: data.price * 1.02,
-            lotSize: 1,
-            timeframe: 'WEEKLY',
-            chartPattern: "Consolidation"
-          });
+      const mcx = ['GOLD', 'SILVER', 'CRUDEOIL'];
+      for (const m of mcx) {
+          const data = await fetchRealStockData(m, dummySettings);
+          if (data) {
+              picks.push({
+                symbol: m,
+                name: getCompanyName(m),
+                type: 'MCX',
+                sector: 'Commodity',
+                currentPrice: data.price,
+                reason: "Commodity Trend",
+                riskLevel: 'Medium',
+                targetPrice: data.price * 1.02,
+                lotSize: 1,
+                timeframe: 'WEEKLY',
+                chartPattern: "Trend"
+              });
+          }
       }
   }
 
   return picks;
 };
 
-// Keep AI only for Analysis of Holdings (Text Generation)
+// Local Analysis (No API)
 export const analyzeHoldings = async (holdings: PortfolioItem[], marketData: MarketData): Promise<HoldingAnalysis[]> => {
-    if (holdings.length === 0) return [];
-    
-    const uniqueHoldings = Array.from(new Set(holdings.map(h => h.symbol)))
-        .map(symbol => {
-             const h = holdings.find(i => i.symbol === symbol);
-             const data = marketData[symbol];
-             return { symbol, avgCost: h ? h.avgCost : 0, currentPrice: data ? data.price : (h ? h.avgCost : 0) };
-        });
+    return holdings.map(h => {
+        const data = marketData[h.symbol];
+        if (!data) return {
+            symbol: h.symbol, action: 'HOLD', reason: 'Insufficient Data', targetPrice: 0, dividendYield: '-', cagr: '-'
+        };
 
-    const prompt = `Analyze holdings using technical indicators. Provide BUY/SELL/HOLD, target.
-    Holdings: ${uniqueHoldings.map(h => `${h.symbol}: Cost ${h.avgCost}`).join('; ')}`;
+        const score = data.technicals.score;
+        let action: 'BUY' | 'SELL' | 'HOLD' = 'HOLD';
+        let reason = "Neutral Trend";
 
-    try {
-        const ai = getAI();
-        const response = await ai.models.generateContent({
-            model: "gemini-2.5-flash",
-            contents: prompt,
-            config: {
-                responseMimeType: "application/json",
-                responseSchema: {
-                    type: Type.ARRAY,
-                    items: {
-                        type: Type.OBJECT,
-                        properties: {
-                            symbol: { type: Type.STRING },
-                            action: { type: Type.STRING, enum: ["BUY", "HOLD", "SELL"] },
-                            reason: { type: Type.STRING },
-                            targetPrice: { type: Type.NUMBER },
-                            dividendYield: { type: Type.STRING },
-                            cagr: { type: Type.STRING }
-                        },
-                        required: ["symbol", "action", "reason", "targetPrice", "dividendYield", "cagr"]
-                    }
-                }
-            }
-        });
+        if (score >= 70) { 
+            action = 'BUY'; 
+            reason = "Strong Technicals (Score > 70)"; 
+        } else if (score <= 30) { 
+            action = 'SELL'; 
+            reason = "Weak Technicals (Score < 30)"; 
+        } else if (h.type === 'STOCK' && data.technicals.rsi > 75) { 
+            action = 'SELL'; 
+            reason = "Overbought (RSI > 75)"; 
+        } else if (h.type === 'STOCK' && data.technicals.rsi < 30) {
+            action = 'BUY';
+            reason = "Oversold (RSI < 30)";
+        }
 
-        if (response.text) return JSON.parse(response.text) as HoldingAnalysis[];
-        return [];
-    } catch (e) {
-        return [];
-    }
+        return {
+            symbol: h.symbol,
+            action,
+            reason,
+            targetPrice: parseFloat((data.price * (action === 'BUY' ? 1.1 : 0.95)).toFixed(2)),
+            dividendYield: "0.00%",
+            cagr: "N/A"
+        };
+    });
 };
