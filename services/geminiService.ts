@@ -43,8 +43,8 @@ export const fetchTopStockPicks = async (
   if (markets.stocks) {
     // Shuffle to avoid alphabetical bias
     const shuffled = shuffle(universe);
-    // Limit to avoid hammering Yahoo / yfinance [web:52][web:10]
-    const sample = shuffled.slice(0, 200);
+    // Limit to avoid hammering Yahoo / yfinance
+    const sample = shuffled.slice(0, 80);
 
     const results: { symbol: string; data: MarketData }[] = [];
 
@@ -120,7 +120,7 @@ export const fetchTopStockPicks = async (
     picks.push(...topMonthly.map((s) => toRec(s, "MONTHLY")));
   }
 
-  // No fallback: if nothing could be fetched, picks will just be []
+  // No fallback: if nothing fetched, this returns []
   return picks;
 };
 
