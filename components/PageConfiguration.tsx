@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { AppSettings, MarketSettings, Transaction } from '../types';
 import { Save, Wallet, LayoutGrid, Building2, Bell, TrendingUp, Cpu, Globe, DollarSign, Key, Zap, Check, Trash2, Bot, Power, FileText } from 'lucide-react';
@@ -37,8 +38,22 @@ export const PageConfiguration: React.FC<PageConfigurationProps> = ({ settings, 
   };
 
   const handleReset = () => {
-    if (confirm("Are you sure you want to reset all data? This cannot be undone.")) {
+    if (confirm("WARNING: This will delete ALL trades, portfolio history, settings, and login session. This cannot be undone.")) {
+      // Explicitly clear all known keys
+      const STORAGE_KEYS = [
+        'aitrade_settings_v10',
+        'aitrade_portfolio_v4',
+        'aitrade_funds_v3', 
+        'aitrade_transactions_v2',
+        'aitrade_user_profile',
+        'aitrade_last_run'
+      ];
+      STORAGE_KEYS.forEach(key => localStorage.removeItem(key));
+      
+      // Clear everything else just in case
       localStorage.clear();
+      
+      // Force reload to clear memory state
       window.location.reload();
     }
   };
@@ -121,6 +136,9 @@ export const PageConfiguration: React.FC<PageConfigurationProps> = ({ settings, 
                                     {formData.autoTradeConfig?.mode === 'PERCENTAGE' ? '%' : 'INR'}
                                 </span>
                             </div>
+                            <p className="text-[10px] text-slate-400 mt-2 italic">
+                                Note: Bot will slice orders (buy approx 25% of target amount at a time) and hold max 5 positions.
+                            </p>
                         </div>
                         
                         <div className="flex items-center justify-between bg-surface p-4 rounded-xl border border-slate-800">
@@ -149,8 +167,8 @@ export const PageConfiguration: React.FC<PageConfigurationProps> = ({ settings, 
                         </div>
                     </section>
 
-                    <button onClick={handleReset} className="w-full py-4 rounded-xl text-xs font-bold text-red-400 bg-red-900/10 border border-red-900/30 flex items-center justify-center gap-2 mt-4">
-                        <Trash2 size={14}/> Factory Reset App
+                    <button onClick={handleReset} className="w-full py-4 rounded-xl text-xs font-bold text-red-400 bg-red-900/10 border border-red-900/30 flex items-center justify-center gap-2 mt-4 hover:bg-red-900/20 transition-all">
+                        <Trash2 size={14}/> Factory Reset & Clear Data
                     </button>
                 </div>
             )}

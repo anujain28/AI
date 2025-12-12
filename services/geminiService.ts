@@ -1,3 +1,4 @@
+
 import { StockRecommendation, MarketSettings, PortfolioItem, HoldingAnalysis, MarketData, AppSettings } from "../types";
 import { getCompanyName } from "./stockListService";
 import { fetchRealStockData } from "./marketDataService";
@@ -30,8 +31,8 @@ export const fetchTopStockPicks = async (
 
   // 1. SELECT STOCKS (ALGORITHMIC)
   if (markets.stocks && stockUniverse.length > 0) {
-      // Scan a subset of stocks to avoid rate limits
-      const candidates = shuffleArray([...stockUniverse]).slice(0, 30); 
+      // Scan a larger subset of stocks to find the best 20
+      const candidates = shuffleArray([...stockUniverse]).slice(0, 60); 
       
       const promises = candidates.map(async (sym) => {
           try {
@@ -51,23 +52,23 @@ export const fetchTopStockPicks = async (
               // Logic for Categorization
               if (technicals.rsi > 60 && technicals.adx > 25 && technicals.ema.ema9 > technicals.ema.ema21) {
                   type = 'INTRADAY';
-                  reason = `Strong Momentum (RSI ${technicals.rsi.toFixed(0)})`;
+                  reason = `High Momentum (Score: ${technicals.score.toFixed(0)})`;
                   pattern = "Bullish Breakout";
               } else if (technicals.rsi < 35) {
                   type = 'MONTHLY';
-                  reason = `Oversold (RSI ${technicals.rsi.toFixed(0)})`;
-                  pattern = "Reversal";
+                  reason = `Oversold Reversal (RSI ${technicals.rsi.toFixed(0)})`;
+                  pattern = "Dip Buy";
               } else if (technicals.macd.histogram > 0 && technicals.macd.macd > technicals.macd.signal) {
                   type = 'BTST';
-                  reason = "MACD Bullish Crossover";
+                  reason = "MACD Crossover";
                   pattern = "Momentum Swing";
               } else if (technicals.bollinger.percentB < 0.1) {
                   type = 'WEEKLY';
-                  reason = "Bollinger Squeeze";
+                  reason = "Volatility Squeeze";
                   pattern = "Mean Reversion";
               } else if (technicals.score > 60) {
                   type = 'WEEKLY';
-                  reason = `Technical Score ${technicals.score.toFixed(0)}`;
+                  reason = `Strong Technical Score ${technicals.score.toFixed(0)}`;
                   pattern = "Strong Trend";
               }
 
@@ -98,15 +99,12 @@ export const fetchTopStockPicks = async (
       const sortedResults = stockResults
         .filter((r): r is { rec: StockRecommendation, score: number } => r !== null)
         .sort((a, b) => b.score - a.score)
-        .slice(0, 10);
+        .slice(0, 20); // Top 20 Stocks
         
       sortedResults.forEach(r => picks.push(r.rec));
   }
 
   // 2. CRYPTO - ALWAYS FETCH TOP 5 for "Market Page Trend Board"
-  // Even if crypto is disabled in settings, we fetch data to populate the trend board if requested, 
-  // but filtering happens at UI level. 
-  // Here we assume if called, we want data.
   if (markets.crypto) {
       const cryptos = ['BTC', 'ETH', 'SOL', 'XRP', 'BNB'];
       
@@ -114,7 +112,6 @@ export const fetchTopStockPicks = async (
           try {
             const data = await fetchRealStockData(c, dummySettings);
             if (data) {
-                // Determine Recommendation based on Score
                 let recReason = "Hold";
                 if (data.technicals.score > 65) recReason = "Strong Buy";
                 else if (data.technicals.score > 55) recReason = "Buy";
