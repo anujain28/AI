@@ -546,7 +546,6 @@ const initNameCache = () => {
     }
   }
 };
-
 export const getCompanyName = (symbol: string): string => {
   if (!NAME_CACHE) initNameCache();
 
