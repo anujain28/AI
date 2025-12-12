@@ -1,4 +1,3 @@
-
 const STATIC_NSE_LIST = `Symbol
 ABB
 ACC
@@ -502,73 +501,72 @@ ZYDUSLIFE
 ECLERX`;
 
 export const STATIC_MCX_LIST = [
-    "GOLD", "SILVER", "CRUDEOIL", "NATURALGAS", "COPPER", "ZINC", "ALUMINIUM", "LEAD"
+  "GOLD", "SILVER", "CRUDEOIL", "NATURALGAS", "COPPER", "ZINC", "ALUMINIUM", "LEAD"
 ];
 
 export const STATIC_FOREX_LIST = [
-    "USDINR", "EURINR", "GBPINR", "JPYINR", "EURUSD", "GBPUSD"
+  "USDINR", "EURINR", "GBPINR", "JPYINR", "EURUSD", "GBPUSD"
 ];
 
 export const STATIC_CRYPTO_LIST = [
-    "BTC", "ETH", "SOL", "BNB", "XRP", "ADA"
+  "BTC", "ETH", "SOL", "BNB", "XRP", "ADA"
 ];
 
 let NAME_CACHE: Map<string, string> | null = null;
 
 const initNameCache = () => {
-    if (NAME_CACHE) return;
-    NAME_CACHE = new Map<string, string>();
-    const lines = STATIC_NSE_LIST.split('\n');
-    
-    // Support basic list where each line is just a Symbol
-    for (let i = 1; i < lines.length; i++) {
-        const line = lines[i].trim();
-        if (!line) continue;
-        const parts = line.split(',');
-        const sym = parts[0].trim().toUpperCase();
-        if (sym) {
-            NAME_CACHE.set(sym, sym); // Map symbol to itself as name since CSV has no names
-        }
+  if (NAME_CACHE) return;
+  NAME_CACHE = new Map<string, string>();
+  const lines = STATIC_NSE_LIST.split("\n");
+
+  for (let i = 1; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (!line) continue;
+    const parts = line.split(",");
+    const sym = parts[0].trim().toUpperCase();
+    if (sym) {
+      // CSV has only symbols, so map symbol -> itself
+      NAME_CACHE.set(sym, sym);
     }
+  }
 };
 
 export const getCompanyName = (symbol: string): string => {
-    if (!NAME_CACHE) initNameCache();
-    // Try exact match
-    if (NAME_CACHE?.has(symbol)) return NAME_CACHE.get(symbol.NS)!;
-    
-    // Try common commodities
-    if (STATIC_MCX_LIST.includes(symbol)) return `${symbol} Futures (MCX)`;
-    if (STATIC_FOREX_LIST.includes(symbol)) return `${symbol.substring(0,3)}/${symbol.substring(3)} Forex`;
-    if (STATIC_CRYPTO_LIST.includes(symbol)) return `${symbol} Crypto`;
-    
-    // Fallback: Return the symbol itself
-    return symbol.NS; 
+  if (!NAME_CACHE) initNameCache();
+
+  // normalize to base symbol (strip any .NS / .BO etc.)
+  const base = symbol.toUpperCase().replace(/\.(NS|BO)$/i, "");
+
+  if (NAME_CACHE?.has(base)) return NAME_CACHE.get(base)!;
+
+  if (STATIC_MCX_LIST.includes(base)) return `${base} Futures (MCX)`;
+  if (STATIC_FOREX_LIST.includes(base)) return `${base.substring(0, 3)}/${base.substring(3)} Forex`;
+  if (STATIC_CRYPTO_LIST.includes(base)) return `${base} Crypto`;
+
+  return base;
 };
 
-// Helper to parse CSV dynamically based on header
 const parseCSV = (text: string): string[] => {
-    const lines = text.split('\n');
-    if (lines.length < 2) return [];
+  const lines = text.split("\n");
+  if (lines.length < 2) return [];
 
-    const symbols: Set<string> = new Set();
-    
-    for (let i = 1; i < lines.length; i++) {
-        const line = lines[i].trim();
-        if (!line) continue;
-        
-        // Assume first column is symbol
-        const cols = line.split(',');
-        const sym = cols[0].trim();
-            
-        if (sym && /^[A-Z0-9&]+$/.test(sym) && sym !== 'Symbol') {
-            symbols.add(sym);
-        }
+  const symbols: Set<string> = new Set();
+
+  for (let i = 1; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (!line) continue;
+
+    const cols = line.split(",");
+    const sym = cols[0].trim().toUpperCase();
+
+    if (sym && /^[A-Z0-9&-]+$/.test(sym) && sym !== "Symbol") {
+      symbols.add(sym);
     }
-    
-    return Array.from(symbols);
+  }
+
+  return Array.from(symbols);
 };
 
 export const checkAndRefreshStockList = async (): Promise<string[]> => {
-    return parseCSV(STATIC_NSE_LIST);
-}
+  return parseCSV(STATIC_NSE_LIST);
+};
