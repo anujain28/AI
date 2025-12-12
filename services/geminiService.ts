@@ -59,7 +59,7 @@ export const fetchTopStockPicks = async (
     For each pick, identify a specific 'Chart Pattern' (e.g., Bull Flag, Cup & Handle, Double Bottom, Ascending Triangle).
     
     IMPORTANT JSON RULES:
-    1. Output ONLY the official ticker symbol in 'symbol' field (e.g. TATAMOTORS, RELIANCE).
+    1. Output ONLY the official ticker symbol WITHOUT .NS suffix in 'symbol' field (e.g. TATAMOTORS, RELIANCE).
     2. Assign 'type' correctly ('STOCK', 'MCX', 'FOREX', 'CRYPTO').
     3. For MCX/Forex, provide lot size.
     4. For Stocks, explicitly set 'timeframe' to 'INTRADAY', 'BTST', 'WEEKLY', or 'MONTHLY'.
@@ -99,28 +99,31 @@ export const fetchTopStockPicks = async (
     let data: StockRecommendation[] = [];
     if (response.text) {
         data = JSON.parse(response.text) as StockRecommendation[];
-        // FORCE SYMBOL AS NAME FOR STOCKS to avoid confusion
+        // PROCESS SYMBOLS FOR YFINANCE COMPATIBILITY
         data = data.map(item => {
-            const upperSymbol = item.symbol.toUpperCase();
+            const originalSymbol = item.symbol.toUpperCase().trim();
+            let finalSymbol = originalSymbol;
             let finalName = item.name;
             
             if (item.type === 'STOCK') {
-                // Try to get official name from CSV lookup
-                const csvName = getCompanyName(upperSymbol);
+                // Remove .NS suffix if present (AI might add it)
+                finalSymbol = originalSymbol.replace(/\.NS$/i, '');
+                
+                // Try to get official name from CSV lookup using base symbol
+                const csvName = getCompanyName(finalSymbol);
                 // If the CSV name differs from symbol (meaning lookup succeeded), use it.
-                // Or if the API didn't give a descriptive name, use CSV name.
-                if (csvName !== upperSymbol) {
+                if (csvName !== finalSymbol) {
                     finalName = csvName;
-                } else if (item.name === item.symbol) {
-                     // Fallback if API returned symbol as name and no CSV match (unlikely for big stocks)
-                     finalName = upperSymbol;
+                } else if (item.name === item.symbol || item.name === `${item.symbol}.NS`) {
+                     // Fallback if API returned symbol as name
+                     finalName = csvName || finalSymbol;
                 }
             }
 
             return {
                 ...item,
                 name: finalName,
-                symbol: upperSymbol
+                symbol: finalSymbol  // Clean symbol ready for yfinance (.NS will be appended later)
             };
         });
     }
@@ -129,22 +132,117 @@ export const fetchTopStockPicks = async (
   } catch (error) {
     console.error("Failed to fetch picks (Using Fallback):", error);
     
-    // Fallback Logic
+    // Fallback Logic - Clean symbols for yfinance
     const fallback: StockRecommendation[] = [];
     if (markets.stocks) {
         // Tata Stocks Included per user request
-        fallback.push({ symbol: "TATASTEEL", name: getCompanyName("TATASTEEL"), type: "STOCK", sector: "Metals", currentPrice: 150, reason: "Global Infra Push", riskLevel: "Medium", targetPrice: 160, lotSize: 1, timeframe: "WEEKLY", chartPattern: "Ascending Triangle" });
-        fallback.push({ symbol: "TATAMOTORS", name: getCompanyName("TATAMOTORS"), type: "STOCK", sector: "Auto", currentPrice: 980, reason: "EV Sales Growth", riskLevel: "High", targetPrice: 1050, lotSize: 1, timeframe: "BTST", chartPattern: "Bull Flag" });
-        fallback.push({ symbol: "TATAPOWER", name: getCompanyName("TATAPOWER"), type: "STOCK", sector: "Power", currentPrice: 410, reason: "Green Energy Demand", riskLevel: "Medium", targetPrice: 440, lotSize: 1, timeframe: "MONTHLY", chartPattern: "Cup and Handle" });
-        fallback.push({ symbol: "TCS", name: getCompanyName("TCS"), type: "STOCK", sector: "IT", currentPrice: 4000, reason: "Deal Wins", riskLevel: "Low", targetPrice: 4200, lotSize: 1, timeframe: "MONTHLY", chartPattern: "Double Bottom" });
+        fallback.push({ 
+            symbol: "TATASTEEL", 
+            name: getCompanyName("TATASTEEL"), 
+            type: "STOCK", 
+            sector: "Metals", 
+            currentPrice: 150, 
+            reason: "Global Infra Push", 
+            riskLevel: "Medium", 
+            targetPrice: 160, 
+            lotSize: 1, 
+            timeframe: "WEEKLY", 
+            chartPattern: "Ascending Triangle" 
+        });
+        fallback.push({ 
+            symbol: "TATAPOWER", 
+            name: getCompanyName("TATAPOWER"), 
+            type: "STOCK", 
+            sector: "Power", 
+            currentPrice: 410, 
+            reason: "Green Energy Demand", 
+            riskLevel: "Medium", 
+            targetPrice: 440, 
+            lotSize: 1, 
+            timeframe: "MONTHLY", 
+            chartPattern: "Cup and Handle" 
+        });
+        fallback.push({ 
+            symbol: "TCS", 
+            name: getCompanyName("TCS"), 
+            type: "STOCK", 
+            sector: "IT", 
+            currentPrice: 4000, 
+            reason: "Deal Wins", 
+            riskLevel: "Low", 
+            targetPrice: 4200, 
+            lotSize: 1, 
+            timeframe: "MONTHLY", 
+            chartPattern: "Double Bottom" 
+        });
         
         // Other Picks
-        fallback.push({ symbol: "RELIANCE", name: getCompanyName("RELIANCE"), type: "STOCK", sector: "Energy", currentPrice: 2900, reason: "Telecom ARPU", riskLevel: "Medium", targetPrice: 3000, lotSize: 1, timeframe: "WEEKLY", chartPattern: "Channel Up" });
-        fallback.push({ symbol: "SBIN", name: getCompanyName("SBIN"), type: "STOCK", sector: "Bank", currentPrice: 780, reason: "Support Bounce", riskLevel: "Low", targetPrice: 800, lotSize: 1, timeframe: "BTST", chartPattern: "Double Bottom" });
-        fallback.push({ symbol: "ITC", name: getCompanyName("ITC"), type: "STOCK", sector: "FMCG", currentPrice: 420, reason: "Defensive", riskLevel: "Low", targetPrice: 450, lotSize: 1, timeframe: "MONTHLY", chartPattern: "Channel Up" });
+        fallback.push({ 
+            symbol: "RELIANCE", 
+            name: getCompanyName("RELIANCE"), 
+            type: "STOCK", 
+            sector: "Energy", 
+            currentPrice: 2900, 
+            reason: "Telecom ARPU", 
+            riskLevel: "Medium", 
+            targetPrice: 3000, 
+            lotSize: 1, 
+            timeframe: "WEEKLY", 
+            chartPattern: "Channel Up" 
+        });
+        fallback.push({ 
+            symbol: "SBIN", 
+            name: getCompanyName("SBIN"), 
+            type: "STOCK", 
+            sector: "Bank", 
+            currentPrice: 780, 
+            reason: "Support Bounce", 
+            riskLevel: "Low", 
+            targetPrice: 800, 
+            lotSize: 1, 
+            timeframe: "BTST", 
+            chartPattern: "Double Bottom" 
+        });
+        fallback.push({ 
+            symbol: "ITC", 
+            name: getCompanyName("ITC"), 
+            type: "STOCK", 
+            sector: "FMCG", 
+            currentPrice: 420, 
+            reason: "Defensive", 
+            riskLevel: "Low", 
+            targetPrice: 450, 
+            lotSize: 1, 
+            timeframe: "MONTHLY", 
+            chartPattern: "Channel Up" 
+        });
     }
-    if (markets.mcx) fallback.push({ symbol: "GOLD", name: "Gold Futures (MCX)", type: "MCX", sector: "Commodity", currentPrice: 72000, reason: "Safe Haven", riskLevel: "Low", targetPrice: 72500, lotSize: 1, timeframe: "INTRADAY", chartPattern: "Cup and Handle" });
-    if (markets.crypto) fallback.push({ symbol: "BTC", name: "Bitcoin", type: "CRYPTO", sector: "Digital", currentPrice: 65000, reason: "ETF Inflow", riskLevel: "High", targetPrice: 66000, lotSize: 0.01, timeframe: "INTRADAY", chartPattern: "Golden Cross" });
+    if (markets.mcx) fallback.push({ 
+        symbol: "GOLD", 
+        name: "Gold Futures (MCX)", 
+        type: "MCX", 
+        sector: "Commodity", 
+        currentPrice: 72000, 
+        reason: "Safe Haven", 
+        riskLevel: "Low", 
+        targetPrice: 72500, 
+        lotSize: 1, 
+        timeframe: "INTRADAY", 
+        chartPattern: "Cup and Handle" 
+    });
+    if (markets.crypto) fallback.push({ 
+        symbol: "BTC", 
+        name: "Bitcoin", 
+        type: "CRYPTO", 
+        sector: "Digital", 
+        currentPrice: 65000, 
+        reason: "ETF Inflow", 
+        riskLevel: "High", 
+        targetPrice: 66000, 
+        lotSize: 0.01, 
+        timeframe: "INTRADAY", 
+        chartPattern: "Golden Cross" 
+    });
 
     return fallback;
   }
