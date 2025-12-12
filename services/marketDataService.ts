@@ -37,15 +37,17 @@ const TICKER_MAP: { [key: string]: string } = {
 
 async function fetchWithProxy(targetUrl: string): Promise<any> {
     const proxies = [
-        (url: string) => `https://corsproxy.io/?${encodeURIComponent(url)}`,
+        // AllOrigins usually works best for Yahoo Finance JSON
         (url: string) => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+        // Backup proxies
+        (url: string) => `https://corsproxy.io/?${encodeURIComponent(url)}`,
         (url: string) => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`
     ];
 
     for (const proxy of proxies) {
         try {
             const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 3500); 
+            const timeoutId = setTimeout(() => controller.abort(), 4000); 
             const finalUrl = proxy(targetUrl);
             const response = await fetch(finalUrl, { signal: controller.signal });
             clearTimeout(timeoutId);
@@ -120,7 +122,12 @@ export const fetchRealStockData = async (symbol: string, settings: AppSettings):
         if (upperSymbol.endsWith('.NS') || upperSymbol.endsWith('.BO')) {
             ticker = upperSymbol;
         } else {
-            ticker = `${upperSymbol}.NS`;
+            // Force Append .NS if it's likely an NSE Stock and not mapped
+            if (!upperSymbol.includes('=')) {
+                 ticker = `${upperSymbol}.NS`;
+            } else {
+                 ticker = upperSymbol;
+            }
         }
     }
 

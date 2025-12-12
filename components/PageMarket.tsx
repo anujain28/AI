@@ -3,7 +3,7 @@ import React, { useMemo } from 'react';
 import { StockRecommendation, MarketData, MarketSettings, AssetType } from '../types';
 import { StockCard } from './StockCard';
 import { getMarketStatus } from '../services/marketStatusService';
-import { RefreshCw, Globe, TrendingUp, DollarSign, Cpu, Circle, Trophy, ArrowUp, Zap } from 'lucide-react';
+import { RefreshCw, Globe, TrendingUp, DollarSign, Cpu, Circle, Trophy, ArrowUp, Zap, Settings } from 'lucide-react';
 
 interface PageMarketProps {
   recommendations: StockRecommendation[];
@@ -27,10 +27,35 @@ export const PageMarket: React.FC<PageMarketProps> = ({
   
   const isTypeAllowed = (type: AssetType) => !allowedTypes || allowedTypes.includes(type);
 
+  // Check if all allowed types for this page are disabled
+  const isEntirePageDisabled = useMemo(() => {
+      const typesToCheck = allowedTypes || ['STOCK', 'MCX', 'FOREX', 'CRYPTO'];
+      // Return true if EVERY allowed type is disabled in settings
+      return typesToCheck.every(t => {
+          if (t === 'STOCK') return !enabledMarkets.stocks;
+          if (t === 'MCX') return !enabledMarkets.mcx;
+          if (t === 'FOREX') return !enabledMarkets.forex;
+          if (t === 'CRYPTO') return !enabledMarkets.crypto;
+          return true;
+      });
+  }, [allowedTypes, enabledMarkets]);
+
   // Generate Market Status Badges
   const renderMarketStatus = () => {
       const typesToCheck: AssetType[] = allowedTypes || ['STOCK'];
-      const statuses = typesToCheck.map(t => ({ type: t, status: getMarketStatus(t) }));
+      
+      // Filter out disabled ones
+      const activeTypes = typesToCheck.filter(t => {
+          if (t === 'STOCK') return enabledMarkets.stocks;
+          if (t === 'MCX') return enabledMarkets.mcx;
+          if (t === 'FOREX') return enabledMarkets.forex;
+          if (t === 'CRYPTO') return enabledMarkets.crypto;
+          return false;
+      });
+
+      if (activeTypes.length === 0) return null;
+
+      const statuses = activeTypes.map(t => ({ type: t, status: getMarketStatus(t) }));
       
       return (
           <div className="flex flex-col items-end gap-1">
@@ -64,6 +89,8 @@ export const PageMarket: React.FC<PageMarketProps> = ({
 
   const renderSection = (title: string, items: StockRecommendation[], icon: React.ReactNode, description: string, accentColor: string, type: AssetType) => {
     if (!isTypeAllowed(type)) return null;
+    
+    // Strict Config Check
     const settingsKey = type === 'STOCK' ? 'stocks' : type.toLowerCase() as keyof MarketSettings;
     if (!enabledMarkets[settingsKey]) return null;
 
@@ -94,6 +121,23 @@ export const PageMarket: React.FC<PageMarketProps> = ({
       </div>
     );
   };
+
+  if (isEntirePageDisabled) {
+      return (
+          <div className="flex flex-col items-center justify-center h-[60vh] text-center p-6">
+              <div className="w-16 h-16 bg-slate-800 rounded-full flex items-center justify-center mb-4">
+                  <Settings size={32} className="text-slate-500"/>
+              </div>
+              <h2 className="text-xl font-bold text-white mb-2">Markets Disabled</h2>
+              <p className="text-sm text-slate-400 max-w-xs">
+                  All market segments for this page are currently disabled in your settings. 
+              </p>
+              <div className="mt-6 text-xs text-blue-400 font-bold bg-blue-500/10 px-4 py-2 rounded-lg border border-blue-500/20">
+                  Go to Config &gt; Markets to enable them.
+              </div>
+          </div>
+      );
+  }
 
   return (
     <div className="p-4 pb-20 animate-fade-in">

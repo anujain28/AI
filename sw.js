@@ -1,5 +1,5 @@
 
-const CACHE_NAME = 'aitrade-v2';
+const CACHE_NAME = 'aitrade-v3';
 const urlsToCache = [
   '/',
   '/index.html',
@@ -7,17 +7,24 @@ const urlsToCache = [
 ];
 
 self.addEventListener('install', (event) => {
-  self.skipWaiting(); // FORCE ACTIVATE IMMEDIATELY
+  // Do not force skipWaiting here to allow user-controlled updates
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then((cache) => cache.addAll(urlsToCache))
   );
 });
 
+// Allow the client to force the update
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
+});
+
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     Promise.all([
-      self.clients.claim(), // TAKE CONTROL IMMEDIATELY
+      self.clients.claim(), // TAKE CONTROL IMMEDIATELY AFTER ACTIVATION
       caches.keys().then((cacheNames) => {
         return Promise.all(
           cacheNames.map((cacheName) => {

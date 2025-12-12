@@ -12,7 +12,7 @@ export interface TradeResult {
 
 // STRICT LIMIT: Max 5 concurrent positions
 const MAX_GLOBAL_POSITIONS = 5; 
-const TARGET_ALLOCATION_PER_ASSET = 0.20; // 20% per trade (100% / 5 trades)
+const BASE_ALLOCATION = 0.20; // Base 20%
 
 export const runAutoTradeEngine = (
     settings: AppSettings, 
@@ -123,13 +123,20 @@ export const runAutoTradeEngine = (
         if (paperPortfolio.length >= MAX_GLOBAL_POSITIONS) break; // Full, stop scanning.
 
         // Calculate Position Size (Allocating ~20% of total intended capital per trade)
-        // We estimate "Total Capital" as Available + Invested for that bucket
+        // AI DECISION: Higher score = Higher Allocation (max 20%)
+        // If Score > 80, use full 20%. If Score 60-80, use 15%.
+        
         const investedInBucket = paperPortfolio
             .filter(p => p.type === rec.type)
             .reduce((acc, p) => acc + (p.avgCost * p.quantity), 0);
         
         const totalBucketCapital = availableCapital + investedInBucket;
-        const tradeAmount = totalBucketCapital * TARGET_ALLOCATION_PER_ASSET;
+        
+        let confidenceMultiplier = 0.75;
+        if (rec.liveScore >= 80) confidenceMultiplier = 1.0;
+        else if (rec.liveScore >= 70) confidenceMultiplier = 0.85;
+
+        const tradeAmount = totalBucketCapital * BASE_ALLOCATION * confidenceMultiplier;
 
         let qtyToBuy = tradeAmount / data.price;
 
@@ -160,7 +167,7 @@ export const runAutoTradeEngine = (
                     executed: true, 
                     transaction: tx, 
                     newFunds: { ...currentFunds }, 
-                    reason: "Auto Entry (Top Pick)" 
+                    reason: `Auto Entry (AI Score: ${rec.liveScore.toFixed(0)})` 
                 });
             }
         }

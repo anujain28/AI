@@ -94,62 +94,35 @@ export const PageConfiguration: React.FC<PageConfigurationProps> = ({ settings, 
             {/* === PAPER TAB === */}
             {activeSubTab === 'PAPER' && (
                 <div className="space-y-8 animate-slide-up">
-                    {/* General Capital */}
-                    <section>
-                        <h3 className="text-xs font-bold text-blue-400 uppercase tracking-wider mb-4 flex items-center gap-2"><Wallet size={14}/> Paper Trading Funds</h3>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                            <div className="bg-surface p-4 rounded-xl border border-slate-800">
-                                <label className="block text-xs text-slate-400 mb-2 font-bold">Equity (INR)</label>
-                                <div className="relative">
-                                    <TrendingUp size={14} className="absolute left-3 top-3 text-slate-500"/>
-                                    <input type="number" value={formData.initialFunds.stock} onChange={(e) => setFormData({...formData, initialFunds: {...formData.initialFunds, stock: parseFloat(e.target.value)}})} className="w-full bg-slate-900 border border-slate-700 rounded-lg py-2.5 pl-9 pr-4 text-white focus:border-blue-500 outline-none text-sm font-mono"/>
-                                </div>
-                            </div>
-                            <div className="bg-surface p-4 rounded-xl border border-slate-800">
-                                <label className="block text-xs text-slate-400 mb-2 font-bold">Commodity/Crypto (INR)</label>
-                                <div className="relative">
-                                    <Globe size={14} className="absolute left-3 top-3 text-slate-500"/>
-                                    <input type="number" value={formData.initialFunds.crypto} onChange={(e) => setFormData({...formData, initialFunds: {...formData.initialFunds, crypto: parseFloat(e.target.value)}})} className="w-full bg-slate-900 border border-slate-700 rounded-lg py-2.5 pl-9 pr-4 text-white focus:border-purple-500 outline-none text-sm font-mono"/>
-                                </div>
-                            </div>
-                        </div>
-                    </section>
-
+                    
                     {/* Auto Trade */}
-                    <section className="pt-6 border-t border-slate-800">
-                         <h3 className="text-xs font-bold text-blue-400 uppercase tracking-wider mb-4 flex items-center gap-2"><Bot size={14}/> Auto-Trade Configuration</h3>
-                         <div className="bg-surface p-4 rounded-xl border border-slate-800 mb-4">
-                            <label className="block text-xs text-slate-400 mb-3 font-bold">Trade Sizing Strategy</label>
-                            <div className="flex gap-4 mb-4">
-                                <label className="flex items-center gap-2 text-xs text-white p-2 bg-slate-900 rounded-lg flex-1 justify-center border border-slate-800 cursor-pointer">
-                                    <input type="radio" name="tradeMode" checked={formData.autoTradeConfig?.mode === 'PERCENTAGE'} onChange={() => setFormData({...formData, autoTradeConfig: { mode: 'PERCENTAGE', value: 5 }})} className="accent-blue-500" /> 
-                                    Percentage
-                                </label>
-                                <label className="flex items-center gap-2 text-xs text-white p-2 bg-slate-900 rounded-lg flex-1 justify-center border border-slate-800 cursor-pointer">
-                                    <input type="radio" name="tradeMode" checked={formData.autoTradeConfig?.mode === 'FIXED'} onChange={() => setFormData({...formData, autoTradeConfig: { mode: 'FIXED', value: 10000 }})} className="accent-blue-500" /> 
-                                    Fixed Amt
-                                </label>
-                            </div>
-                            <div className="relative">
-                                <input type="number" value={formData.autoTradeConfig?.value || 0} onChange={(e) => setFormData({...formData, autoTradeConfig: { ...formData.autoTradeConfig, value: parseFloat(e.target.value) }})} className="w-full bg-slate-900 border border-slate-700 rounded-lg py-3 px-4 text-white font-mono outline-none"/>
-                                <span className="absolute right-4 top-3 text-xs text-slate-500 font-mono pointer-events-none">
-                                    {formData.autoTradeConfig?.mode === 'PERCENTAGE' ? '%' : 'INR'}
-                                </span>
-                            </div>
-                            <p className="text-[10px] text-slate-400 mt-2 italic">
-                                Note: Bot will slice orders (buy approx 25% of target amount at a time) and hold max 5 positions.
-                            </p>
-                        </div>
-                        
-                        <div className="flex items-center justify-between bg-surface p-4 rounded-xl border border-slate-800">
+                    <section className="bg-surface p-6 rounded-xl border border-slate-800">
+                         <h3 className="text-xs font-bold text-blue-400 uppercase tracking-wider mb-4 flex items-center gap-2"><Bot size={14}/> Auto-Trade Engine</h3>
+                         
+                         <div className="flex items-center justify-between mb-4">
                             <div>
                                 <h4 className="font-bold text-white text-sm">Paper Bot Status</h4>
-                                <p className="text-[10px] text-slate-500">Automated paper trading</p>
+                                <p className="text-[10px] text-slate-500">AI Managed Portfolio</p>
                             </div>
                             <button onClick={() => onToggleBot('PAPER')} className={`p-2 rounded-lg border transition-colors ${activeBots['PAPER'] ? 'bg-green-500/20 border-green-500 text-green-400' : 'bg-slate-900 border-slate-700 text-slate-500'}`}>
                                 <Power size={18} />
                             </button>
                         </div>
+
+                         <div className="bg-slate-900/50 p-4 rounded-lg border border-slate-800">
+                             <div className="flex items-start gap-3">
+                                 <Zap size={16} className="text-yellow-400 flex-shrink-0 mt-0.5"/>
+                                 <div>
+                                     <h5 className="text-xs font-bold text-white mb-1">AI Smart Allocation</h5>
+                                     <p className="text-[10px] text-slate-400 leading-relaxed">
+                                         The bot automatically determines the optimal trade size based on the technical confidence score of each asset. 
+                                         <br/><br/>
+                                         <span className="text-slate-500">High Confidence (Score > 80):</span> <span className="text-green-400">Max Allocation</span><br/>
+                                         <span className="text-slate-500">Medium Confidence:</span> <span className="text-yellow-400">Standard Allocation</span>
+                                     </p>
+                                 </div>
+                             </div>
+                         </div>
                     </section>
                     
                     {/* Telegram */}

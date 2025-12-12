@@ -563,7 +563,7 @@ export const getCompanyName = (symbol: string): string => {
         return upperSymbol.replace('/USDT', '') + " Crypto";
     }
     
-    // Force .NS for unknown stocks if not special
+    // FORCE .NS for unknown stocks if not special
     if (!upperSymbol.includes('.') && !STATIC_MCX_LIST.includes(upperSymbol) && !STATIC_FOREX_LIST.includes(upperSymbol) && !upperSymbol.includes('/USDT')) {
         return upperSymbol + '.NS';
     }

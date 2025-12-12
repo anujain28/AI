@@ -8,7 +8,7 @@ import { AuthOverlay } from './components/AuthOverlay';
 import { TradeModal } from './components/TradeModal';
 import { fetchBrokerBalance, fetchHoldings, placeOrder } from './services/brokerService';
 import { runAutoTradeEngine, simulateBackgroundTrades } from './services/autoTradeEngine';
-import { BarChart3, AlertCircle, Briefcase, Cpu } from 'lucide-react';
+import { BarChart3, AlertCircle, Briefcase, Cpu, Download, X } from 'lucide-react';
 
 // NEW PAGE COMPONENTS
 import { BottomNav } from './components/BottomNav';
@@ -81,6 +81,10 @@ export default function App() {
   const [selectedStock, setSelectedStock] = useState<StockRecommendation | null>(null);
   const [tradeModalBroker, setTradeModalBroker] = useState<string | undefined>(undefined);
   const [niftyList, setNiftyList] = useState<string[]>([]);
+  
+  // -- UPDATE STATE --
+  const [updateAvailable, setUpdateAvailable] = useState(false);
+  const [waitingWorker, setWaitingWorker] = useState<ServiceWorker | null>(null);
 
   const refreshIntervalRef = useRef<any>(null);
   const botIntervalRef = useRef<any>(null);
@@ -114,6 +118,49 @@ export default function App() {
           loadUserData(u);
       }
   }, []);
+
+  // Service Worker Update Listener
+  useEffect(() => {
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js').then((registration) => {
+            const checkUpdate = () => {
+                if (registration.waiting) {
+                    setWaitingWorker(registration.waiting);
+                    setUpdateAvailable(true);
+                }
+            };
+            
+            // Check immediately
+            checkUpdate();
+
+            // Listen for new workers
+            registration.addEventListener('updatefound', () => {
+                const newWorker = registration.installing;
+                newWorker?.addEventListener('statechange', () => {
+                    if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                        checkUpdate();
+                    }
+                });
+            });
+        });
+
+        // Handle reload after update
+        let refreshing = false;
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+            if (!refreshing) {
+                refreshing = true;
+                window.location.reload();
+            }
+        });
+    }
+  }, []);
+
+  const handleUpdateApp = () => {
+      if (waitingWorker) {
+          waitingWorker.postMessage({ type: 'SKIP_WAITING' });
+      }
+      setUpdateAvailable(false);
+  };
 
   // --- PERSISTENCE HOOKS (Triggered only when user is logged in) ---
 
@@ -233,6 +280,7 @@ export default function App() {
     }
     
     // Recommendations Refresh
+    // IMPORTANT: Pass current settings.enabledMarkets to ensure we don't fetch disabled segments
     let currentRecs = recommendations;
     if (recommendations.length === 0) {
         const totalCap = settings.initialFunds.stock + settings.initialFunds.mcx + settings.initialFunds.forex + settings.initialFunds.crypto;
@@ -425,6 +473,18 @@ export default function App() {
 
   return (
     <div className="h-full flex flex-col bg-background text-slate-100 font-sans overflow-hidden">
+      
+      {/* Update Available Toast */}
+      {updateAvailable && (
+          <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[70] bg-blue-600 text-white px-5 py-3 rounded-full shadow-2xl border border-blue-400 flex items-center gap-4 animate-slide-up cursor-pointer hover:bg-blue-500 transition-colors" onClick={handleUpdateApp}>
+              <div className="flex items-center gap-2">
+                  <Download size={18} className="animate-bounce" />
+                  <span className="text-sm font-bold">New Update Available</span>
+              </div>
+              <span className="text-[10px] bg-white/20 px-2 py-0.5 rounded uppercase font-bold">Tap to Update</span>
+          </div>
+      )}
+
       {notification && (
           <div className="fixed top-4 left-4 right-4 z-[60] bg-slate-800 text-white px-4 py-3 rounded-xl shadow-xl border border-slate-700 flex items-center gap-3 animate-slide-up">
               <AlertCircle size={18} className="text-blue-400 flex-shrink-0" />
