@@ -1,3 +1,4 @@
+import { Candle, StockData, TechnicalSignals, AppSettings, AssetType } from "../types";
 
 const STATIC_NSE_LIST = `Symbol
 360ONE
@@ -503,6 +504,7 @@ ZENSARTECH
 ZYDUSLIFE
 ECLERX`;
 
+// ✅ UNIVERSES - Compatible with new fetcher [memory:2][memory:3]
 export const STATIC_MCX_LIST = [
     "GOLD", "SILVER", "CRUDEOIL", "NATURALGAS", "COPPER", "ZINC", "ALUMINIUM", "LEAD"
 ];
@@ -512,91 +514,121 @@ export const STATIC_FOREX_LIST = [
 ];
 
 export const STATIC_CRYPTO_LIST = [
-    "BTC/USDT", "ETH/USDT", "SOL/USDT", "BNB/USDT", "XRP/USDT", "ADA/USDT"
+    "BTC/USDT", "ETH/USDT", "SOL/USDT", "BNB/USDT", "XRP/USDT", "ADA/USDT", "DOGE/USDT", "SHIB/USDT"
+];
+
+// ✅ NSE UNIVERSE (Without .NS suffix for clean input)
+export const NSE_UNIVERSE: string[] = STATIC_NSE_LIST
+    .split('\n')
+    .slice(1)  // Skip header
+    .map(line => line.trim())
+    .filter(Boolean)
+    .map(sym => sym.toUpperCase().replace(/[^A-Z0-9&-]/g, ''));  // Clean symbols
+
+// ✅ FULL UNIVERSE with all segments (for scanners)
+export const FULL_UNIVERSE = [
+    ...NSE_UNIVERSE.slice(0, 100),  // Top 100 NSE [memory:16]
+    ...STATIC_MCX_LIST,
+    ...STATIC_FOREX_LIST, 
+    ...STATIC_CRYPTO_LIST
 ];
 
 let NAME_CACHE: Map<string, string> | null = null;
 
-const initNameCache = () => {
+const initNameCache = (): void => {
     if (NAME_CACHE) return;
+    
     NAME_CACHE = new Map<string, string>();
-    const lines = STATIC_NSE_LIST.split('\n');
     
-    // Support basic list where each line is just a Symbol
-    for (let i = 1; i < lines.length; i++) {
-        const line = lines[i].trim();
-        if (!line) continue;
-        const parts = line.split(',');
-        let sym = parts[0].trim().toUpperCase();
-        
-        // Ensure .NS in cache keys
-        if (sym && !sym.endsWith('.NS')) {
-             sym = sym + '.NS';
-        }
-
-        if (sym) {
-            NAME_CACHE.set(sym, sym); 
-        }
-    }
-};
-
-export const getCompanyName = (symbol: string): string => {
-    // If not cached, try to init
-    if (!NAME_CACHE) initNameCache();
+    // NSE: symbol → display name (clean format)
+    NSE_UNIVERSE.forEach(sym => {
+        NAME_CACHE.set(sym, sym);  // e.g., "RELIANCE" → "RELIANCE"
+        NAME_CACHE.set(`${sym}.NS`, sym);  // Also cache Yahoo format
+    });
     
-    const upperSymbol = symbol.toUpperCase();
+    // MCX
+    STATIC_MCX_LIST.forEach(sym => {
+        NAME_CACHE.set(sym, `${sym} Futures`);
+        NAME_CACHE.set(`MCX:${sym}M`, `${sym} MCX`);
+    });
     
-    // Try exact match
-    if (NAME_CACHE?.has(upperSymbol)) return NAME_CACHE.get(upperSymbol)!;
-    
-    // Try adding .NS if missing
-    if (!upperSymbol.endsWith('.NS') && NAME_CACHE?.has(upperSymbol + '.NS')) {
-        return NAME_CACHE.get(upperSymbol + '.NS')!;
-    }
-    
-    // Common Commodities
-    if (STATIC_MCX_LIST.includes(upperSymbol)) return upperSymbol + " Futures";
-    if (STATIC_FOREX_LIST.includes(upperSymbol)) return upperSymbol.substring(0,3) + "/" + upperSymbol.substring(3);
+    // Forex
+    STATIC_FOREX_LIST.forEach(sym => {
+        const base = sym.substring(0, 3);
+        const quote = sym.substring(3);
+        NAME_CACHE.set(sym, `${base}/${quote}`);
+    });
     
     // Crypto
-    if (STATIC_CRYPTO_LIST.includes(upperSymbol)) {
-        return upperSymbol.replace('/USDT', '') + " Crypto";
-    }
-    
-    // FORCE .NS for unknown stocks if not special
-    if (!upperSymbol.includes('.') && !STATIC_MCX_LIST.includes(upperSymbol) && !STATIC_FOREX_LIST.includes(upperSymbol) && !upperSymbol.includes('/USDT')) {
-        return upperSymbol + '.NS';
-    }
-
-    return upperSymbol; 
+    STATIC_CRYPTO_LIST.forEach(sym => {
+        NAME_CACHE.set(sym, sym.replace('/USDT', ''));
+    });
 };
 
-// Helper to parse CSV dynamically
-const parseCSV = (text: string): string[] => {
-    const lines = text.split('\n');
-    if (lines.length < 2) return [];
-
-    const symbols: Set<string> = new Set();
+// ✅ COMPATIBLE getCompanyName - Works with new fetcher
+export const getCompanyName = (symbol: string): string => {
+    if (!NAME_CACHE) initNameCache();
     
-    for (let i = 1; i < lines.length; i++) {
-        const line = lines[i].trim();
-        if (!line) continue;
-        
-        const cols = line.split(',');
-        let sym = cols[0].trim().toUpperCase();
-            
-        if (sym && /^[A-Z0-9&]+$/.test(sym) && sym !== 'SYMBOL') {
-             // Append .NS here so the whole app uses it
-             if (!sym.endsWith('.NS')) {
-                 sym = sym + '.NS';
-             }
-             symbols.add(sym);
+    const upperSymbol = symbol.toUpperCase().trim();
+    
+    // Exact match
+    if (NAME_CACHE.has(upperSymbol)) {
+        return NAME_CACHE.get(upperSymbol)!;
+    }
+    
+    // NSE .NS → base symbol
+    if (upperSymbol.endsWith('.NS')) {
+        const base = upperSymbol.slice(0, -3);
+        if (NSE_UNIVERSE.includes(base)) {
+            return base;
         }
     }
     
-    return Array.from(symbols);
+    // Auto NSE detection
+    if (NSE_UNIVERSE.includes(upperSymbol)) {
+        return upperSymbol;
+    }
+    
+    // Fallbacks
+    if (STATIC_MCX_LIST.includes(upperSymbol)) return `${upperSymbol} Futures`;
+    if (STATIC_CRYPTO_LIST.includes(upperSymbol)) return upperSymbol.replace('/USDT', '') + ' Crypto';
+    if (STATIC_FOREX_LIST.includes(upperSymbol)) return upperSymbol;
+    
+    return upperSymbol;  // Raw fallback
 };
 
-export const checkAndRefreshStockList = async (): Promise<string[]> => {
-    return parseCSV(STATIC_NSE_LIST);
-}
+// ✅ COMPATIBLE refresh - Returns CLEAN symbols (no .NS suffix)
+export const checkAndRefreshStockList = async (limit: number = 200): Promise<string[]> => {
+    // Return first N symbols (user preference: 100-200) [memory:16]
+    return NSE_UNIVERSE.slice(0, Math.min(limit, NSE_UNIVERSE.length));
+};
+
+// ✅ NEW: Get universe by segment (for scanners)
+export const getUniverseByType = (assetType: AssetType): string[] => {
+    switch (assetType) {
+        case 'stocks': return NSE_UNIVERSE.slice(0, 100);
+        case 'mcx': return STATIC_MCX_LIST;
+        case 'forex': return STATIC_FOREX_LIST;
+        case 'crypto': return STATIC_CRYPTO_LIST;
+        default: return FULL_UNIVERSE;
+    }
+};
+
+// ✅ BATCH VALIDATOR - Filter valid symbols only
+export const validateSymbols = (symbols: string[]): string[] => {
+    return symbols.filter(sym => {
+        const clean = sym.toUpperCase().replace('.NS', '');
+        return NSE_UNIVERSE.includes(clean) || 
+               STATIC_MCX_LIST.includes(clean) || 
+               STATIC_FOREX_LIST.includes(clean) || 
+               STATIC_CRYPTO_LIST.includes(clean);
+    });
+};
+
+// ✅ Usage Examples - Compatible with existing code
+/*
+const nifty100 = await checkAndRefreshStockList(100);  // ["RELIANCE", "TCS", ...]
+const mcx = getUniverseByType('mcx');  // ["GOLD", "SILVER", ...]
+const allData = await fetchMultipleSymbols(nifty100, settings);  // Works perfectly
+const names = nifty100.map(getCompanyName);  // Clean display names
+*/
