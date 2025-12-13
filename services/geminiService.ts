@@ -78,6 +78,10 @@ export const fetchTopStockPicks = async (
               const atr = technicals.atr || (price * 0.02); // Fallback to 2% if ATR missing
               const target = price + (atr * 2); // 2x ATR Target
               
+              // PROFIT FILTER: Check if profit potential is >= 2%
+              const profitPct = ((target - price) / price) * 100;
+              if (profitPct < 2.0) return null;
+
               if (type) {
                    return {
                       rec: {
@@ -128,6 +132,10 @@ export const fetchTopStockPicks = async (
                 // Crypto Volatility is higher, use wider ATR multiple
                 const atr = data.technicals.atr || (data.price * 0.04);
                 const target = recReason.includes('Buy') ? data.price + (atr * 1.5) : data.price - (atr * 1.5);
+                
+                // PROFIT FILTER
+                const profitPct = Math.abs((target - data.price) / data.price) * 100;
+                if (profitPct < 2.0) return null;
 
                 return {
                     symbol: c,
@@ -158,19 +166,25 @@ export const fetchTopStockPicks = async (
           const data = await fetchRealStockData(m, dummySettings);
           if (data) {
               const atr = data.technicals.atr || (data.price * 0.01);
-              picks.push({
-                symbol: m,
-                name: getCompanyName(m),
-                type: 'MCX',
-                sector: 'Commodity',
-                currentPrice: data.price,
-                reason: `Commodity Trend (${data.technicals.signalStrength})`,
-                riskLevel: 'Medium',
-                targetPrice: parseFloat((data.price + (atr * 2)).toFixed(2)),
-                lotSize: 1,
-                timeframe: 'WEEKLY',
-                chartPattern: data.technicals.activeSignals[0] || "Trend"
-              });
+              const target = data.price + (atr * 2);
+              
+              // PROFIT FILTER
+              const profitPct = ((target - data.price) / data.price) * 100;
+              if (profitPct >= 2.0) {
+                  picks.push({
+                    symbol: m,
+                    name: getCompanyName(m),
+                    type: 'MCX',
+                    sector: 'Commodity',
+                    currentPrice: data.price,
+                    reason: `Commodity Trend (${data.technicals.signalStrength})`,
+                    riskLevel: 'Medium',
+                    targetPrice: parseFloat(target.toFixed(2)),
+                    lotSize: 1,
+                    timeframe: 'WEEKLY',
+                    chartPattern: data.technicals.activeSignals[0] || "Trend"
+                  });
+              }
           }
       }
   }
@@ -182,6 +196,9 @@ export const fetchTopStockPicks = async (
           const data = await fetchRealStockData(f, dummySettings);
           if (data) {
                const atr = data.technicals.atr || (data.price * 0.005);
+               const target = data.price + atr;
+               
+               // No 2% Filter for Forex as pip movements are small but leveraged.
                picks.push({
                 symbol: f,
                 name: getCompanyName(f),
@@ -190,7 +207,7 @@ export const fetchTopStockPicks = async (
                 currentPrice: data.price,
                 reason: `Forex Momentum (${data.technicals.score.toFixed(0)})`,
                 riskLevel: 'High',
-                targetPrice: parseFloat((data.price + atr).toFixed(4)),
+                targetPrice: parseFloat(target.toFixed(4)),
                 lotSize: 1000,
                 timeframe: 'INTRADAY',
                 chartPattern: "Scalping"

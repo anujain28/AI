@@ -3,8 +3,7 @@ import React, { useState } from 'react';
 import { PortfolioItem, MarketData, Funds, HoldingAnalysis, Transaction, AssetType } from '../types';
 import { PortfolioTable } from './PortfolioTable';
 import { ActivityFeed } from './ActivityFeed';
-import { getMarketStatus } from '../services/marketStatusService';
-import { Wallet, PieChart, Sparkles, RefreshCw, Power, Globe, DollarSign, Cpu, BarChart2, TrendingUp, Circle, Plus, CheckCircle2, Coins } from 'lucide-react';
+import { Wallet, PieChart, Sparkles, RefreshCw, Power, Globe, DollarSign, Cpu, BarChart2, TrendingUp, Coins, CheckCircle2 } from 'lucide-react';
 
 interface PagePaperTradingProps {
   holdings: PortfolioItem[];
@@ -41,23 +40,6 @@ export const PagePaperTrading: React.FC<PagePaperTradingProps> = ({
   
   const availableCash = funds.stock + funds.mcx + funds.forex + funds.crypto;
   const totalAccountValue = availableCash + currentVal;
-
-  // Breakdown Calculation
-  const getAssetStats = (type: AssetType) => {
-      const items = paperHoldings.filter(h => h.type === type);
-      const invested = items.reduce((acc, h) => acc + h.totalCost, 0);
-      const current = items.reduce((acc, h) => acc + ((marketData[h.symbol]?.price || h.avgCost) * h.quantity), 0);
-      const pnl = current - invested;
-      const pct = invested > 0 ? (pnl / invested) * 100 : 0;
-      return { invested, current, pnl, pct };
-  };
-
-  const assetTypes: {type: AssetType, label: string, icon: React.ReactNode}[] = [
-      { type: 'STOCK', label: 'Stocks', icon: <BarChart2 size={16} className="text-blue-400"/> },
-      { type: 'CRYPTO', label: 'Crypto', icon: <Cpu size={16} className="text-purple-400"/> },
-      { type: 'MCX', label: 'Commodities', icon: <Globe size={16} className="text-yellow-400"/> },
-      { type: 'FOREX', label: 'Forex', icon: <DollarSign size={16} className="text-green-400"/> },
-  ];
 
   const handleFundUpdate = () => {
       onUpdateFunds(tempFunds);
@@ -125,63 +107,6 @@ export const PagePaperTrading: React.FC<PagePaperTradingProps> = ({
        {activeTab === 'PORTFOLIO' ? (
            <div className="space-y-6 animate-slide-up">
                 
-                {/* Detailed Asset Performance Table */}
-                <div className="bg-surface rounded-xl border border-slate-800 overflow-hidden shadow-lg">
-                    <div className="px-5 py-4 border-b border-slate-700/50 bg-slate-800/30 flex items-center justify-between">
-                        <h3 className="text-xs md:text-sm font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
-                            <TrendingUp size={14} className="text-blue-400"/> Asset Allocation
-                        </h3>
-                    </div>
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-left text-sm">
-                            <thead className="text-[10px] md:text-xs text-slate-500 bg-slate-900/50 uppercase tracking-wider">
-                                <tr>
-                                    <th className="px-4 md:px-5 py-3 font-medium">Asset Class</th>
-                                    <th className="px-4 md:px-5 py-3 font-medium text-right">Invested</th>
-                                    <th className="px-4 md:px-5 py-3 font-medium text-right">P&L</th>
-                                    <th className="px-4 md:px-5 py-3 font-medium text-right">Return</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-800/50 text-[10px] md:text-sm">
-                                {assetTypes.map((asset) => {
-                                    const stats = getAssetStats(asset.type);
-                                    if (stats.invested <= 0) return null;
-                                    const isProfit = stats.pnl >= 0;
-                                    
-                                    return (
-                                        <tr key={asset.type} className="hover:bg-slate-800/20 transition-colors">
-                                            <td className="px-4 md:px-5 py-3">
-                                                <div className="flex items-center gap-2 md:gap-3 text-white font-medium">
-                                                    <div className="p-1.5 md:p-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-300">{asset.icon}</div>
-                                                    <span>{asset.label}</span>
-                                                </div>
-                                            </td>
-                                            <td className="px-4 md:px-5 py-3 text-right text-slate-400 font-mono">
-                                                ₹{stats.invested.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}
-                                            </td>
-                                            <td className={`px-4 md:px-5 py-3 text-right font-mono font-bold ${isProfit ? 'text-green-400' : 'text-red-400'}`}>
-                                                {isProfit ? '+' : ''}{stats.pnl.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}
-                                            </td>
-                                            <td className="px-4 md:px-5 py-3 text-right">
-                                                <span className={`text-[10px] px-2 py-0.5 rounded border font-mono ${isProfit ? 'bg-green-500/10 text-green-400 border-green-500/20' : 'bg-red-500/10 text-red-400 border-red-500/20'}`}>
-                                                    {isProfit ? '+' : ''}{stats.pct.toFixed(2)}%
-                                                </span>
-                                            </td>
-                                        </tr>
-                                    );
-                                })}
-                                {totalCost === 0 && (
-                                    <tr>
-                                        <td colSpan={4} className="px-5 py-8 text-center text-slate-500 text-xs italic">
-                                            No assets in portfolio. Start trading to see performance breakdown.
-                                        </td>
-                                    </tr>
-                                )}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-
                 {/* Holdings Table */}
                 <div>
                     <div className="flex justify-between items-center mb-3">

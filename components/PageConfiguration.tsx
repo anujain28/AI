@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { AppSettings, MarketSettings, Transaction } from '../types';
-import { Save, Wallet, LayoutGrid, Building2, Bell, TrendingUp, Cpu, Globe, DollarSign, Key, Zap, Check, Trash2, Bot, Power, FileText } from 'lucide-react';
+import { Save, LayoutGrid, Building2, Bell, TrendingUp, Cpu, Globe, DollarSign, Key, Check, Trash2, FileText } from 'lucide-react';
 
 interface PageConfigurationProps {
   settings: AppSettings;
@@ -95,48 +95,16 @@ export const PageConfiguration: React.FC<PageConfigurationProps> = ({ settings, 
             {activeSubTab === 'PAPER' && (
                 <div className="space-y-8 animate-slide-up">
                     
-                    {/* Auto Trade */}
-                    <section className="bg-surface p-6 rounded-xl border border-slate-800">
-                         <h3 className="text-xs font-bold text-blue-400 uppercase tracking-wider mb-4 flex items-center gap-2"><Bot size={14}/> Auto-Trade Engine</h3>
-                         
-                         <div className="flex items-center justify-between mb-4">
-                            <div>
-                                <h4 className="font-bold text-white text-sm">Paper Bot Status</h4>
-                                <p className="text-[10px] text-slate-500">AI Managed Portfolio</p>
-                            </div>
-                            <button onClick={() => onToggleBot('PAPER')} className={`p-2 rounded-lg border transition-colors ${activeBots['PAPER'] ? 'bg-green-500/20 border-green-500 text-green-400' : 'bg-slate-900 border-slate-700 text-slate-500'}`}>
-                                <Power size={18} />
-                            </button>
-                        </div>
-
-                         <div className="bg-slate-900/50 p-4 rounded-lg border border-slate-800">
-                             <div className="flex items-start gap-3">
-                                 <Zap size={16} className="text-yellow-400 flex-shrink-0 mt-0.5"/>
-                                 <div>
-                                     <h5 className="text-xs font-bold text-white mb-1">AI Smart Allocation</h5>
-                                     <p className="text-[10px] text-slate-400 leading-relaxed">
-                                         The bot automatically determines the optimal trade size based on the technical confidence score of each asset. 
-                                         <br/><br/>
-                                         <span className="text-slate-500">High Confidence (Score > 80):</span> <span className="text-green-400">Max Allocation</span><br/>
-                                         <span className="text-slate-500">Medium Confidence:</span> <span className="text-yellow-400">Standard Allocation</span>
-                                     </p>
-                                 </div>
-                             </div>
-                         </div>
-                    </section>
-                    
                     {/* Telegram */}
-                    <section className="pt-6 border-t border-slate-800">
-                        <h3 className="text-xs font-bold text-blue-400 uppercase tracking-wider mb-4 flex items-center gap-2"><Bell size={14}/> Telegram Alerts</h3>
-                        <div className="bg-surface p-4 rounded-xl border border-slate-800 space-y-3">
-                            <div>
-                                <label className="block text-[10px] text-slate-400 mb-1 font-bold">Bot Token</label>
-                                <input type="text" value={formData.telegramBotToken} onChange={(e) => setFormData({...formData, telegramBotToken: e.target.value})} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs text-white outline-none" placeholder="123456:ABC-..." />
-                            </div>
-                            <div>
-                                <label className="block text-[10px] text-slate-400 mb-1 font-bold">Chat ID</label>
-                                <input type="text" value={formData.telegramChatId} onChange={(e) => setFormData({...formData, telegramChatId: e.target.value})} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs text-white outline-none" placeholder="-100..." />
-                            </div>
+                    <section className="bg-surface p-6 rounded-xl border border-slate-800 space-y-3">
+                        <h3 className="text-xs font-bold text-blue-400 uppercase tracking-wider mb-2 flex items-center gap-2"><Bell size={14}/> Telegram Alerts</h3>
+                        <div>
+                            <label className="block text-[10px] text-slate-400 mb-1 font-bold">Bot Token</label>
+                            <input type="text" value={formData.telegramBotToken} onChange={(e) => setFormData({...formData, telegramBotToken: e.target.value})} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs text-white outline-none" placeholder="123456:ABC-..." />
+                        </div>
+                        <div>
+                            <label className="block text-[10px] text-slate-400 mb-1 font-bold">Chat ID</label>
+                            <input type="text" value={formData.telegramChatId} onChange={(e) => setFormData({...formData, telegramChatId: e.target.value})} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs text-white outline-none" placeholder="-100..." />
                         </div>
                     </section>
 
