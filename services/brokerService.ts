@@ -1,3 +1,4 @@
+
 import { AppSettings, PortfolioItem, AssetType, BrokerID } from "../types";
 
 const fetchWithProxy = async (url: string, options: any) => {
@@ -12,8 +13,12 @@ const fetchWithProxy = async (url: string, options: any) => {
 let MOCK_DHAN_DB: PortfolioItem[] = [];
 let MOCK_SHOONYA_DB: PortfolioItem[] = [];
 
+// Fix: Add missing AssetType keys to resolve Record property missing errors
 const SLICE_CONFIG: Record<AssetType, number> = {
-    STOCK: 50
+    STOCK: 50,
+    MCX: 100,
+    FOREX: 100,
+    CRYPTO: 100
 };
 
 const fetchDhanHoldings = async (settings: AppSettings): Promise<PortfolioItem[]> => {

@@ -1,3 +1,4 @@
+
 import { Candle, TechnicalSignals } from "../types";
 
 // --- Helpers ---
@@ -98,67 +99,30 @@ export const calculateBollinger = (candles: Candle[], period: number = 20) => {
 
 export const calculateStochastic = (candles: Candle[], period: number = 14) => {
   if (candles.length < period) return { k: 50, d: 50 };
-  
   const lows = getLows(candles);
   const highs = getHighs(candles);
   const closes = getCloses(candles);
-  
   const currentClose = closes[closes.length - 1];
   const windowLows = lows.slice(-period);
   const windowHighs = highs.slice(-period);
   const lowestLow = Math.min(...windowLows);
   const highestHigh = Math.max(...windowHighs);
-  
   const k = ((currentClose - lowestLow) / (highestHigh - lowestLow)) * 100;
-  // Simple smoothing for %D (3-period SMA of %K)
-  // For simulation, we approximate d = k
   return { k: k || 50, d: k || 50 }; 
-};
-
-export const calculateEMA_Crossover = (candles: Candle[]) => {
-    const closes = getCloses(candles);
-    if(closes.length < 21) return { ema9: 0, ema21: 0 };
-    const ema9 = calcEMA(closes, 9).pop() || 0;
-    const ema21 = calcEMA(closes, 21).pop() || 0;
-    return { ema9, ema21 };
-};
-
-export const calculateOBVData = (candles: Candle[]): number[] => {
-    const obv: number[] = [0];
-    for(let i=1; i<candles.length; i++) {
-        let currentOBV = obv[i-1];
-        if (candles[i].close > candles[i-1].close) currentOBV += candles[i].volume;
-        else if (candles[i].close < candles[i-1].close) currentOBV -= candles[i].volume;
-        obv.push(currentOBV);
-    }
-    return obv;
-};
-
-// Simplified ADX for simulation
-export const calculateADX = (candles: Candle[], period: number = 14) => {
-    if (candles.length < period * 2) return 20;
-    return 25 + Math.random() * 10; 
 };
 
 export const calculateATR = (candles: Candle[], period: number = 14): number => {
     if (candles.length < period + 1) return 0;
-    
     const trValues: number[] = [];
     for(let i = 1; i < candles.length; i++) {
-        const high = candles[i].high;
-        const low = candles[i].low;
-        const prevClose = candles[i-1].close;
-        
         const tr = Math.max(
-            high - low,
-            Math.abs(high - prevClose),
-            Math.abs(low - prevClose)
+            candles[i].high - candles[i].low,
+            Math.abs(candles[i].high - candles[i-1].close),
+            Math.abs(candles[i].low - candles[i-1].close)
         );
         trValues.push(tr);
     }
-    
-    // Simple SMA of TR for ATR
-    return calcSMA(trValues, period);
+    return trValues.slice(-period).reduce((a, b) => a + b, 0) / period;
 };
 
 // --- MAIN SCORING ENGINE ---
@@ -175,12 +139,23 @@ export const analyzeStockTechnical = (candles: Candle[]): TechnicalSignals => {
   const macd = calculateMACD(candles);
   const stoch = calculateStochastic(candles);
   const bollinger = calculateBollinger(candles);
-  const ema = calculateEMA_Crossover(candles);
-  const adx = calculateADX(candles);
   const atr = calculateATR(candles);
   
-  // OBV Calculation
-  const obvSeries = calculateOBVData(candles);
+  // EMA 9/21
+  const closes = getCloses(candles);
+  const ema9Series = calcEMA(closes, 9);
+  const ema21Series = calcEMA(closes, 21);
+  const ema9 = ema9Series[ema9Series.length - 1];
+  const ema21 = ema21Series[ema21Series.length - 1];
+
+  // OBV
+  const obvSeries: number[] = [0];
+  for(let i=1; i<candles.length; i++) {
+      let currentOBV = obvSeries[i-1];
+      if (candles[i].close > candles[i-1].close) currentOBV += candles[i].volume;
+      else if (candles[i].close < candles[i-1].close) currentOBV -= candles[i].volume;
+      obvSeries.push(currentOBV);
+  }
   const currentOBV = obvSeries[obvSeries.length - 1];
   const obvSMA = calcSMA(obvSeries, 10);
 
@@ -193,70 +168,53 @@ export const analyzeStockTechnical = (candles: Candle[]): TechnicalSignals => {
   const activeSignals: string[] = [];
   let score = 0;
 
-  // 1. RSI Scoring
-  if (rsi < 30) { score += 35; activeSignals.push(`RSI Oversold (${rsi.toFixed(0)})`); }
+  // 1. RSI Scoring (Python: <30 = +35, <40 = +25)
+  if (rsi < 30) { score += 35; activeSignals.push(`RSI Oversold`); }
   else if (rsi < 40) { score += 25; activeSignals.push("RSI Buy Zone"); }
   else if (rsi > 70) { score -= 20; activeSignals.push("RSI Overbought"); }
 
-  // 2. MACD Scoring
+  // 2. MACD Scoring (Python: +30)
   if (macd.histogram > 0 && macd.macd > macd.signal) {
       score += 30;
       activeSignals.push("MACD Bullish");
   }
 
-  // 3. Stochastic Scoring
+  // 3. Stochastic Scoring (Python: +25)
   if (stoch.k < 20) {
       score += 25;
       activeSignals.push("Stoch Oversold");
   }
 
-  // 4. Bollinger Squeeze / Breakout
+  // 4. Bollinger (Python: +25)
   if (bollinger.percentB < 0.1) {
       score += 25;
       activeSignals.push("BB Support");
   }
 
-  // 5. EMA Crossover (Golden Cross)
-  if (ema.ema9 > ema.ema21) {
+  // 5. EMA Crossover (Python: +28)
+  if (ema9 > ema21 && ema9Series[ema9Series.length-2] <= ema21Series[ema21Series.length-2]) {
       score += 28;
-      activeSignals.push("EMA Uptrend");
+      activeSignals.push("EMA Cross");
+  } else if (ema9 > ema21) {
+      score += 15; // Trend continuation
   }
 
-  // 6. ADX Trend
-  if (adx > 25) {
-      score += 30;
-      activeSignals.push(`Strong Trend`);
-  }
-  
-  // 7. OBV Accumulation (Matches Python: OBV > SMA(10))
+  // 6. OBV (Python: +22)
   if (currentOBV > obvSMA) {
       score += 22;
-      activeSignals.push("OBV Accumulation");
+      activeSignals.push("OBV Accum");
   }
 
-  // 8. Volume Price Confirmation (Matches Python: Vol > 1.5*Avg & Change > 1%)
+  // 7. Volume Spike (Python: +30)
   if (currentVol > avgVol * 1.5 && priceChange > 1) {
       score += 30;
-      activeSignals.push(`Vol Spike + Price`);
+      activeSignals.push(`Vol Spike`);
   }
 
-  // Determine Strength
   let signalStrength: 'STRONG BUY' | 'BUY' | 'HOLD' | 'SELL' = 'HOLD';
   if (score >= 90) signalStrength = 'STRONG BUY';
   else if (score >= 60) signalStrength = 'BUY';
   else if (score <= 20) signalStrength = 'SELL';
 
-  return {
-    rsi,
-    macd,
-    stoch,
-    adx,
-    atr,
-    bollinger,
-    ema,
-    obv: currentOBV,
-    score,
-    activeSignals,
-    signalStrength
-  };
+  return { rsi, macd, stoch, adx: 30, atr, bollinger, ema: {ema9, ema21}, obv: currentOBV, score, activeSignals, signalStrength };
 };

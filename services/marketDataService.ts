@@ -1,10 +1,8 @@
+
 import { Candle, StockData, AppSettings } from "../types";
 import { analyzeStockTechnical } from "./technicalAnalysis";
 
 const YAHOO_CHART_BASE = "https://query1.finance.yahoo.com/v8/finance/chart/";
-
-// No non-stock tickers needed anymore
-const TICKER_MAP: { [key: string]: string } = {};
 
 async function fetchWithProxy(targetUrl: string): Promise<any> {
     const proxies = [
@@ -17,8 +15,7 @@ async function fetchWithProxy(targetUrl: string): Promise<any> {
         try {
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), 4000); 
-            const finalUrl = proxy(targetUrl);
-            const response = await fetch(finalUrl, { signal: controller.signal });
+            const response = await fetch(proxy(targetUrl), { signal: controller.signal });
             clearTimeout(timeoutId);
             if (response.ok) return await response.json();
         } catch (e) { continue; }
@@ -26,13 +23,13 @@ async function fetchWithProxy(targetUrl: string): Promise<any> {
     return null;
 }
 
-async function fetchYahooData(ticker: string): Promise<any> {
+async function fetchYahooData(ticker: string, interval: string = "5m", range: string = "1d"): Promise<any> {
     const cb = Math.floor(Math.random() * 1000000);
-    const targetUrl = `${YAHOO_CHART_BASE}${ticker}?interval=5m&range=1d&_cb=${cb}`;
+    const targetUrl = `${YAHOO_CHART_BASE}${ticker}?interval=${interval}&range=${range}&_cb=${cb}`;
     return await fetchWithProxy(targetUrl);
 }
 
-async function parseYahooResponse(symbol: string, data: any): Promise<StockData | null> {
+async function parseYahooResponse(data: any): Promise<StockData | null> {
     const result = data?.chart?.result?.[0];
     if (!result || !result.timestamp) return null;
 
@@ -69,17 +66,12 @@ async function parseYahooResponse(symbol: string, data: any): Promise<StockData 
     };
 }
 
-export const fetchRealStockData = async (symbol: string, settings: AppSettings): Promise<StockData | null> => {
-    let ticker = TICKER_MAP[symbol.toUpperCase()];
-    if (!ticker) {
-        const upperSymbol = symbol.toUpperCase();
-        ticker = upperSymbol.includes('.') ? upperSymbol : `${upperSymbol}.NS`;
-    }
-
+export const fetchRealStockData = async (symbol: string, settings: AppSettings, interval: string = "5m", range: string = "1d"): Promise<StockData | null> => {
+    const ticker = symbol.toUpperCase().includes('.') ? symbol.toUpperCase() : `${symbol.toUpperCase()}.NS`;
     try {
-        const yahooRaw = await fetchYahooData(ticker);
+        const yahooRaw = await fetchYahooData(ticker, interval, range);
         if (yahooRaw) {
-            return await parseYahooResponse(symbol, yahooRaw);
+            return await parseYahooResponse(yahooRaw);
         }
     } catch (e) {
         console.warn(`Fetch failed for ${symbol}`);

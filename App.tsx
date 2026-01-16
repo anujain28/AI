@@ -1,7 +1,9 @@
+
 import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
-import { fetchTopStockPicks, analyzeHoldings } from './services/geminiService';
+import { analyzeHoldings } from './services/geminiService';
 import { checkAndRefreshStockList } from './services/stockListService';
 import { fetchRealStockData } from './services/marketDataService';
+import { runTechnicalScan } from './services/recommendationEngine';
 import { StockRecommendation, PortfolioItem, MarketData, Transaction, AppSettings, UserProfile, Funds, HoldingAnalysis } from './types';
 import { AuthOverlay } from './components/AuthOverlay';
 import { TradeModal } from './components/TradeModal';
@@ -15,7 +17,7 @@ import { PageLivePNL } from './components/PageLivePNL';
 import { PageConfiguration } from './components/PageConfiguration';
 
 const GLOBAL_STORAGE = { USER: 'aitrade_current_user_v2' };
-const DEFAULT_FUNDS: Funds = { stock: 1000000 };
+const DEFAULT_FUNDS: Funds = { stock: 1000000, mcx: 0, forex: 0, crypto: 0 };
 const DEFAULT_SETTINGS: AppSettings = {
     initialFunds: DEFAULT_FUNDS,
     autoTradeConfig: { mode: 'PERCENTAGE', value: 5 },
@@ -30,10 +32,10 @@ const SplashScreen = ({ visible }: { visible: boolean }) => {
     return (
         <div className="fixed inset-0 z-[100] bg-[#0f172a] flex flex-col items-center justify-center animate-fade-out">
              <div className="w-20 h-20 bg-blue-600 rounded-3xl flex items-center justify-center shadow-2xl shadow-blue-500/50 mb-8 animate-bounce">
-                <BarChart3 size={40} className="text-white" />
+                <BarChart3 size(40) className="text-white" />
              </div>
              <h1 className="text-2xl font-bold text-white tracking-[0.2em] mb-2 font-mono">AI-TRADE</h1>
-             <p className="text-slate-500 text-[8px] mt-4 font-mono tracking-widest">REAL-TIME ENGINE INITIALIZING</p>
+             <p className="text-slate-500 text-[8px] mt-4 font-mono tracking-widest">TECHNICAL ENGINE INITIALIZING</p>
         </div>
     );
 };
@@ -102,10 +104,14 @@ export default function App() {
         stocksList = await checkAndRefreshStockList();
         setNiftyList(stocksList);
     }
+    
+    // Technical Scan replaces Gemini
     if (recommendations.length === 0) {
-        const recs = await fetchTopStockPicks(2000000, stocksList, settings.enabledMarkets);
+        setIsLoading(true);
+        const recs = await runTechnicalScan(stocksList, settings);
         setRecommendations(recs);
     }
+
     const symbols = new Set([...recommendations.map(s => s.symbol), ...allHoldings.map(p => p.symbol)]);
     const results = await Promise.all(Array.from(symbols).map(async sym => ({ symbol: sym, data: await fetchRealStockData(sym, settings) })));
     setMarketData(prev => {
@@ -119,7 +125,7 @@ export default function App() {
   useEffect(() => {
       if (user) {
           loadMarketData();
-          refreshIntervalRef.current = setInterval(loadMarketData, 5000);
+          refreshIntervalRef.current = setInterval(loadMarketData, 30000); // Slower refresh for technical scanning
           botIntervalRef.current = setInterval(() => {
               const results = runAutoTradeEngine(settings, paperPortfolio, marketData, funds, recommendations);
               results.forEach(res => {
@@ -167,7 +173,7 @@ export default function App() {
     <div className="h-full flex flex-col bg-background text-slate-100 overflow-hidden">
       {notification && <div className="fixed top-4 left-4 right-4 z-[60] bg-slate-800 text-white px-4 py-3 rounded-xl border border-slate-700 animate-slide-up text-xs font-bold">{notification}</div>}
       <main className="flex-1 overflow-y-auto custom-scrollbar w-full max-w-lg mx-auto md:max-w-7xl md:border-x md:border-slate-800">
-        {activePage === 0 && <PageMarket recommendations={recommendations} marketData={marketData} onTrade={(s) => { setSelectedStock(s); setIsTradeModalOpen(true); }} onRefresh={loadMarketData} isLoading={isLoading} enabledMarkets={settings.enabledMarkets} allowedTypes={['STOCK']} />}
+        {activePage === 0 && <PageMarket recommendations={recommendations} marketData={marketData} onTrade={(s) => { setSelectedStock(s); setIsTradeModalOpen(true); }} onRefresh={() => { setRecommendations([]); loadMarketData(); }} isLoading={isLoading} enabledMarkets={settings.enabledMarkets} allowedTypes={['STOCK']} />}
         {activePage === 1 && <PagePaperTrading holdings={allHoldings} marketData={marketData} analysisData={analysisData} onSell={(s, b) => handleSell(s, 1, marketData[s]?.price || 0, b)} onAnalyze={() => analyzeHoldings(allHoldings, marketData)} isAnalyzing={isAnalyzing} funds={funds} activeBots={activeBots} onToggleBot={(b) => setActiveBots(p => ({...p, [b]: !p[b]}))} transactions={transactions} onUpdateFunds={setFunds} />}
         {activePage === 2 && <PageLivePNL title="My Portfolio" subtitle="Connected Accounts" icon={Briefcase} holdings={allHoldings.filter(h => h.broker !== 'PAPER')} marketData={marketData} analysisData={analysisData} onSell={(s, b) => handleSell(s, 1, marketData[s]?.price || 0, b)} brokerBalances={brokerBalances} />}
         {activePage === 3 && <PageConfiguration settings={settings} onSave={(s) => { setSettings(s); showNotification("Saved"); }} transactions={transactions} activeBots={activeBots} onToggleBot={(b) => setActiveBots(p => ({...p, [b]: !p[b]}))} />}
