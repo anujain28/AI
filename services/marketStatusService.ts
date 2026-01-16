@@ -19,9 +19,6 @@ export const getMarketStatus = (type: AssetType): MarketStatus => {
     const currentMinutes = hour * 60 + minute;
 
     switch (type) {
-        case 'CRYPTO':
-            return { isOpen: true, message: 'Live 24/7', color: 'text-green-400' };
-
         case 'STOCK':
             // NSE: Mon-Fri, 09:15 - 15:30
             if (day === 0 || day === 6) return { isOpen: false, message: 'Closed (Weekend)', color: 'text-red-400' };
@@ -47,7 +44,7 @@ export const getMarketStatus = (type: AssetType): MarketStatus => {
             return { isOpen: false, message: 'Market Closed', color: 'text-red-400' };
 
         case 'FOREX':
-            // Forex: Global market usually closes weekends. Simplified Mon-Fri check.
+            // Forex: Simplified Mon-Fri check.
             if (day === 0 || day === 6) return { isOpen: false, message: 'Closed (Weekend)', color: 'text-red-400' };
             return { isOpen: true, message: 'Market Open', color: 'text-green-400' };
             

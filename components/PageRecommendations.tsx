@@ -1,7 +1,7 @@
 import React from 'react';
 import { StockRecommendation, MarketData, MarketSettings, AssetType } from '../types';
 import { StockCard } from './StockCard';
-import { RefreshCw, Globe, TrendingUp, DollarSign, Cpu } from 'lucide-react';
+import { RefreshCw, Globe, TrendingUp, DollarSign } from 'lucide-react';
 
 interface PageRecommendationsProps {
   recommendations: StockRecommendation[];
@@ -22,7 +22,6 @@ export const PageRecommendations: React.FC<PageRecommendationsProps> = ({
 }) => {
   
   const renderSection = (title: string, type: AssetType, icon: React.ReactNode, description: string) => {
-    // Map internal AssetType to settings key logic
     const settingsKey = type === 'STOCK' ? 'stocks' : type.toLowerCase() as keyof MarketSettings;
     if (!enabledMarkets[settingsKey]) return null;
 
@@ -67,7 +66,6 @@ export const PageRecommendations: React.FC<PageRecommendationsProps> = ({
       {renderSection("Indian Stocks", "STOCK", <TrendingUp size={20}/>, "NSE/BSE Equity Recommendations")}
       {renderSection("Commodities", "MCX", <Globe size={20}/>, "Gold, Silver, Crude Oil")}
       {renderSection("Forex", "FOREX", <DollarSign size={20}/>, "Currency Pairs")}
-      {renderSection("Crypto", "CRYPTO", <Cpu size={20}/>, "Digital Assets")}
       
       <div className="h-8"></div>
     </div>

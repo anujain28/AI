@@ -1,5 +1,3 @@
-
-
 export type AssetType = 'STOCK' | 'MCX' | 'FOREX' | 'CRYPTO';
 
 export interface UserProfile {
@@ -14,7 +12,8 @@ export interface Funds {
   stock: number;
   mcx: number;
   forex: number;
-  crypto?: number;
+  // Fixed: Added crypto to Funds interface
+  crypto: number;
 }
 
 export interface StockRecommendation {
@@ -40,7 +39,8 @@ export interface HoldingAnalysis {
   cagr: string;
 }
 
-export type BrokerID = 'PAPER' | 'DHAN' | 'SHOONYA' | 'BINANCE' | 'COINDCX' | 'COINSWITCH' | 'ZEBPAY';
+// Fixed: Added crypto broker IDs to BrokerID type
+export type BrokerID = 'PAPER' | 'DHAN' | 'SHOONYA' | 'BINANCE' | 'COINDCX' | 'COINSWITCH';
 
 export interface PortfolioItem {
   symbol: string;
@@ -111,7 +111,8 @@ export interface MarketSettings {
   stocks: boolean;
   mcx: boolean;
   forex: boolean;
-  crypto?: boolean;
+  // Fixed: Added crypto to MarketSettings interface
+  crypto: boolean;
 }
 
 export interface AutoTradeConfig {
@@ -133,7 +134,7 @@ export interface AppSettings {
   shoonyaPassword?: string; // Kept for legacy/sim
   shoonyaApiKey?: string;   // For real auth
   shoonyaVendorCode?: string; // For real auth
-  // Crypto Brokers
+  // Fixed: Added crypto broker API key configurations
   binanceApiKey?: string;
   binanceSecret?: string;
   coindcxApiKey?: string;

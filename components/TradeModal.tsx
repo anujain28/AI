@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { StockRecommendation, PortfolioItem, Funds } from '../types';
 import { X, DollarSign, Briefcase, Calculator } from 'lucide-react';
@@ -40,12 +39,9 @@ export const TradeModal: React.FC<TradeModalProps> = ({
     
     return activeBrokers.filter(b => {
         if (b === 'PAPER') return true;
-        
         if (type === 'STOCK') return ['DHAN', 'SHOONYA'].includes(b);
-        if (type === 'MCX') return ['DHAN', 'SHOONYA'].includes(b); // Assuming these support commodities
+        if (type === 'MCX') return ['DHAN', 'SHOONYA'].includes(b);
         if (type === 'FOREX') return ['DHAN', 'SHOONYA'].includes(b);
-        if (type === 'CRYPTO') return ['BINANCE', 'COINDCX', 'COINSWITCH', 'ZEBPAY'].includes(b);
-        
         return false;
     });
   }, [activeBrokers, stock]);
@@ -58,7 +54,6 @@ export const TradeModal: React.FC<TradeModalProps> = ({
     if (initialBroker && compatibleBrokers.includes(initialBroker)) {
         setSelectedBroker(initialBroker);
     } else if (compatibleBrokers.length > 0) {
-        // Default to Paper if available, else first compatible
         if (compatibleBrokers.includes('PAPER')) setSelectedBroker('PAPER');
         else setSelectedBroker(compatibleBrokers[0]);
     }
@@ -72,10 +67,8 @@ export const TradeModal: React.FC<TradeModalProps> = ({
   const totalValue = parseFloat(amount) || (qtyNum * currentPrice);
   
   let availableCash = 0;
-  // let fundLabel = 'Equity';
   if (stock.type === 'MCX') { availableCash = funds.mcx; }
   else if (stock.type === 'FOREX') { availableCash = funds.forex; }
-  else if (stock.type === 'CRYPTO') { availableCash = funds.crypto; }
   else { availableCash = funds.stock; }
 
   const canBuy = mode === 'BUY' && (selectedBroker !== 'PAPER' || (totalValue <= availableCash)) && totalValue > 0;
@@ -103,8 +96,7 @@ export const TradeModal: React.FC<TradeModalProps> = ({
       const amt = parseFloat(val);
       if (!isNaN(amt)) {
           let calcQty = amt / currentPrice;
-          if (stock.type === 'CRYPTO') calcQty = parseFloat(calcQty.toFixed(6));
-          else calcQty = stock.lotSize === 1 ? Math.floor(calcQty) : parseFloat(calcQty.toFixed(2));
+          calcQty = stock.lotSize === 1 ? Math.floor(calcQty) : parseFloat(calcQty.toFixed(2));
           setQuantity(calcQty.toString());
       } else {
           setQuantity('0');
@@ -115,18 +107,13 @@ export const TradeModal: React.FC<TradeModalProps> = ({
       switch(b) {
           case 'DHAN': return 'bg-purple-600 border-purple-500';
           case 'SHOONYA': return 'bg-orange-600 border-orange-500';
-          case 'BINANCE': return 'bg-yellow-600 border-yellow-500';
-          case 'COINDCX': return 'bg-blue-600 border-blue-500';
-          case 'COINSWITCH': return 'bg-teal-600 border-teal-500';
           default: return 'bg-slate-600 border-slate-500';
       }
   };
 
   return (
     <div className="fixed inset-0 z-[60] flex items-end md:items-center justify-center bg-black/70 backdrop-blur-sm p-0 md:p-4">
-      {/* Mobile: Bottom Sheet Animation, Desktop: Fade In */}
       <div className="bg-surface border-t md:border border-slate-700 w-full md:max-w-md rounded-t-2xl md:rounded-2xl shadow-2xl overflow-hidden animate-slide-up md:animate-fade-in max-h-[90vh] flex flex-col">
-        {/* Header */}
         <div className="p-5 md:p-6 border-b border-slate-700 flex justify-between items-center bg-slate-800/50">
           <div>
             <h2 className="text-xl md:text-2xl font-bold text-white flex items-center gap-2">
@@ -139,9 +126,7 @@ export const TradeModal: React.FC<TradeModalProps> = ({
           </button>
         </div>
 
-        {/* Scrollable Body for small screens */}
         <div className="p-5 md:p-6 space-y-5 overflow-y-auto custom-scrollbar">
-          
           <div className="flex bg-slate-900/50 p-1 rounded-lg">
             <button onClick={() => setMode('BUY')} className={`flex-1 py-2.5 rounded-md font-medium text-sm transition-all ${mode === 'BUY' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400'}`}>Buy</button>
             <button onClick={() => setMode('SELL')} className={`flex-1 py-2.5 rounded-md font-medium text-sm transition-all ${mode === 'SELL' ? 'bg-red-600 text-white shadow-md' : 'text-slate-400'}`}>Sell</button>
@@ -163,7 +148,7 @@ export const TradeModal: React.FC<TradeModalProps> = ({
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-[10px] font-bold text-slate-500 mb-1 uppercase tracking-wider">Quantity</label>
-              <input type="number" min={stock.type === 'CRYPTO' ? "0.0001" : "1"} step={stock.lotSize || 1} value={quantity} onChange={(e) => handleQuantityChange(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-lg py-3 px-4 text-white focus:border-blue-500 font-mono text-lg outline-none" />
+              <input type="number" min="1" step={stock.lotSize || 1} value={quantity} onChange={(e) => handleQuantityChange(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-lg py-3 px-4 text-white focus:border-blue-500 font-mono text-lg outline-none" />
             </div>
             <div>
               <label className="block text-[10px] font-bold text-slate-500 mb-1 uppercase tracking-wider flex items-center gap-1"><Calculator size={10} /> Amount (₹)</label>
@@ -183,7 +168,7 @@ export const TradeModal: React.FC<TradeModalProps> = ({
             </div>
             <div className="bg-slate-800/50 p-3 rounded-lg border border-slate-700/50">
               <div className="text-slate-400 flex items-center gap-1 mb-1"><Briefcase size={10}/> Position</div>
-              <div className="text-white font-mono font-bold">{holdingQty.toFixed(stock.type === 'CRYPTO' ? 4 : 0)}</div>
+              <div className="text-white font-mono font-bold">{holdingQty.toFixed(0)}</div>
             </div>
           </div>
 
@@ -196,7 +181,6 @@ export const TradeModal: React.FC<TradeModalProps> = ({
              {mode === 'SELL' && !canSell && qtyNum > 0 && <p className="text-red-400 text-[10px]">Insufficient holdings</p>}
           </div>
         </div>
-        {/* Spacer for mobile safe area/nav */}
         <div className="h-6 md:hidden"></div>
       </div>
     </div>

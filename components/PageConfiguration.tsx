@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { AppSettings, MarketSettings, Transaction } from '../types';
 import { Save, LayoutGrid, Building2, Bell, TrendingUp, Globe, DollarSign, Key, Check, Trash2, FileText } from 'lucide-react';

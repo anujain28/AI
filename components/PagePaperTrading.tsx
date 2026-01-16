@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { PortfolioItem, MarketData, Funds, HoldingAnalysis, Transaction, AssetType } from '../types';
 import { PortfolioTable } from './PortfolioTable';

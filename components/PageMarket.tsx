@@ -1,4 +1,3 @@
-
 import React, { useMemo } from 'react';
 import { StockRecommendation, MarketData, MarketSettings, AssetType } from '../types';
 import { StockCard } from './StockCard';

@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { fetchTopStockPicks, analyzeHoldings } from './services/geminiService';
 import { checkAndRefreshStockList } from './services/stockListService';
@@ -7,7 +6,7 @@ import { StockRecommendation, PortfolioItem, MarketData, Transaction, AppSetting
 import { AuthOverlay } from './components/AuthOverlay';
 import { TradeModal } from './components/TradeModal';
 import { fetchBrokerBalance, fetchHoldings, placeOrder } from './services/brokerService';
-import { runAutoTradeEngine, simulateBackgroundTrades } from './services/autoTradeEngine';
+import { runAutoTradeEngine } from './services/autoTradeEngine';
 import { BarChart3, AlertCircle, Briefcase, Download } from 'lucide-react';
 
 // NEW PAGE COMPONENTS
@@ -22,13 +21,14 @@ const GLOBAL_STORAGE = {
     USER: 'aitrade_current_user_v2',
 };
 
-// Default constants for init
-const DEFAULT_FUNDS: Funds = { stock: 1000000, mcx: 500000, forex: 500000 };
+// Fixed: Added crypto to DEFAULT_FUNDS
+const DEFAULT_FUNDS: Funds = { stock: 1000000, mcx: 500000, forex: 500000, crypto: 500000 };
+// Fixed: Added crypto to DEFAULT_SETTINGS
 const DEFAULT_SETTINGS: AppSettings = {
     initialFunds: DEFAULT_FUNDS,
     autoTradeConfig: { mode: 'PERCENTAGE', value: 5 },
     activeBrokers: ['PAPER', 'DHAN', 'SHOONYA'], 
-    enabledMarkets: { stocks: true, mcx: true, forex: true }, 
+    enabledMarkets: { stocks: true, mcx: true, forex: true, crypto: true }, 
     telegramBotToken: '',
     telegramChatId: ''
 };
