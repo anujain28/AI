@@ -28,8 +28,8 @@ export interface StockRecommendation {
   lotSize: number;
   timeframe?: 'INTRADAY' | 'BTST' | 'WEEKLY' | 'MONTHLY';
   chartPattern?: string; 
-  isTopPick?: boolean; // New flag for AIRobots picks
-  sourceUrl?: string; // Grounding source
+  isTopPick?: boolean;
+  sourceUrl?: string;
 }
 
 export interface HoldingAnalysis {
@@ -41,7 +41,7 @@ export interface HoldingAnalysis {
   cagr: string;
 }
 
-export type BrokerID = 'PAPER' | 'DHAN' | 'SHOONYA' | 'BINANCE' | 'COINDCX' | 'COINSWITCH';
+export type BrokerID = 'PAPER' | 'DHAN' | 'SHOONYA';
 
 export interface PortfolioItem {
   symbol: string;
@@ -128,11 +128,6 @@ export interface AppSettings {
   shoonyaPassword?: string;
   shoonyaApiKey?: string;
   shoonyaVendorCode?: string;
-  binanceApiKey?: string;
-  binanceSecret?: string;
-  coindcxApiKey?: string;
-  coindcxSecret?: string;
-  coinswitchApiKey?: string;
 }
 
 export interface PortfolioHistoryPoint {

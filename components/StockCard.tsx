@@ -1,6 +1,6 @@
 import React from 'react';
 import { StockRecommendation, MarketData } from '../types';
-import { TrendingUp, TrendingDown, Zap, BarChart2, Globe, DollarSign, Target, Scan, Star, ExternalLink } from 'lucide-react';
+import { TrendingUp, TrendingDown, Zap, BarChart2, Target, Scan, Star, ExternalLink } from 'lucide-react';
 import { getMarketStatus } from '../services/marketStatusService';
 
 interface StockCardProps {
@@ -20,7 +20,6 @@ export const StockCard: React.FC<StockCardProps> = ({ stock, marketData, onTrade
   
   const tech = currentData?.technicals;
   const score = tech?.score || 0;
-  const strength = tech?.signalStrength || 'HOLD';
 
   let theme = {
       border: stock.isTopPick ? 'border-yellow-500/50' : 'border-slate-700',
@@ -30,13 +29,6 @@ export const StockCard: React.FC<StockCardProps> = ({ stock, marketData, onTrade
       glow: stock.isTopPick ? 'shadow-[0_0_15px_-5px_rgba(234,179,8,0.4)]' : 'shadow-none',
       badgeBg: 'bg-slate-700'
   };
-
-  const strengthColor = 
-    strength === 'STRONG BUY' ? 'text-green-400 font-bold' :
-    strength === 'BUY' ? 'text-blue-400 font-bold' :
-    strength === 'SELL' ? 'text-red-400 font-bold' : 'text-slate-400';
-
-  const AssetIcon = stock.type === 'MCX' ? Globe : stock.type === 'FOREX' ? DollarSign : BarChart2;
 
   return (
     <div className={`rounded-xl p-3 md:p-4 border ${theme.border} bg-gradient-to-br ${theme.bgGradient} transition-all duration-300 shadow-lg group relative overflow-hidden ${theme.glow}`}>
@@ -56,12 +48,12 @@ export const StockCard: React.FC<StockCardProps> = ({ stock, marketData, onTrade
       <div className="flex justify-between items-start mb-2 pr-12 relative z-10">
         <div>
           <h3 className={`text-base md:text-lg font-bold flex items-center gap-2 ${theme.accent}`}>
-            <AssetIcon size={16} className={theme.iconColor} />
+            <BarChart2 size={16} className={theme.iconColor} />
             {stock.symbol.split('.')[0]}
           </h3>
           <div className="flex gap-1 mt-1">
               <span className={`text-[8px] px-1.5 py-0.5 rounded border border-slate-700 bg-slate-800 text-slate-400 font-bold uppercase`}>
-                  {stock.type}
+                  EQUITY
               </span>
           </div>
         </div>

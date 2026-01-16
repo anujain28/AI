@@ -1,3 +1,4 @@
+
 import { PortfolioItem, Funds } from "../types";
 
 export const generatePNLReport = (
@@ -11,8 +12,9 @@ export const generatePNLReport = (
     return acc + (price * item.quantity);
   }, 0);
 
-  const totalCurrentCash = currentFunds.stock + currentFunds.mcx + currentFunds.forex;
-  const totalInitial = initialFunds.stock + initialFunds.mcx + initialFunds.forex;
+  // Updated to include crypto in total cash calculation
+  const totalCurrentCash = currentFunds.stock + currentFunds.mcx + currentFunds.forex + (currentFunds.crypto || 0);
+  const totalInitial = initialFunds.stock + initialFunds.mcx + initialFunds.forex + (initialFunds.crypto || 0);
 
   const totalEquity = totalCurrentCash + portfolioValue;
   const totalPNL = totalEquity - totalInitial;
@@ -25,6 +27,7 @@ export const generatePNLReport = (
   report += `   • Equity: ₹${currentFunds.stock.toFixed(0)}\n`;
   report += `   • MCX: ₹${currentFunds.mcx.toFixed(0)}\n`;
   report += `   • Forex: ₹${currentFunds.forex.toFixed(0)}\n`;
+  report += `   • Crypto: ₹${(currentFunds.crypto || 0).toFixed(0)}\n`;
   report += `📈 *Total PNL:* ₹${totalPNL.toFixed(2)} (${pnlPercent.toFixed(2)}%)\n\n`;
   
   if (portfolio.length > 0) {

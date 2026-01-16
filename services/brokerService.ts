@@ -13,10 +13,12 @@ const fetchWithProxy = async (url: string, options: any) => {
 let MOCK_DHAN_DB: PortfolioItem[] = [];
 let MOCK_SHOONYA_DB: PortfolioItem[] = [];
 
+// Slicing config per asset type, including newly added ones
 const SLICE_CONFIG: Record<AssetType, number> = {
     STOCK: 50,
     MCX: 1,
-    FOREX: 500
+    FOREX: 500,
+    CRYPTO: 1
 };
 
 const fetchDhanHoldings = async (settings: AppSettings): Promise<PortfolioItem[]> => {

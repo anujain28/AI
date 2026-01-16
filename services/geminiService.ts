@@ -1,21 +1,20 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { StockRecommendation, MarketSettings, PortfolioItem, HoldingAnalysis, MarketData } from "../types";
-import { getCompanyName } from "./stockListService";
 
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 export const fetchTopStockPicks = async (
     totalCapital: number, 
     stockUniverse: string[] = [], 
-    markets: MarketSettings = { stocks: true, mcx: false, forex: false }
+    markets: MarketSettings = { stocks: true }
 ): Promise<StockRecommendation[]> => {
   
   try {
     const response = await ai.models.generateContent({
       model: 'gemini-3-pro-preview',
-      contents: `Find the current top 5 stock recommendations and trading robot picks from 'https://airobots.streamlit.app/'. 
-      If the site is unreachable, use web search to find the latest 'AIRobots' high-momentum stock recommendations for the Indian market.
-      For each stock, provide: symbol, name, expected target, and a short 1-sentence reason. 
+      contents: `Find the current top 5 high-momentum Indian stock recommendations from 'https://airobots.streamlit.app/'. 
+      If reachable, use the 'Trading Robot' picks. Otherwise, find the latest reliable momentum stock picks for the NSE/BSE market.
+      For each stock, provide: symbol (NSE format like RELIANCE.NS), name, expected target, and a short 1-sentence reason. 
       Return the data as a clean JSON array.`,
       config: {
         tools: [{ googleSearch: {} }],
@@ -47,8 +46,8 @@ export const fetchTopStockPicks = async (
       ...p,
       symbol: p.symbol.includes('.') ? p.symbol : `${p.symbol}.NS`,
       type: 'STOCK',
-      sector: 'AI Robotics Pick',
-      currentPrice: 0, // Will be filled by market data service
+      sector: 'AI Momentum Pick',
+      currentPrice: 0,
       lotSize: 1,
       chartPattern: 'Momentum Breakout',
       isTopPick: true,
@@ -56,13 +55,11 @@ export const fetchTopStockPicks = async (
     }));
   } catch (e) {
     console.error("Gemini Recommendations Failed", e);
-    // Return empty list so fallback algorithmic logic in App.tsx can take over if needed
     return [];
   }
 };
 
 export const analyzeHoldings = async (holdings: PortfolioItem[], marketData: MarketData): Promise<HoldingAnalysis[]> => {
-    // Local technical analysis fallback to save tokens
     return holdings.map(h => {
         const data = marketData[h.symbol];
         if (!data) return {

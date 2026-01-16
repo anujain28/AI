@@ -3,7 +3,7 @@ import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react'
 import { fetchTopStockPicks, analyzeHoldings } from './services/geminiService';
 import { checkAndRefreshStockList } from './services/stockListService';
 import { fetchRealStockData } from './services/marketDataService';
-import { StockRecommendation, PortfolioItem, MarketData, Transaction, AppSettings, UserProfile, Funds, HoldingAnalysis, AssetType } from './types';
+import { StockRecommendation, PortfolioItem, MarketData, Transaction, AppSettings, UserProfile, Funds, HoldingAnalysis } from './types';
 import { AuthOverlay } from './components/AuthOverlay';
 import { TradeModal } from './components/TradeModal';
 import { fetchBrokerBalance, fetchHoldings, placeOrder } from './services/brokerService';
@@ -17,13 +17,14 @@ import { PageConfiguration } from './components/PageConfiguration';
 import { AdBanner } from './components/AdBanner'; 
 
 const GLOBAL_STORAGE = { USER: 'aitrade_current_user_v2' };
-// Fixed DEFAULT_FUNDS by adding missing crypto property
+// Updated to include all mandatory fund types
 const DEFAULT_FUNDS: Funds = { stock: 1000000, mcx: 500000, forex: 500000, crypto: 500000 };
 const DEFAULT_SETTINGS: AppSettings = {
     initialFunds: DEFAULT_FUNDS,
     autoTradeConfig: { mode: 'PERCENTAGE', value: 5 },
     activeBrokers: ['PAPER', 'DHAN', 'SHOONYA'], 
-    enabledMarkets: { stocks: true, mcx: true, forex: true, crypto: true }, 
+    // Updated to include all mandatory market types
+    enabledMarkets: { stocks: true, mcx: false, forex: false, crypto: false }, 
     telegramBotToken: '',
     telegramChatId: ''
 };
@@ -144,26 +145,24 @@ export default function App() {
   }, [user, loadMarketData, settings, paperPortfolio, marketData, funds, recommendations]);
 
   const handleBuy = async (symbol: string, quantity: number, price: number, broker: any) => {
-      const type = recommendations.find(r => r.symbol === symbol)?.type || 'STOCK';
       if (broker === 'PAPER') {
           const cost = quantity * price;
-          setPaperPortfolio(prev => [...prev, { symbol, type, quantity, avgCost: price, totalCost: cost, broker: 'PAPER' }]);
-          setFunds(prev => ({ ...prev, [type === 'STOCK' ? 'stock' : type.toLowerCase()]: prev[type === 'STOCK' ? 'stock' : type.toLowerCase() as keyof Funds] - cost }));
+          setPaperPortfolio(prev => [...prev, { symbol, type: 'STOCK', quantity, avgCost: price, totalCost: cost, broker: 'PAPER' }]);
+          setFunds(prev => ({ ...prev, stock: prev.stock - cost }));
       } else {
-          await placeOrder(broker, symbol, quantity, 'BUY', price, type, settings);
+          await placeOrder(broker, symbol, quantity, 'BUY', price, 'STOCK', settings);
       }
-      setTransactions(prev => [...prev, { id: Date.now().toString(), type: 'BUY', symbol, assetType: type, quantity, price, timestamp: Date.now(), broker }]);
+      setTransactions(prev => [...prev, { id: Date.now().toString(), type: 'BUY', symbol, assetType: 'STOCK', quantity, price, timestamp: Date.now(), broker }]);
   };
 
   const handleSell = async (symbol: string, quantity: number, price: number, broker: any) => {
-      const type = allHoldings.find(h => h.symbol === symbol)?.type || 'STOCK';
       if (broker === 'PAPER') {
           setPaperPortfolio(prev => prev.filter(p => p.symbol !== symbol));
-          setFunds(prev => ({ ...prev, [type === 'STOCK' ? 'stock' : type.toLowerCase()]: prev[type === 'STOCK' ? 'stock' : type.toLowerCase() as keyof Funds] + (quantity * price) }));
+          setFunds(prev => ({ ...prev, stock: prev.stock + (quantity * price) }));
       } else {
-          await placeOrder(broker, symbol, quantity, 'SELL', price, type, settings);
+          await placeOrder(broker, symbol, quantity, 'SELL', price, 'STOCK', settings);
       }
-      setTransactions(prev => [...prev, { id: Date.now().toString(), type: 'SELL', symbol, assetType: type, quantity, price, timestamp: Date.now(), broker }]);
+      setTransactions(prev => [...prev, { id: Date.now().toString(), type: 'SELL', symbol, assetType: 'STOCK', quantity, price, timestamp: Date.now(), broker }]);
   };
 
   if (showSplash) return <SplashScreen visible={true} />;
@@ -174,12 +173,9 @@ export default function App() {
       {notification && <div className="fixed top-4 left-4 right-4 z-[60] bg-slate-800 text-white px-4 py-3 rounded-xl border border-slate-700 animate-slide-up text-xs font-bold">{notification}</div>}
       <main className="flex-1 overflow-y-auto custom-scrollbar w-full max-w-lg mx-auto md:max-w-7xl md:border-x md:border-slate-800">
         {activePage === 0 && <PageMarket recommendations={recommendations} marketData={marketData} onTrade={(s) => { setSelectedStock(s); setIsTradeModalOpen(true); }} onRefresh={loadMarketData} isLoading={isLoading} enabledMarkets={settings.enabledMarkets} allowedTypes={['STOCK']} />}
-        {activePage === 1 && <PageMarket recommendations={recommendations} marketData={marketData} onTrade={(s) => { setSelectedStock(s); setIsTradeModalOpen(true); }} onRefresh={loadMarketData} isLoading={isLoading} enabledMarkets={settings.enabledMarkets} allowedTypes={['MCX', 'FOREX']} />}
-        {/* Fixed onSell prop signature mismatch by using wrapper for handleSell with all required arguments */}
-        {activePage === 2 && <PagePaperTrading holdings={allHoldings} marketData={marketData} analysisData={analysisData} onSell={(s, b) => handleSell(s, 1, marketData[s]?.price || 0, b)} onAnalyze={() => analyzeHoldings(allHoldings, marketData)} isAnalyzing={isAnalyzing} funds={funds} activeBots={activeBots} onToggleBot={(b) => setActiveBots(p => ({...p, [b]: !p[b]}))} transactions={transactions} onUpdateFunds={setFunds} />}
-        {/* Fixed onSell prop signature mismatch by using wrapper for handleSell with all required arguments */}
-        {activePage === 3 && <PageLivePNL title="My Portfolio" subtitle="Connected Accounts" icon={Briefcase} holdings={allHoldings.filter(h => h.broker !== 'PAPER')} marketData={marketData} analysisData={analysisData} onSell={(s, b) => handleSell(s, 1, marketData[s]?.price || 0, b)} brokerBalances={brokerBalances} />}
-        {activePage === 4 && <PageConfiguration settings={settings} onSave={(s) => { setSettings(s); showNotification("Saved"); }} transactions={transactions} activeBots={activeBots} onToggleBot={(b) => setActiveBots(p => ({...p, [b]: !p[b]}))} />}
+        {activePage === 1 && <PagePaperTrading holdings={allHoldings} marketData={marketData} analysisData={analysisData} onSell={(s, b) => handleSell(s, 1, marketData[s]?.price || 0, b)} onAnalyze={() => analyzeHoldings(allHoldings, marketData)} isAnalyzing={isAnalyzing} funds={funds} activeBots={activeBots} onToggleBot={(b) => setActiveBots(p => ({...p, [b]: !p[b]}))} transactions={transactions} onUpdateFunds={setFunds} />}
+        {activePage === 2 && <PageLivePNL title="My Portfolio" subtitle="Connected Accounts" icon={Briefcase} holdings={allHoldings.filter(h => h.broker !== 'PAPER')} marketData={marketData} analysisData={analysisData} onSell={(s, b) => handleSell(s, 1, marketData[s]?.price || 0, b)} brokerBalances={brokerBalances} />}
+        {activePage === 3 && <PageConfiguration settings={settings} onSave={(s) => { setSettings(s); showNotification("Saved"); }} transactions={transactions} activeBots={activeBots} onToggleBot={(b) => setActiveBots(p => ({...p, [b]: !p[b]}))} />}
       </main>
       <BottomNav activeTab={activePage} onChange={setActivePage} />
       {selectedStock && <TradeModal isOpen={isTradeModalOpen} onClose={() => setIsTradeModalOpen(false)} stock={selectedStock} currentPrice={marketData[selectedStock.symbol]?.price || selectedStock.currentPrice} funds={funds} holdings={allHoldings.filter(p => p.symbol === selectedStock.symbol)} activeBrokers={settings.activeBrokers} onBuy={handleBuy} onSell={handleSell} />}
