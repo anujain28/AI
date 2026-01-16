@@ -3,7 +3,7 @@ import React, { useMemo } from 'react';
 import { StockRecommendation, MarketData, MarketSettings, AssetType } from '../types';
 import { StockCard } from './StockCard';
 import { getMarketStatus } from '../services/marketStatusService';
-import { RefreshCw, Globe, TrendingUp, DollarSign, Cpu, Circle, Trophy, ArrowUp, Zap, Settings } from 'lucide-react';
+import { RefreshCw, Globe, TrendingUp, DollarSign, Circle, Trophy, Zap, Settings } from 'lucide-react';
 
 interface PageMarketProps {
   recommendations: StockRecommendation[];
@@ -27,29 +27,23 @@ export const PageMarket: React.FC<PageMarketProps> = ({
   
   const isTypeAllowed = (type: AssetType) => !allowedTypes || allowedTypes.includes(type);
 
-  // Check if all allowed types for this page are disabled
   const isEntirePageDisabled = useMemo(() => {
-      const typesToCheck = allowedTypes || ['STOCK', 'MCX', 'FOREX', 'CRYPTO'];
-      // Return true if EVERY allowed type is disabled in settings
+      const typesToCheck = allowedTypes || ['STOCK', 'MCX', 'FOREX'];
       return typesToCheck.every(t => {
           if (t === 'STOCK') return !enabledMarkets.stocks;
           if (t === 'MCX') return !enabledMarkets.mcx;
           if (t === 'FOREX') return !enabledMarkets.forex;
-          if (t === 'CRYPTO') return !enabledMarkets.crypto;
           return true;
       });
   }, [allowedTypes, enabledMarkets]);
 
-  // Generate Market Status Badges
   const renderMarketStatus = () => {
       const typesToCheck: AssetType[] = allowedTypes || ['STOCK'];
       
-      // Filter out disabled ones
       const activeTypes = typesToCheck.filter(t => {
           if (t === 'STOCK') return enabledMarkets.stocks;
           if (t === 'MCX') return enabledMarkets.mcx;
           if (t === 'FOREX') return enabledMarkets.forex;
-          if (t === 'CRYPTO') return enabledMarkets.crypto;
           return false;
       });
 
@@ -69,7 +63,6 @@ export const PageMarket: React.FC<PageMarketProps> = ({
       );
   };
 
-  // Sort Stocks by Score/Strength for "Top Picks"
   const topStocks = useMemo(() => {
     if (!isTypeAllowed('STOCK') || !enabledMarkets.stocks) return [];
     
@@ -80,17 +73,15 @@ export const PageMarket: React.FC<PageMarketProps> = ({
          return { ...r, score: data?.technicals.score || 0 };
       })
       .sort((a, b) => b.score - a.score)
-      .slice(0, 20); // Top 20 Best
+      .slice(0, 20); 
   }, [recommendations, marketData, enabledMarkets, allowedTypes]);
 
   const mcxRecs = recommendations.filter(r => r.type === 'MCX');
   const forexRecs = recommendations.filter(r => r.type === 'FOREX');
-  const cryptoRecs = recommendations.filter(r => r.type === 'CRYPTO');
 
   const renderSection = (title: string, items: StockRecommendation[], icon: React.ReactNode, description: string, accentColor: string, type: AssetType) => {
     if (!isTypeAllowed(type)) return null;
     
-    // Strict Config Check
     const settingsKey = type === 'STOCK' ? 'stocks' : type.toLowerCase() as keyof MarketSettings;
     if (!enabledMarkets[settingsKey]) return null;
 
@@ -144,7 +135,7 @@ export const PageMarket: React.FC<PageMarketProps> = ({
       <div className="flex justify-between items-start mb-6">
          <div>
              <h1 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-white">
-                 {allowedTypes && !allowedTypes.includes('STOCK') ? 'F&O / Crypto' : 'Market Analysis'}
+                 {allowedTypes && !allowedTypes.includes('STOCK') ? 'F&O Market' : 'Market Analysis'}
              </h1>
              <p className="text-xs text-slate-400">AI-Powered Opportunities</p>
          </div>
@@ -156,7 +147,6 @@ export const PageMarket: React.FC<PageMarketProps> = ({
          </div>
       </div>
 
-      {/* TOP 20 STOCKS - Grid Layout */}
       {isTypeAllowed('STOCK') && enabledMarkets.stocks && (
         <div className="mb-10">
             <div className="flex items-center gap-2 mb-4 px-1">
@@ -174,7 +164,6 @@ export const PageMarket: React.FC<PageMarketProps> = ({
                     topStocks.map((item, index) => {
                         return (
                             <div key={item.symbol} className="relative">
-                                {/* Rank Badge */}
                                 <div className="absolute -left-2 -top-2 w-6 h-6 bg-blue-600 text-white text-xs font-bold rounded-full flex items-center justify-center border-2 border-[#0f172a] z-10 shadow-lg shadow-blue-500/30">
                                     {index + 1}
                                 </div>
@@ -192,8 +181,6 @@ export const PageMarket: React.FC<PageMarketProps> = ({
         </div>
       )}
 
-      {/* Other Markets */}
-      {renderSection("Crypto Market", cryptoRecs, <Cpu size={20}/>, "Digital Currency Signals", "text-purple-400", 'CRYPTO')}
       {renderSection("MCX Commodities", mcxRecs, <Globe size={20}/>, "Gold, Silver, Crude Futures", "text-yellow-400", 'MCX')}
       {renderSection("Forex Pairs", forexRecs, <DollarSign size={20}/>, "Currency Trading", "text-teal-400", 'FOREX')}
       

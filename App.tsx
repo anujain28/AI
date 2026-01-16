@@ -8,7 +8,7 @@ import { AuthOverlay } from './components/AuthOverlay';
 import { TradeModal } from './components/TradeModal';
 import { fetchBrokerBalance, fetchHoldings, placeOrder } from './services/brokerService';
 import { runAutoTradeEngine, simulateBackgroundTrades } from './services/autoTradeEngine';
-import { BarChart3, AlertCircle, Briefcase, Cpu, Download, X } from 'lucide-react';
+import { BarChart3, AlertCircle, Briefcase, Download } from 'lucide-react';
 
 // NEW PAGE COMPONENTS
 import { BottomNav } from './components/BottomNav';
@@ -16,25 +16,24 @@ import { PageMarket } from './components/PageMarket';
 import { PagePaperTrading } from './components/PagePaperTrading';
 import { PageLivePNL } from './components/PageLivePNL';
 import { PageConfiguration } from './components/PageConfiguration';
-import { AdBanner } from './components/AdBanner'; // Import Ad Component
+import { AdBanner } from './components/AdBanner'; 
 
 const GLOBAL_STORAGE = {
     USER: 'aitrade_current_user_v2',
 };
 
 // Default constants for init
-const DEFAULT_FUNDS = { stock: 1000000, mcx: 500000, forex: 500000, crypto: 500000 };
+const DEFAULT_FUNDS: Funds = { stock: 1000000, mcx: 500000, forex: 500000 };
 const DEFAULT_SETTINGS: AppSettings = {
     initialFunds: DEFAULT_FUNDS,
     autoTradeConfig: { mode: 'PERCENTAGE', value: 5 },
-    activeBrokers: ['PAPER', 'DHAN', 'SHOONYA', 'BINANCE', 'COINDCX', 'COINSWITCH', 'ZEBPAY'], 
-    enabledMarkets: { stocks: true, mcx: true, forex: true, crypto: true }, 
+    activeBrokers: ['PAPER', 'DHAN', 'SHOONYA'], 
+    enabledMarkets: { stocks: true, mcx: true, forex: true }, 
     telegramBotToken: '',
     telegramChatId: ''
 };
 
 const STOCK_BROKERS = ['DHAN', 'SHOONYA'];
-const CRYPTO_BROKERS = ['BINANCE', 'COINDCX', 'COINSWITCH', 'ZEBPAY'];
 
 const SplashScreen = ({ visible }: { visible: boolean }) => {
     if (!visible) return null;
@@ -61,13 +60,12 @@ export default function App() {
   const [storagePrefix, setStoragePrefix] = useState<string>('');
 
   // -- DATA STATE --
-  // Initialized with defaults, populated on login
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
   const [funds, setFunds] = useState<Funds>(DEFAULT_FUNDS);
   const [paperPortfolio, setPaperPortfolio] = useState<PortfolioItem[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   
-  // -- RUNTIME STATE (Non-persisted) --
+  // -- RUNTIME STATE --
   const [brokerBalances, setBrokerBalances] = useState<Record<string, number>>({});
   const [externalHoldings, setExternalHoldings] = useState<PortfolioItem[]>([]);
   const [recommendations, setRecommendations] = useState<StockRecommendation[]>([]);
@@ -100,18 +98,10 @@ export default function App() {
     return bals;
   }, [brokerBalances]);
 
-  const cryptoHoldings = useMemo(() => allHoldings.filter(h => CRYPTO_BROKERS.includes(h.broker)), [allHoldings]);
-  const cryptoBalances = useMemo(() => {
-    const bals: Record<string, number> = {};
-    Object.entries(brokerBalances).forEach(([b, v]) => { if(CRYPTO_BROKERS.includes(b)) bals[b] = v as number; });
-    return bals;
-  }, [brokerBalances]);
-
   // --- INITIALIZATION ---
 
   useEffect(() => { setTimeout(() => setShowSplash(false), 2000); }, []);
 
-  // Check for existing session
   useEffect(() => {
       const savedUser = localStorage.getItem(GLOBAL_STORAGE.USER);
       if (savedUser) {
@@ -120,7 +110,6 @@ export default function App() {
       }
   }, []);
 
-  // Service Worker Update Listener
   useEffect(() => {
     if ('serviceWorker' in navigator) {
         navigator.serviceWorker.register('/sw.js').then((registration) => {
@@ -130,11 +119,7 @@ export default function App() {
                     setUpdateAvailable(true);
                 }
             };
-            
-            // Check immediately
             checkUpdate();
-
-            // Listen for new workers
             registration.addEventListener('updatefound', () => {
                 const newWorker = registration.installing;
                 newWorker?.addEventListener('statechange', () => {
@@ -144,8 +129,6 @@ export default function App() {
                 });
             });
         });
-
-        // Handle reload after update
         let refreshing = false;
         navigator.serviceWorker.addEventListener('controllerchange', () => {
             if (!refreshing) {
@@ -163,7 +146,7 @@ export default function App() {
       setUpdateAvailable(false);
   };
 
-  // --- PERSISTENCE HOOKS (Triggered only when user is logged in) ---
+  // --- PERSISTENCE HOOKS ---
 
   useEffect(() => { 
       if (storagePrefix) localStorage.setItem(`${storagePrefix}settings`, JSON.stringify(settings)); 
@@ -189,30 +172,24 @@ export default function App() {
       setStoragePrefix(prefix);
       setUser(u);
 
-      // Load Settings
       const savedSettings = localStorage.getItem(`${prefix}settings`);
       if (savedSettings) setSettings({ ...DEFAULT_SETTINGS, ...JSON.parse(savedSettings) });
       else setSettings(DEFAULT_SETTINGS);
 
-      // Load Funds
       const savedFunds = localStorage.getItem(`${prefix}funds`);
       if (savedFunds) setFunds(JSON.parse(savedFunds));
       else setFunds(DEFAULT_FUNDS);
 
-      // Load Portfolio
       const savedPortfolio = localStorage.getItem(`${prefix}portfolio`);
       if (savedPortfolio) setPaperPortfolio(JSON.parse(savedPortfolio));
       else setPaperPortfolio([]);
 
-      // Load Transactions
       const savedTx = localStorage.getItem(`${prefix}transactions`);
       if (savedTx) setTransactions(JSON.parse(savedTx));
       else setTransactions([]);
 
-      // Background Sim Logic (Last Run)
       const lastRun = localStorage.getItem(`${prefix}last_run`);
       if (lastRun && activeBots['PAPER']) {
-          // Logic for background trades sim would go here
           localStorage.setItem(`${prefix}last_run`, Date.now().toString());
       }
   };
@@ -280,16 +257,13 @@ export default function App() {
         setNiftyList(stocksList);
     }
     
-    // Recommendations Refresh
-    // IMPORTANT: Pass current settings.enabledMarkets to ensure we don't fetch disabled segments
     let currentRecs = recommendations;
     if (recommendations.length === 0) {
-        const totalCap = settings.initialFunds.stock + settings.initialFunds.mcx + settings.initialFunds.forex + settings.initialFunds.crypto;
+        const totalCap = settings.initialFunds.stock + settings.initialFunds.mcx + settings.initialFunds.forex;
         currentRecs = await fetchTopStockPicks(totalCap, stocksList, settings.enabledMarkets);
         setRecommendations(currentRecs);
     }
     
-    // Determine all symbols to fetch
     const symbols = new Set([...currentRecs.map(s => s.symbol), ...allHoldings.map(p => p.symbol)]);
     
     const fetchPromises = Array.from(symbols).map(async (sym) => {
@@ -312,16 +286,14 @@ export default function App() {
 
   }, [settings, allHoldings, niftyList, user, recommendations, storagePrefix]); 
 
-  // Initial Load
   useEffect(() => { loadMarketData(); }, [user]);
 
-  // Polling Interval
   useEffect(() => {
       if (refreshIntervalRef.current) clearInterval(refreshIntervalRef.current);
       if (user) {
           refreshIntervalRef.current = setInterval(() => {
               loadMarketData();
-          }, 5000); // REFRESH RATE
+          }, 5000); 
       }
       return () => { if (refreshIntervalRef.current) clearInterval(refreshIntervalRef.current); };
   }, [user, loadMarketData]);
@@ -344,7 +316,6 @@ export default function App() {
                           updatedFunds = res.newFunds; 
                           
                           if (res.transaction.type === 'BUY') {
-                              // Add/Update Portfolio
                               const existingIdx = updatedPortfolio.findIndex(p => p.symbol === res.transaction?.symbol);
                               if (existingIdx >= 0) {
                                   const existing = updatedPortfolio[existingIdx];
@@ -367,7 +338,6 @@ export default function App() {
                                   });
                               }
                           } else {
-                              // SELL Logic
                               updatedPortfolio = updatedPortfolio.filter(p => p.symbol !== res.transaction?.symbol);
                           }
                       }
@@ -380,7 +350,7 @@ export default function App() {
                       showNotification(`Bot executed ${newTxs.length} trades`);
                   }
               }
-          }, 5000); // BOT RATE
+          }, 5000); 
       }
       return () => { if (botIntervalRef.current) clearInterval(botIntervalRef.current); };
   }, [user, activeBots, settings, paperPortfolio, marketData, funds, recommendations]);
@@ -393,11 +363,9 @@ export default function App() {
       if (broker === 'PAPER') {
           const cost = quantity * price;
           
-          // Separate Fund Check
           let hasFunds = false;
           if (type === 'MCX' && funds.mcx >= cost) hasFunds = true;
           else if (type === 'FOREX' && funds.forex >= cost) hasFunds = true;
-          else if (type === 'CRYPTO' && funds.crypto >= cost) hasFunds = true;
           else if (type === 'STOCK' && funds.stock >= cost) hasFunds = true;
 
           if (!hasFunds) {
@@ -416,7 +384,6 @@ export default function App() {
               const newFunds = { ...prev };
               if (type === 'MCX') newFunds.mcx -= cost;
               else if (type === 'FOREX') newFunds.forex -= cost;
-              else if (type === 'CRYPTO') newFunds.crypto -= cost;
               else newFunds.stock -= cost;
               return newFunds;
           });
@@ -445,7 +412,6 @@ export default function App() {
                    const newFunds = { ...prev };
                    if (type === 'MCX') newFunds.mcx += proceeds;
                    else if (type === 'FOREX') newFunds.forex += proceeds;
-                   else if (type === 'CRYPTO') newFunds.crypto += proceeds;
                    else newFunds.stock += proceeds;
                    return newFunds;
                });
@@ -475,7 +441,6 @@ export default function App() {
   return (
     <div className="h-full flex flex-col bg-background text-slate-100 font-sans overflow-hidden">
       
-      {/* Update Available Toast */}
       {updateAvailable && (
           <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[70] bg-blue-600 text-white px-5 py-3 rounded-full shadow-2xl border border-blue-400 flex items-center gap-4 animate-slide-up cursor-pointer hover:bg-blue-500 transition-colors" onClick={handleUpdateApp}>
               <div className="flex items-center gap-2">
@@ -494,7 +459,6 @@ export default function App() {
       )}
 
       <main className="flex-1 overflow-y-auto custom-scrollbar relative w-full max-w-lg mx-auto md:max-w-7xl md:border-x md:border-slate-800">
-        {/* Page 0: Stock Market (Ideas) */}
         {activePage === 0 && (
             <PageMarket 
                 recommendations={recommendations} 
@@ -506,7 +470,6 @@ export default function App() {
                 allowedTypes={['STOCK']}
             />
         )}
-        {/* Page 1: F&O/Crypto Market */}
         {activePage === 1 && (
             <PageMarket 
                 recommendations={recommendations} 
@@ -515,10 +478,9 @@ export default function App() {
                 onRefresh={() => loadMarketData()}
                 isLoading={isLoading}
                 enabledMarkets={settings.enabledMarkets}
-                allowedTypes={['MCX', 'FOREX', 'CRYPTO']}
+                allowedTypes={['MCX', 'FOREX']}
             />
         )}
-        {/* Page 2: Paper & AutoBot */}
         {activePage === 2 && (
             <PagePaperTrading 
                 holdings={allHoldings} 
@@ -539,7 +501,6 @@ export default function App() {
                 onUpdateFunds={(f) => setFunds(f)}
             />
         )}
-        {/* Page 3: Stock Portfolio (Dhan, Shoonya) */}
         {activePage === 3 && (
             <PageLivePNL 
                 title="My Stocks"
@@ -557,26 +518,7 @@ export default function App() {
                 brokerBalances={stockBalances}
             />
         )}
-        {/* Page 4: Crypto Portfolio (Binance, CoinDCX, CoinSwitch, Zebpay) */}
         {activePage === 4 && (
-            <PageLivePNL 
-                title="My Crypto"
-                subtitle="Binance, CoinDCX, CoinSwitch & Zebpay"
-                icon={Cpu}
-                holdings={cryptoHoldings}
-                marketData={marketData}
-                analysisData={analysisData}
-                onSell={(s, b) => { 
-                     const stk = recommendations.find(r => r.symbol === s) || { symbol: s, type: 'CRYPTO', currentPrice: marketData[s]?.price || 0 } as any;
-                     setSelectedStock(stk);
-                     setTradeModalBroker(b);
-                     setIsTradeModalOpen(true);
-                }}
-                brokerBalances={cryptoBalances}
-            />
-        )}
-        {/* Page 5: Config */}
-        {activePage === 5 && (
             <PageConfiguration 
                 settings={settings}
                 onSave={(s) => { setSettings(s); showNotification("Settings Saved"); }}

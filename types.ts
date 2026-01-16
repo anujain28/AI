@@ -1,4 +1,5 @@
 
+
 export type AssetType = 'STOCK' | 'MCX' | 'FOREX' | 'CRYPTO';
 
 export interface UserProfile {
@@ -13,7 +14,7 @@ export interface Funds {
   stock: number;
   mcx: number;
   forex: number;
-  crypto: number;
+  crypto?: number;
 }
 
 export interface StockRecommendation {
@@ -110,7 +111,7 @@ export interface MarketSettings {
   stocks: boolean;
   mcx: boolean;
   forex: boolean;
-  crypto: boolean;
+  crypto?: boolean;
 }
 
 export interface AutoTradeConfig {
@@ -132,13 +133,12 @@ export interface AppSettings {
   shoonyaPassword?: string; // Kept for legacy/sim
   shoonyaApiKey?: string;   // For real auth
   shoonyaVendorCode?: string; // For real auth
-  // Crypto Exchanges
+  // Crypto Brokers
   binanceApiKey?: string;
   binanceSecret?: string;
   coindcxApiKey?: string;
   coindcxSecret?: string;
   coinswitchApiKey?: string;
-  zebpayApiKey?: string;
 }
 
 // Global declaration for Google Ads

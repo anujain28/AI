@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { PortfolioItem, MarketData, Funds, HoldingAnalysis, Transaction, AssetType } from '../types';
 import { PortfolioTable } from './PortfolioTable';
 import { ActivityFeed } from './ActivityFeed';
-import { Wallet, PieChart, Sparkles, RefreshCw, Power, Globe, DollarSign, Cpu, BarChart2, TrendingUp, Coins, CheckCircle2 } from 'lucide-react';
+import { Wallet, PieChart, Sparkles, RefreshCw, Power, Globe, DollarSign, BarChart2, TrendingUp, Coins, CheckCircle2 } from 'lucide-react';
 
 interface PagePaperTradingProps {
   holdings: PortfolioItem[];
@@ -29,16 +29,14 @@ export const PagePaperTrading: React.FC<PagePaperTradingProps> = ({
   const [editMode, setEditMode] = useState(false);
   const [tempFunds, setTempFunds] = useState<Funds>(funds);
 
-  // Filter only Paper Holdings
   const paperHoldings = holdings.filter(h => h.broker === 'PAPER');
   
-  // Aggregate Calculations
   const currentVal = paperHoldings.reduce((acc, h) => acc + ((marketData[h.symbol]?.price || h.avgCost) * h.quantity), 0);
   const totalCost = paperHoldings.reduce((acc, h) => acc + h.totalCost, 0);
   const totalPnl = currentVal - totalCost;
   const pnlPercent = totalCost > 0 ? (totalPnl / totalCost) * 100 : 0;
   
-  const availableCash = funds.stock + funds.mcx + funds.forex + funds.crypto;
+  const availableCash = funds.stock + funds.mcx + funds.forex;
   const totalAccountValue = availableCash + currentVal;
 
   const handleFundUpdate = () => {
@@ -73,7 +71,6 @@ export const PagePaperTrading: React.FC<PagePaperTradingProps> = ({
            </div>
        </div>
 
-        {/* Summary Card */}
        <div className="bg-gradient-to-br from-indigo-900 via-slate-900 to-black rounded-2xl border border-indigo-500/30 p-5 md:p-6 shadow-2xl relative overflow-hidden mb-6 group">
             <div className="absolute -top-10 -right-10 opacity-10 rotate-12 group-hover:rotate-45 transition-transform duration-700 text-indigo-400"><PieChart size={180} /></div>
             <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500"></div>
@@ -103,11 +100,8 @@ export const PagePaperTrading: React.FC<PagePaperTradingProps> = ({
             </div>
        </div>
 
-       {/* Tab Content */}
        {activeTab === 'PORTFOLIO' ? (
            <div className="space-y-6 animate-slide-up">
-                
-                {/* Holdings Table */}
                 <div>
                     <div className="flex justify-between items-center mb-3">
                         <h3 className="text-sm md:text-lg font-bold text-white flex items-center gap-2"><Sparkles size={16} className="text-yellow-400"/> Open Positions</h3>
@@ -132,8 +126,6 @@ export const PagePaperTrading: React.FC<PagePaperTradingProps> = ({
            </div>
        ) : (
            <div className="space-y-6 animate-slide-up">
-               
-               {/* CAPITAL MANAGER WIDGET */}
                <div className="bg-surface rounded-xl border border-slate-800 p-5 shadow-lg relative overflow-hidden">
                    <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-green-400 via-blue-500 to-purple-500"></div>
                    <div className="flex justify-between items-center mb-4">
@@ -148,8 +140,7 @@ export const PagePaperTrading: React.FC<PagePaperTradingProps> = ({
                        )}
                    </div>
                    
-                   <div className="grid grid-cols-2 gap-3">
-                       {/* Stock Fund */}
+                   <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                        <div className="bg-slate-900/50 p-3 rounded-lg border border-slate-800 relative group hover:border-blue-500/30 transition-colors">
                            <div className="flex items-center gap-2 text-xs text-slate-400 mb-1 font-bold uppercase">
                                <BarChart2 size={12} className="text-blue-400"/> Stocks
@@ -160,20 +151,7 @@ export const PagePaperTrading: React.FC<PagePaperTradingProps> = ({
                                <div className="text-sm font-bold text-white font-mono tracking-wide">₹{funds.stock.toLocaleString()}</div>
                            )}
                        </div>
-                       
-                       {/* Crypto Fund */}
-                       <div className="bg-slate-900/50 p-3 rounded-lg border border-slate-800 relative group hover:border-purple-500/30 transition-colors">
-                           <div className="flex items-center gap-2 text-xs text-slate-400 mb-1 font-bold uppercase">
-                               <Cpu size={12} className="text-purple-400"/> Crypto
-                           </div>
-                           {editMode ? (
-                               <input type="number" value={tempFunds.crypto} onChange={e => setTempFunds({...tempFunds, crypto: parseFloat(e.target.value)})} className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1 text-white text-sm font-mono focus:border-purple-500 outline-none"/>
-                           ) : (
-                               <div className="text-sm font-bold text-white font-mono tracking-wide">₹{funds.crypto.toLocaleString()}</div>
-                           )}
-                       </div>
 
-                       {/* MCX Fund */}
                        <div className="bg-slate-900/50 p-3 rounded-lg border border-slate-800 relative group hover:border-yellow-500/30 transition-colors">
                            <div className="flex items-center gap-2 text-xs text-slate-400 mb-1 font-bold uppercase">
                                <Globe size={12} className="text-yellow-400"/> MCX
@@ -185,7 +163,6 @@ export const PagePaperTrading: React.FC<PagePaperTradingProps> = ({
                            )}
                        </div>
 
-                       {/* Forex Fund */}
                        <div className="bg-slate-900/50 p-3 rounded-lg border border-slate-800 relative group hover:border-green-500/30 transition-colors">
                            <div className="flex items-center gap-2 text-xs text-slate-400 mb-1 font-bold uppercase">
                                <DollarSign size={12} className="text-green-400"/> Forex
@@ -202,7 +179,6 @@ export const PagePaperTrading: React.FC<PagePaperTradingProps> = ({
                    </p>
                </div>
 
-               {/* Bot Controls */}
                <div className="grid grid-cols-1 gap-4">
                   {Object.entries(activeBots).map(([broker, isActive]) => (
                     <div key={broker} className={`relative p-5 rounded-xl border transition-all duration-300 ${isActive ? 'bg-gradient-to-br from-slate-800 to-slate-900 border-green-500/50 shadow-lg shadow-green-900/20' : 'bg-slate-900/50 border-slate-800'}`}>
@@ -229,7 +205,6 @@ export const PagePaperTrading: React.FC<PagePaperTradingProps> = ({
                             </span>
                         </div>
                         
-                        {/* Strategy Chips */}
                         <div className="flex flex-wrap gap-2 relative z-10">
                              <span className="px-2.5 py-1 rounded-md bg-slate-800 border border-slate-700 text-[10px] font-bold text-slate-300 shadow-sm">Slice Entries (25%)</span>
                              <span className="px-2.5 py-1 rounded-md bg-slate-800 border border-slate-700 text-[10px] font-bold text-slate-300 shadow-sm">Best 5 Scoring</span>
@@ -239,7 +214,6 @@ export const PagePaperTrading: React.FC<PagePaperTradingProps> = ({
                   ))}
                </div>
                
-               {/* Activity Log */}
                <div>
                    <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2"><TrendingUp size={18} className="text-blue-400"/> Execution Log</h3>
                    <ActivityFeed transactions={transactions} />
