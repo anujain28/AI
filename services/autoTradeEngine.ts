@@ -1,4 +1,3 @@
-
 import { AppSettings, MarketData, PortfolioItem, StockRecommendation, Transaction, Funds, AssetType } from "../types";
 import { getMarketStatus } from "./marketStatusService";
 
@@ -11,7 +10,6 @@ export interface TradeResult {
 }
 
 const MAX_GLOBAL_POSITIONS = 5; 
-const BASE_ALLOCATION = 0.20; // Base 20%
 
 export const runAutoTradeEngine = (
     settings: AppSettings, 
@@ -25,7 +23,6 @@ export const runAutoTradeEngine = (
 
     const results: TradeResult[] = [];
     let currentFunds = { ...funds };
-    
     const paperPortfolio = portfolio.filter(p => p.broker === 'PAPER');
 
     const getFundKey = (type: AssetType): keyof Funds => {
@@ -34,124 +31,85 @@ export const runAutoTradeEngine = (
         return 'stock';
     };
 
-    // 1. MANAGE EXITS
+    // 1. MANAGE EXITS (Aggressive targets for AIRobots picks)
     paperPortfolio.forEach(item => {
-        const marketStatus = getMarketStatus(item.type);
-        if (!marketStatus.isOpen) return; 
+        const status = getMarketStatus(item.type);
+        if (!status.isOpen) return; 
 
         const data = marketData[item.symbol];
         if (!data) return;
 
-        const price = data.price;
-        const pnlPercent = ((price - item.avgCost) / item.avgCost) * 100;
-        const score = data.technicals.score;
-
-        let action = null;
-        if (pnlPercent <= -3.0) action = 'STOP_LOSS'; 
-        else if (pnlPercent >= 7.0) action = 'TARGET_HIT'; 
-        else if (score < 20) action = 'WEAK_SIGNAL'; 
+        const pnl = ((data.price - item.avgCost) / item.avgCost) * 100;
+        const rec = recommendations.find(r => r.symbol === item.symbol);
         
-        if (action) {
-            const fundKey = getFundKey(item.type);
-            currentFunds[fundKey] += (price * item.quantity); 
-            
-            const tx: Transaction = {
-                id: `auto-sell-${Date.now()}-${Math.random()}`,
-                type: 'SELL',
-                symbol: item.symbol,
-                assetType: item.type,
-                quantity: item.quantity,
-                price: price,
-                timestamp: Date.now(),
-                broker: 'PAPER'
-            };
-            results.push({ executed: true, transaction: tx, newFunds: { ...currentFunds }, reason: `Auto ${action}` });
+        let shouldExit = false;
+        let exitReason = "";
+
+        if (pnl <= -3.0) { shouldExit = true; exitReason = "Stop Loss Hit"; }
+        else if (pnl >= 8.0) { shouldExit = true; exitReason = "Target Hit"; }
+        else if (data.technicals.score < 25) { shouldExit = true; exitReason = "Technical Breakdown"; }
+        
+        if (shouldExit) {
+            const key = getFundKey(item.type);
+            currentFunds[key] += (data.price * item.quantity); 
+            results.push({
+                executed: true,
+                transaction: {
+                    id: `bot-sell-${Date.now()}`,
+                    type: 'SELL', symbol: item.symbol, assetType: item.type,
+                    quantity: item.quantity, price: data.price, timestamp: Date.now(), broker: 'PAPER'
+                },
+                newFunds: { ...currentFunds }, reason: exitReason
+            });
         }
     });
 
-    // 2. ENTRY LOGIC
-    const rankedCandidates = recommendations
-        .map(rec => {
-            const data = marketData[rec.symbol];
-            return {
-                ...rec,
-                liveScore: data ? data.technicals.score : 0
-            };
+    // 2. ENTRY LOGIC (Prioritize AIRobots Top Picks)
+    if (paperPortfolio.length >= MAX_GLOBAL_POSITIONS) return results;
+
+    const candidates = recommendations
+        .filter(r => {
+            const data = marketData[r.symbol];
+            const score = data?.technicals.score || 0;
+            const marketStatus = getMarketStatus(r.type);
+            return score >= 60 && marketStatus.isOpen && !paperPortfolio.find(p => p.symbol === r.symbol);
         })
-        .filter(rec => {
-            if (rec.liveScore < 60) return false;
-            
-            const settingsKey = rec.type === 'STOCK' ? 'stocks' : rec.type.toLowerCase() as keyof typeof settings.enabledMarkets;
-            if (!settings.enabledMarkets[settingsKey]) return false;
+        .sort((a, b) => {
+            // Prioritize AIRobots Top Picks first
+            if (a.isTopPick && !b.isTopPick) return -1;
+            if (!a.isTopPick && b.isTopPick) return 1;
+            return (marketData[b.symbol]?.technicals.score || 0) - (marketData[a.symbol]?.technicals.score || 0);
+        });
 
-            const status = getMarketStatus(rec.type);
-            if (!status.isOpen) return false;
-
-            return true;
-        })
-        .sort((a, b) => b.liveScore - a.liveScore); 
-
-    for (const rec of rankedCandidates) {
-        if (results.length > 0) break;
+    for (const rec of candidates) {
+        if (results.some(r => r.transaction?.type === 'BUY')) break; // One buy per loop
 
         const data = marketData[rec.symbol];
         if (!data) continue;
 
         const fundKey = getFundKey(rec.type);
-        const availableCapital = currentFunds[fundKey];
-        if (availableCapital <= 0) continue;
+        const available = currentFunds[fundKey];
+        
+        // Dynamic Allocation: Use 25% of fund for Top Picks, 15% for regular
+        const allocationFactor = rec.isTopPick ? 0.25 : 0.15;
+        const tradeValue = (available + paperPortfolio.reduce((a,b)=>a+b.totalCost,0)) * allocationFactor;
+        const qty = Math.floor(tradeValue / data.price);
 
-        const existingPosition = paperPortfolio.find(p => p.symbol === rec.symbol);
-        
-        if (existingPosition) continue; 
-        if (paperPortfolio.length >= MAX_GLOBAL_POSITIONS) break; 
-
-        const investedInBucket = paperPortfolio
-            .filter(p => p.type === rec.type)
-            .reduce((acc, p) => acc + (p.avgCost * p.quantity), 0);
-        
-        const totalBucketCapital = availableCapital + investedInBucket;
-        
-        let confidenceMultiplier = 0.75;
-        if (rec.liveScore >= 80) confidenceMultiplier = 1.0;
-        else if (rec.liveScore >= 70) confidenceMultiplier = 0.85;
-
-        const tradeAmount = totalBucketCapital * BASE_ALLOCATION * confidenceMultiplier;
-
-        let qtyToBuy = Math.floor(tradeAmount / data.price);
-        
-        const cost = qtyToBuy * data.price;
-        
-        if (qtyToBuy > 0 && availableCapital >= cost) {
-            currentFunds[fundKey] -= cost;
-            
-            const tx: Transaction = {
-                id: `auto-buy-${Date.now()}-${Math.random()}`,
-                type: 'BUY',
-                symbol: rec.symbol,
-                assetType: rec.type,
-                quantity: qtyToBuy,
-                price: data.price,
-                timestamp: Date.now(),
-                broker: 'PAPER'
-            };
-            
-            results.push({ 
-                executed: true, 
-                transaction: tx, 
+        if (qty > 0 && available >= (qty * data.price)) {
+            currentFunds[fundKey] -= (qty * data.price);
+            results.push({
+                executed: true,
+                transaction: {
+                    id: `bot-buy-${Date.now()}`,
+                    type: 'BUY', symbol: rec.symbol, assetType: rec.type,
+                    quantity: qty, price: data.price, timestamp: Date.now(), broker: 'PAPER'
+                },
                 newFunds: { ...currentFunds }, 
-                reason: `Auto Entry (AI Score: ${rec.liveScore.toFixed(0)})` 
+                reason: rec.isTopPick ? "AIRobots Signal" : "AI Technical Crossover"
             });
+            break;
         }
     }
 
     return results;
-};
-
-export const simulateBackgroundTrades = (
-    lastRunTime: number, 
-    settings: AppSettings, 
-    funds: Funds
-): { newTransactions: Transaction[], newFunds: Funds } => {
-    return { newTransactions: [], newFunds: funds };
 };

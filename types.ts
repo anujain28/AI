@@ -1,3 +1,4 @@
+
 export type AssetType = 'STOCK' | 'MCX' | 'FOREX' | 'CRYPTO';
 
 export interface UserProfile {
@@ -12,7 +13,6 @@ export interface Funds {
   stock: number;
   mcx: number;
   forex: number;
-  // Fixed: Added crypto to Funds interface
   crypto: number;
 }
 
@@ -27,7 +27,9 @@ export interface StockRecommendation {
   targetPrice: number;
   lotSize: number;
   timeframe?: 'INTRADAY' | 'BTST' | 'WEEKLY' | 'MONTHLY';
-  chartPattern?: string; // New field for AI Chart Analysis
+  chartPattern?: string; 
+  isTopPick?: boolean; // New flag for AIRobots picks
+  sourceUrl?: string; // Grounding source
 }
 
 export interface HoldingAnalysis {
@@ -39,7 +41,6 @@ export interface HoldingAnalysis {
   cagr: string;
 }
 
-// Fixed: Added crypto broker IDs to BrokerID type
 export type BrokerID = 'PAPER' | 'DHAN' | 'SHOONYA' | 'BINANCE' | 'COINDCX' | 'COINSWITCH';
 
 export interface PortfolioItem {
@@ -50,9 +51,9 @@ export interface PortfolioItem {
   totalCost: number;
   broker: BrokerID;
   targets?: {
-      t1: number; // 2x ATR
-      t2: number; // 3x ATR
-      t3: number; // 4x ATR
+      t1: number; 
+      t2: number; 
+      t3: number; 
   };
 }
 
@@ -102,22 +103,16 @@ export interface MarketData {
   [symbol: string]: StockData;
 }
 
-export interface PortfolioHistoryPoint {
-  time: string;
-  value: number;
-}
-
 export interface MarketSettings {
   stocks: boolean;
   mcx: boolean;
   forex: boolean;
-  // Fixed: Added crypto to MarketSettings interface
   crypto: boolean;
 }
 
 export interface AutoTradeConfig {
   mode: 'PERCENTAGE' | 'FIXED';
-  value: number; // Percentage (e.g., 5) or Fixed Amount (e.g., 10000)
+  value: number;
 }
 
 export interface AppSettings {
@@ -127,14 +122,12 @@ export interface AppSettings {
   telegramChatId: string;
   activeBrokers: BrokerID[];
   enabledMarkets: MarketSettings;
-  // Stock Brokers
   dhanClientId?: string;
   dhanAccessToken?: string;
   shoonyaUserId?: string;
-  shoonyaPassword?: string; // Kept for legacy/sim
-  shoonyaApiKey?: string;   // For real auth
-  shoonyaVendorCode?: string; // For real auth
-  // Fixed: Added crypto broker API key configurations
+  shoonyaPassword?: string;
+  shoonyaApiKey?: string;
+  shoonyaVendorCode?: string;
   binanceApiKey?: string;
   binanceSecret?: string;
   coindcxApiKey?: string;
@@ -142,7 +135,11 @@ export interface AppSettings {
   coinswitchApiKey?: string;
 }
 
-// Global declaration for Google Ads
+export interface PortfolioHistoryPoint {
+  time: string;
+  value: number;
+}
+
 declare global {
     interface Window {
         adsbygoogle: any[];
