@@ -125,6 +125,33 @@ export const calculateATR = (candles: Candle[], period: number = 14): number => 
     return trValues.slice(-period).reduce((a, b) => a + b, 0) / period;
 };
 
+/**
+ * Calculates Intraday Volume Profile Strength & VWAP Approximation
+ */
+const calculateIntradayMetrics = (candles: Candle[]) => {
+    const volumes = candles.map(c => c.volume);
+    const avgVol = calcSMA(volumes, 20);
+    const currentVol = volumes[volumes.length - 1];
+    const relativeVol = currentVol / (avgVol || 1);
+    
+    // VWAP Approximation = Sum(Price * Volume) / Sum(Volume)
+    let cumulativePV = 0;
+    let cumulativeV = 0;
+    candles.slice(-20).forEach(c => {
+        const avgPrice = (c.high + c.low + c.close) / 3;
+        cumulativePV += avgPrice * c.volume;
+        cumulativeV += c.volume;
+    });
+    const vwap = cumulativeV > 0 ? cumulativePV / cumulativeV : candles[candles.length - 1].close;
+
+    // Price Velocity (Price change over last 3 candles)
+    const priceVelocity = candles.length >= 4 
+        ? ((candles[candles.length - 1].close - candles[candles.length - 4].close) / candles[candles.length - 4].close) * 100
+        : 0;
+
+    return { relativeVol, vwap, priceVelocity };
+};
+
 // --- MAIN SCORING ENGINE ---
 export const analyzeStockTechnical = (candles: Candle[]): TechnicalSignals => {
   if (candles.length < 2) {
@@ -140,15 +167,15 @@ export const analyzeStockTechnical = (candles: Candle[]): TechnicalSignals => {
   const stoch = calculateStochastic(candles);
   const bollinger = calculateBollinger(candles);
   const atr = calculateATR(candles);
+  const { relativeVol, vwap, priceVelocity } = calculateIntradayMetrics(candles);
   
-  // EMA 9/21
   const closes = getCloses(candles);
+  const currentPrice = closes[closes.length - 1];
   const ema9Series = calcEMA(closes, 9);
   const ema21Series = calcEMA(closes, 21);
   const ema9 = ema9Series[ema9Series.length - 1];
   const ema21 = ema21Series[ema21Series.length - 1];
 
-  // OBV
   const obvSeries: number[] = [0];
   for(let i=1; i<candles.length; i++) {
       let currentOBV = obvSeries[i-1];
@@ -159,62 +186,51 @@ export const analyzeStockTechnical = (candles: Candle[]): TechnicalSignals => {
   const currentOBV = obvSeries[obvSeries.length - 1];
   const obvSMA = calcSMA(obvSeries, 10);
 
-  // Volume Confirmation
-  const volumes = candles.map(c => c.volume);
-  const avgVol = calcSMA(volumes, 20);
-  const currentVol = volumes[volumes.length - 1];
-  const priceChange = ((candles[candles.length - 1].close - candles[candles.length - 2].close) / candles[candles.length - 2].close) * 100;
-
   const activeSignals: string[] = [];
   let score = 0;
 
-  // 1. RSI Scoring (Python: <30 = +35, <40 = +25)
-  if (rsi < 30) { score += 35; activeSignals.push(`RSI Oversold`); }
-  else if (rsi < 40) { score += 25; activeSignals.push("RSI Buy Zone"); }
-  else if (rsi > 70) { score -= 20; activeSignals.push("RSI Overbought"); }
+  // INTRADAY PRIORITY 1: VWAP & Price Velocity
+  if (currentPrice > vwap) {
+      score += 25;
+      activeSignals.push("Above VWAP");
+  }
+  if (priceVelocity > 0.5) {
+      score += 20;
+      activeSignals.push("High Velocity");
+  }
 
-  // 2. MACD Scoring (Python: +30)
+  // INTRADAY PRIORITY 2: Relative Volume (Proxy for institutional interest/OI build-up)
+  if (relativeVol > 2) {
+      score += 35;
+      activeSignals.push("Institutional Burst");
+  } else if (relativeVol > 1.2) {
+      score += 15;
+      activeSignals.push("Volume Support");
+  }
+
+  // STANDARD MOMENTUM
+  if (rsi < 35) { score += 20; activeSignals.push(`Oversold RSI`); }
+  else if (rsi > 70) { score -= 15; activeSignals.push("Overbought RSI"); }
+
   if (macd.histogram > 0 && macd.macd > macd.signal) {
-      score += 30;
+      score += 20;
       activeSignals.push("MACD Bullish");
   }
 
-  // 3. Stochastic Scoring (Python: +25)
-  if (stoch.k < 20) {
-      score += 25;
-      activeSignals.push("Stoch Oversold");
+  if (ema9 > ema21) {
+      score += 15;
+      activeSignals.push("Trend Align");
   }
 
-  // 4. Bollinger (Python: +25)
-  if (bollinger.percentB < 0.1) {
-      score += 25;
-      activeSignals.push("BB Support");
-  }
-
-  // 5. EMA Crossover (Python: +28)
-  if (ema9 > ema21 && ema9Series[ema9Series.length-2] <= ema21Series[ema21Series.length-2]) {
-      score += 28;
-      activeSignals.push("EMA Cross");
-  } else if (ema9 > ema21) {
-      score += 15; // Trend continuation
-  }
-
-  // 6. OBV (Python: +22)
   if (currentOBV > obvSMA) {
-      score += 22;
-      activeSignals.push("OBV Accum");
-  }
-
-  // 7. Volume Spike (Python: +30)
-  if (currentVol > avgVol * 1.5 && priceChange > 1) {
-      score += 30;
-      activeSignals.push(`Vol Spike`);
+      score += 10;
+      activeSignals.push("Accumulation");
   }
 
   let signalStrength: 'STRONG BUY' | 'BUY' | 'HOLD' | 'SELL' = 'HOLD';
-  if (score >= 90) signalStrength = 'STRONG BUY';
+  if (score >= 85) signalStrength = 'STRONG BUY';
   else if (score >= 60) signalStrength = 'BUY';
   else if (score <= 20) signalStrength = 'SELL';
 
-  return { rsi, macd, stoch, adx: 30, atr, bollinger, ema: {ema9, ema21}, obv: currentOBV, score, activeSignals, signalStrength };
+  return { rsi, macd, stoch, adx: 30, atr, bollinger, ema: {ema9, ema21}, obv: currentOBV, score: Math.min(100, score), activeSignals, signalStrength };
 };

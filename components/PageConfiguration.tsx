@@ -1,8 +1,8 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { AppSettings, Transaction } from '../types';
-import { Save, Building2, Bell, List, Trash2, FileText, Search, CheckCircle2, Circle, CheckSquare, Square } from 'lucide-react';
-import { getFullUniverse, getIdeasWatchlist, saveIdeasWatchlist } from '../services/stockListService';
+import { AppSettings, Transaction, BrokerID } from '../types';
+import { Save, Building2, Bell, List, Trash2, FileText, Search, CheckSquare, Square, ChevronDown, ChevronRight, Tags } from 'lucide-react';
+import { getFullUniverse, getIdeasWatchlist, saveIdeasWatchlist, getGroupedUniverse } from '../services/stockListService';
 
 interface PageConfigurationProps {
   settings: AppSettings;
@@ -19,12 +19,17 @@ export const PageConfiguration: React.FC<PageConfigurationProps> = ({ settings, 
   const [activeSubTab, setActiveSubTab] = useState<TabType>('IDEAS_WATCHLIST');
   const [watchlist, setWatchlist] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const [expandedIndustries, setExpandedIndustries] = useState<string[]>([]);
 
-  const fullUniverse = useMemo(() => getFullUniverse(), []);
+  const groupedUniverse = useMemo(() => getGroupedUniverse(), []);
+  const industries = useMemo(() => Object.keys(groupedUniverse).sort(), [groupedUniverse]);
 
   useEffect(() => {
-    setWatchlist(getIdeasWatchlist());
-  }, []);
+    const saved = getIdeasWatchlist();
+    setWatchlist(saved);
+    // Expand top 3 industries by default
+    setExpandedIndustries(industries.slice(0, 3));
+  }, [industries]);
 
   const handleToggleStock = (sym: string) => {
     const next = watchlist.includes(sym) 
@@ -34,9 +39,33 @@ export const PageConfiguration: React.FC<PageConfigurationProps> = ({ settings, 
     saveIdeasWatchlist(next);
   };
 
+  const handleToggleIndustry = (industry: string) => {
+    const stocksInIndustry = groupedUniverse[industry];
+    const allSelected = stocksInIndustry.every(s => watchlist.includes(s));
+    
+    let next: string[];
+    if (allSelected) {
+      // Deselect all in industry
+      next = watchlist.filter(s => !stocksInIndustry.includes(s));
+    } else {
+      // Select all in industry
+      const newStocks = stocksInIndustry.filter(s => !watchlist.includes(s));
+      next = [...watchlist, ...newStocks];
+    }
+    setWatchlist(next);
+    saveIdeasWatchlist(next);
+  };
+
+  const toggleExpand = (industry: string) => {
+    setExpandedIndustries(prev => 
+      prev.includes(industry) ? prev.filter(i => i !== industry) : [...prev, industry]
+    );
+  };
+
   const handleSelectAll = () => {
-    setWatchlist(fullUniverse);
-    saveIdeasWatchlist(fullUniverse);
+    const all = getFullUniverse();
+    setWatchlist(all);
+    saveIdeasWatchlist(all);
   };
 
   const handleDeselectAll = () => {
@@ -44,17 +73,30 @@ export const PageConfiguration: React.FC<PageConfigurationProps> = ({ settings, 
     saveIdeasWatchlist([]);
   };
 
-  const filteredUniverse = useMemo(() => {
-    if (!searchTerm) return fullUniverse;
-    return fullUniverse.filter(s => s.toLowerCase().includes(searchTerm.toLowerCase()));
-  }, [searchTerm, fullUniverse]);
+  const filteredGroups = useMemo(() => {
+    if (!searchTerm) return groupedUniverse;
+    const next: Record<string, string[]> = {};
+    const searchLower = searchTerm.toLowerCase();
+    
+    Object.entries(groupedUniverse).forEach(([industry, stocks]) => {
+      const matchingStocks = stocks.filter(s => s.toLowerCase().includes(searchLower));
+      const industryMatches = industry.toLowerCase().includes(searchLower);
+      
+      if (industryMatches || matchingStocks.length > 0) {
+        next[industry] = industryMatches ? stocks : matchingStocks;
+      }
+    });
+    return next;
+  }, [searchTerm, groupedUniverse]);
 
   const toggleBroker = (broker: any) => {
     setFormData(prev => {
-      const isActive = prev.activeBrokers.includes(broker);
+      // Fixed: Casting activeBrokers to BrokerID[] to resolve filter error on unknown type
+      const activeBrokers = prev.activeBrokers as BrokerID[];
+      const isActive = activeBrokers.includes(broker);
       const newBrokers = isActive 
-        ? prev.activeBrokers.filter(b => b !== broker)
-        : [...prev.activeBrokers, broker];
+        ? activeBrokers.filter(b => b !== broker)
+        : [...activeBrokers, broker];
       return { ...prev, activeBrokers: newBrokers };
     });
   };
@@ -97,14 +139,14 @@ export const PageConfiguration: React.FC<PageConfigurationProps> = ({ settings, 
         <div className="flex-1 overflow-y-auto custom-scrollbar space-y-6 pr-1">
             {activeSubTab === 'IDEAS_WATCHLIST' && (
                 <div className="space-y-4 animate-slide-up h-full flex flex-col">
-                    <div className="bg-slate-900/50 p-4 rounded-2xl border border-slate-800 flex flex-col h-full max-h-[65vh]">
+                    <div className="bg-slate-900/50 p-4 rounded-2xl border border-slate-800 flex flex-col h-full max-h-[70vh]">
                         <div className="flex justify-between items-center mb-4">
                             <h3 className="text-[10px] font-black text-blue-400 uppercase tracking-[0.2em] flex items-center gap-2">
-                                <List size={14}/> Ideas Stock Watch
+                                <Tags size={14}/> Organize by Industry
                             </h3>
-                            <div className="flex gap-2">
-                                <button onClick={handleSelectAll} className="text-[9px] font-black text-slate-400 hover:text-white uppercase">All</button>
-                                <button onClick={handleDeselectAll} className="text-[9px] font-black text-slate-400 hover:text-white uppercase">None</button>
+                            <div className="flex gap-4">
+                                <button onClick={handleSelectAll} className="text-[9px] font-black text-slate-400 hover:text-white uppercase tracking-wider">Select All</button>
+                                <button onClick={handleDeselectAll} className="text-[9px] font-black text-slate-400 hover:text-white uppercase tracking-wider">Clear All</button>
                             </div>
                         </div>
 
@@ -112,30 +154,63 @@ export const PageConfiguration: React.FC<PageConfigurationProps> = ({ settings, 
                             <Search className="absolute left-3 top-2.5 text-slate-600" size={14} />
                             <input 
                                 type="text"
-                                placeholder="Search symbol..."
+                                placeholder="Search symbol or industry..."
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
-                                className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2 pl-9 pr-4 text-xs text-white focus:border-blue-500 outline-none font-mono"
+                                className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2.5 pl-9 pr-4 text-xs text-white focus:border-blue-500 outline-none font-mono"
                             />
                         </div>
 
-                        <div className="flex-1 overflow-y-auto custom-scrollbar space-y-1 pr-1">
-                            {filteredUniverse.map(sym => {
-                                const active = watchlist.includes(sym);
+                        <div className="flex-1 overflow-y-auto custom-scrollbar space-y-3 pr-1">
+                            {/* Fixed: Casting entries to [string, string[]][] to ensure stocks is recognized as string[] instead of unknown */}
+                            {(Object.entries(filteredGroups) as [string, string[]][]).sort(([a], [b]) => a.localeCompare(b)).map(([industry, stocks]) => {
+                                const allInIndustrySelected = stocks.every(s => watchlist.includes(s));
+                                const someInIndustrySelected = stocks.some(s => watchlist.includes(s));
+                                const isExpanded = expandedIndustries.includes(industry) || searchTerm.length > 0;
+
                                 return (
-                                    <button 
-                                        key={sym}
-                                        onClick={() => handleToggleStock(sym)}
-                                        className={`w-full flex items-center justify-between p-3 rounded-xl border transition-all ${active ? 'bg-blue-600/10 border-blue-500/30' : 'bg-slate-900/20 border-slate-800/50 hover:bg-slate-800/50'}`}
-                                    >
-                                        <span className={`text-xs font-mono font-bold ${active ? 'text-blue-400' : 'text-slate-500'}`}>{sym}</span>
-                                        {active ? <CheckSquare size={16} className="text-blue-500" /> : <Square size={16} className="text-slate-700" />}
-                                    </button>
+                                    <div key={industry} className="bg-slate-900/30 rounded-xl border border-slate-800/50 overflow-hidden">
+                                        <div className="flex items-center justify-between p-3 bg-slate-800/20">
+                                            <button 
+                                                onClick={() => toggleExpand(industry)}
+                                                className="flex items-center gap-2 text-[11px] font-black text-slate-300 uppercase tracking-widest hover:text-white"
+                                            >
+                                                {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                                                {industry} 
+                                                <span className="text-[9px] text-slate-600 font-mono ml-1">({stocks.length})</span>
+                                            </button>
+                                            
+                                            <button 
+                                                onClick={() => handleToggleIndustry(industry)}
+                                                className={`flex items-center gap-1 px-2 py-1 rounded text-[9px] font-black uppercase transition-all ${allInIndustrySelected ? 'bg-blue-600 text-white' : someInIndustrySelected ? 'bg-blue-900/30 text-blue-400 border border-blue-800/50' : 'bg-slate-800 text-slate-500 border border-slate-700'}`}
+                                            >
+                                                {allInIndustrySelected ? 'Deselect' : 'Select'} Industry
+                                            </button>
+                                        </div>
+
+                                        {isExpanded && (
+                                            <div className="p-2 grid grid-cols-2 md:grid-cols-3 gap-1 animate-slide-up">
+                                                {stocks.map(sym => {
+                                                    const active = watchlist.includes(sym);
+                                                    return (
+                                                        <button 
+                                                            key={sym}
+                                                            onClick={() => handleToggleStock(sym)}
+                                                            className={`flex items-center justify-between p-2 rounded-lg border transition-all ${active ? 'bg-blue-600/10 border-blue-500/30' : 'bg-slate-900/20 border-slate-800/30 hover:bg-slate-800/50'}`}
+                                                        >
+                                                            <span className={`text-[10px] font-mono font-bold ${active ? 'text-blue-400' : 'text-slate-500'}`}>{sym.split('.')[0]}</span>
+                                                            {active ? <CheckSquare size={12} className="text-blue-500" /> : <Square size={12} className="text-slate-700" />}
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
+                                    </div>
                                 );
                             })}
                         </div>
                     </div>
-                    <p className="text-[9px] text-slate-600 italic px-2">This list defines which stocks the AI Robots scan for the Ideas page.</p>
+                    <p className="text-[9px] text-slate-600 italic px-2">Robots will scan the selected industries and stocks for momentum signals.</p>
                 </div>
             )}
 

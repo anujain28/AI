@@ -2,7 +2,7 @@
 import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { getIdeasWatchlist, getEngineUniverse } from './services/stockListService';
 import { fetchRealStockData } from './services/marketDataService';
-import { runTechnicalScan } from './services/recommendationEngine';
+import { runTechnicalScan, runIntradayAiAnalysis } from './services/recommendationEngine';
 import { StockRecommendation, PortfolioItem, MarketData, Transaction, AppSettings, UserProfile, Funds, HoldingAnalysis, StrategyRules } from './types';
 import { TradeModal } from './components/TradeModal';
 import { runAutoTradeEngine } from './services/autoTradeEngine';
@@ -51,7 +51,7 @@ const SplashScreen = ({ visible }: { visible: boolean }) => {
                 <BarChart3 size={40} className="text-white" />
              </div>
              <h1 className="text-2xl font-bold text-white tracking-[0.2em] mb-2 font-mono uppercase">AI Equity Pro</h1>
-             <p className="text-slate-500 text-[8px] mt-4 font-mono tracking-widest text-center uppercase">Removing Auth...<br/>Technical Engine Initializing</p>
+             <p className="text-slate-500 text-[8px] mt-4 font-mono tracking-widest text-center uppercase">Intrabot Initializing...<br/>Momentum Engine Online</p>
         </div>
     );
 };
@@ -65,6 +65,7 @@ export default function App() {
   const [paperPortfolio, setPaperPortfolio] = useState<PortfolioItem[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [recommendations, setRecommendations] = useState<StockRecommendation[]>([]);
+  const [aiIntradayPicks, setAiIntradayPicks] = useState<string[]>([]);
   const [marketData, setMarketData] = useState<MarketData>({});
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [notification, setNotification] = useState<string | null>(null);
@@ -76,6 +77,7 @@ export default function App() {
   
   const refreshIntervalRef = useRef<any>(null);
   const botIntervalRef = useRef<any>(null);
+  const aiPickIntervalRef = useRef<any>(null);
 
   useEffect(() => { 
     const splashTimer = setTimeout(() => setShowSplash(false), 2000); 
@@ -107,12 +109,13 @@ export default function App() {
   };
 
   const loadMarketData = useCallback(async () => {
-    // Get fresh watchlist for Ideas
     const ideasUniverse = getIdeasWatchlist();
+    const engineUniverse = getEngineUniverse();
+    const combinedUniverse = Array.from(new Set([...ideasUniverse, ...engineUniverse]));
     
     if (recommendations.length === 0) {
         setIsLoading(true);
-        const recs = await runTechnicalScan(ideasUniverse, settings);
+        const recs = await runTechnicalScan(combinedUniverse, settings);
         setRecommendations(recs);
     }
 
@@ -135,6 +138,16 @@ export default function App() {
     });
     setIsLoading(false);
   }, [recommendations, paperPortfolio, settings]);
+
+  const updateAiIntradayPicks = useCallback(async () => {
+    if (recommendations.length > 5) {
+        const picks = await runIntradayAiAnalysis(recommendations, marketData);
+        if (picks && picks.length > 0) {
+            setAiIntradayPicks(picks);
+            showNotification("Intrabot AI Analysis Updated");
+        }
+    }
+  }, [recommendations, marketData]);
 
   const handleManualAnalyze = useCallback(async () => {
     setIsAnalyzing(true);
@@ -163,11 +176,13 @@ export default function App() {
   useEffect(() => {
     loadMarketData();
     refreshIntervalRef.current = setInterval(loadMarketData, 60000); 
+    
+    // AI Pick update every 10 mins
+    aiPickIntervalRef.current = setInterval(updateAiIntradayPicks, 600000);
+    
     botIntervalRef.current = setInterval(() => {
         if (!activeBots['PAPER']) return;
         
-        // Use engine universe for bot scanning
-        const engineUniverse = getEngineUniverse();
         const results = runAutoTradeEngine(settings, paperPortfolio, marketData, funds, recommendations);
         
         results.forEach(res => {
@@ -199,8 +214,13 @@ export default function App() {
             }
         });
     }, 15000);
-    return () => { clearInterval(refreshIntervalRef.current); clearInterval(botIntervalRef.current); };
-  }, [loadMarketData, settings, paperPortfolio, marketData, funds, recommendations, activeBots, transactions, saveData]);
+    
+    return () => { 
+        clearInterval(refreshIntervalRef.current); 
+        clearInterval(botIntervalRef.current); 
+        clearInterval(aiPickIntervalRef.current);
+    };
+  }, [loadMarketData, updateAiIntradayPicks, settings, paperPortfolio, marketData, funds, recommendations, activeBots, transactions, saveData]);
 
   const handleBuy = async (symbol: string, quantity: number, price: number, broker: any) => {
       const cost = quantity * price;
@@ -248,13 +268,13 @@ export default function App() {
     <div className="h-full flex flex-col bg-background text-slate-100 overflow-hidden">
       {notification && (
         <div className="fixed top-4 left-4 right-4 z-[60] bg-slate-800 text-white px-4 py-3 rounded-xl border border-slate-700 animate-slide-up text-xs font-bold text-center shadow-2xl">
-          {typeof notification === 'string' ? notification : JSON.stringify(notification)}
+          {notification}
         </div>
       )}
       <main className="flex-1 overflow-y-auto custom-scrollbar w-full max-w-lg mx-auto md:max-w-7xl md:border-x md:border-slate-800">
         {activePage === 0 && <PageMarket recommendations={recommendations} marketData={marketData} onTrade={(s) => { setSelectedStock(s); setIsTradeModalOpen(true); }} onRefresh={() => { setRecommendations([]); loadMarketData(); }} isLoading={isLoading} enabledMarkets={settings.enabledMarkets} />}
-        {activePage === 1 && <PagePaperTrading holdings={paperPortfolio} marketData={marketData} analysisData={analysisData} onSell={(s, b) => handleSell(s, 1, marketData[s]?.price || 0, b)} onAnalyze={handleManualAnalyze} isAnalyzing={isAnalyzing} funds={funds} activeBots={activeBots} onToggleBot={(b) => setActiveBots(p => ({...p, [b]: !p[b]}))} transactions={transactions} onUpdateFunds={handleUpdateFunds} />}
-        {activePage === 2 && <PageStrategyLog recommendations={recommendations} rules={settings.strategyRules || DEFAULT_RULES} onUpdateRules={handleUpdateRules} />}
+        {activePage === 1 && <PageStrategyLog recommendations={recommendations} marketData={marketData} rules={settings.strategyRules || DEFAULT_RULES} onUpdateRules={handleUpdateRules} aiIntradayPicks={aiIntradayPicks} />}
+        {activePage === 2 && <PagePaperTrading holdings={paperPortfolio} marketData={marketData} analysisData={analysisData} onSell={(s, b) => handleSell(s, 1, marketData[s]?.price || 0, b)} onAnalyze={handleManualAnalyze} isAnalyzing={isAnalyzing} funds={funds} activeBots={activeBots} onToggleBot={(b) => setActiveBots(p => ({...p, [b]: !p[b]}))} transactions={transactions} onUpdateFunds={handleUpdateFunds} />}
         {activePage === 3 && <PageLivePNL title="Broker Portfolio" subtitle="Live Connected Accounts" icon={Briefcase} holdings={paperPortfolio.filter(h => h.broker !== 'PAPER')} marketData={marketData} analysisData={analysisData} onSell={(s, b) => handleSell(s, 1, marketData[s]?.price || 0, b)} brokerBalances={{}} />}
         {activePage === 4 && <PageConfiguration settings={settings} onSave={(s) => { setSettings(s); saveData('settings', s); showNotification("Settings Saved"); }} transactions={transactions} activeBots={activeBots} onToggleBot={(b) => setActiveBots(p => ({...p, [b]: !p[b]}))} />}
       </main>

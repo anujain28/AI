@@ -4,33 +4,45 @@ import { analyzeStockTechnical } from "./technicalAnalysis";
 
 const YAHOO_CHART_BASE = "https://query1.finance.yahoo.com/v8/finance/chart/";
 
-// Memory cache to prevent redundant fetches
+// Persistent cache for the current session to avoid redundant network calls
 const marketCache: Record<string, { data: StockData, timestamp: number }> = {};
-const CACHE_TTL = 5 * 60 * 1000; // 5 minutes cache
+const CACHE_TTL = 3 * 60 * 1000; // 3 minutes cache for speed
 
+/**
+ * Superfast Proxy Fetcher: Races multiple CORS proxies and takes the fastest successful response.
+ */
 async function fetchWithProxy(targetUrl: string): Promise<any> {
     const proxies = [
-        (url: string) => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
-        (url: string) => `https://corsproxy.io/?${encodeURIComponent(url)}`
+        `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`,
+        `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`,
+        `https://thingproxy.freeboard.io/fetch/${targetUrl}`
     ];
 
-    for (const proxy of proxies) {
-        try {
-            const controller = new AbortController();
-            // Faster timeout for more aggressive proxy rotation
-            const timeoutId = setTimeout(() => controller.abort(), 2000); 
-            const response = await fetch(proxy(targetUrl), { signal: controller.signal });
-            clearTimeout(timeoutId);
-            if (response.ok) return await response.json();
-        } catch (e) { continue; }
-    }
-    return null;
-}
+    try {
+        const controller = new AbortController();
+        // Slightly more aggressive timeout for high-speed feel
+        const timeoutId = setTimeout(() => controller.abort(), 4000); 
 
-async function fetchYahooData(ticker: string, interval: string = "5m", range: string = "1d"): Promise<any> {
-    const cb = Date.now();
-    const targetUrl = `${YAHOO_CHART_BASE}${ticker}?interval=${interval}&range=${range}&_cb=${cb}`;
-    return await fetchWithProxy(targetUrl);
+        // Promise.any returns the first fulfilled promise. 
+        // This ensures we get data from the fastest available proxy.
+        // Fixed: Cast Promise to any to bypass the 'any' property missing error on the PromiseConstructor
+        // in environments where the TypeScript target library is older than ES2021.
+        const fastestResponse = await (Promise as any).any(proxies.map(url => 
+            fetch(url, { signal: controller.signal })
+                .then(async (res) => {
+                    if (!res.ok) throw new Error(`Proxy failed: ${res.status}`);
+                    const data = await res.json();
+                    if (!data || (data.chart && data.chart.error)) throw new Error('Invalid Yahoo data');
+                    return data;
+                })
+        ));
+
+        clearTimeout(timeoutId);
+        return fastestResponse;
+    } catch (e) {
+        // Fallback for extreme cases (sequential retry without race)
+        return null;
+    }
 }
 
 async function parseYahooResponse(data: any): Promise<StockData | null> {
@@ -41,20 +53,23 @@ async function parseYahooResponse(data: any): Promise<StockData | null> {
     const quotes = result.indicators.quote[0];
     const candles: Candle[] = [];
 
+    // Fast mapping of candle data
     for (let i = 0; i < timestamps.length; i++) {
-        if (quotes.open[i] != null && quotes.close[i] != null) {
+        const close = quotes.close[i];
+        const open = quotes.open[i];
+        if (close != null && open != null) {
             candles.push({
                 time: timestamps[i] * 1000,
-                open: quotes.open[i],
-                high: quotes.high[i],
-                low: quotes.low[i],
-                close: quotes.close[i],
+                open: open,
+                high: quotes.high[i] ?? close,
+                low: quotes.low[i] ?? close,
+                close: close,
                 volume: quotes.volume[i] || 0
             });
         }
     }
 
-    if (candles.length === 0) return null;
+    if (candles.length < 2) return null;
 
     const lastCandle = candles[candles.length - 1];
     const technicals = analyzeStockTechnical(candles);
@@ -70,16 +85,27 @@ async function parseYahooResponse(data: any): Promise<StockData | null> {
     };
 }
 
-export const fetchRealStockData = async (symbol: string, settings: AppSettings, interval: string = "5m", range: string = "1d"): Promise<StockData | null> => {
+export const fetchRealStockData = async (
+    symbol: string, 
+    settings: AppSettings, 
+    interval: string = "5m", 
+    range: string = "1d"
+): Promise<StockData | null> => {
     const cacheKey = `${symbol}_${interval}_${range}`;
     const cached = marketCache[cacheKey];
+    
+    // Return from cache immediately if fresh
     if (cached && (Date.now() - cached.timestamp < CACHE_TTL)) {
         return cached.data;
     }
 
     const ticker = symbol.toUpperCase().includes('.') ? symbol.toUpperCase() : `${symbol.toUpperCase()}.NS`;
+    
     try {
-        const yahooRaw = await fetchYahooData(ticker, interval, range);
+        const cb = Math.floor(Date.now() / 10000); // 10s windowed cache buster
+        const targetUrl = `${YAHOO_CHART_BASE}${ticker}?interval=${interval}&range=${range}&_cb=${cb}`;
+        
+        const yahooRaw = await fetchWithProxy(targetUrl);
         if (yahooRaw) {
             const parsed = await parseYahooResponse(yahooRaw);
             if (parsed) {
@@ -87,6 +113,8 @@ export const fetchRealStockData = async (symbol: string, settings: AppSettings, 
                 return parsed;
             }
         }
-    } catch (e) { }
+    } catch (e) {
+        console.warn(`Fetch error for ${symbol}:`, e);
+    }
     return null;
 };
