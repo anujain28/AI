@@ -4,97 +4,120 @@ import { fetchRealStockData } from "./marketDataService";
 import { GoogleGenAI, Type } from "@google/genai";
 
 /**
- * Helper to process array in chunks for controlled concurrency
+ * Concurrency limited promise pool
  */
-const chunk = <T>(arr: T[], size: number): T[][] => 
-    Array.from({ length: Math.ceil(arr.length / size) }, (v, i) =>
-        arr.slice(i * size, i * size + size)
-    );
+async function promisePool<T, R>(
+    items: T[],
+    batchSize: number,
+    fn: (item: T) => Promise<R>
+): Promise<R[]> {
+    const results: R[] = [];
+    const pool = new Set<Promise<void>>();
+
+    for (const item of items) {
+        const promise = fn(item).then((res) => {
+            results.push(res);
+            pool.delete(promise);
+        });
+        pool.add(promise);
+        if (pool.size >= batchSize) {
+            await Promise.race(pool);
+        }
+    }
+    await Promise.all(pool);
+    return results;
+}
 
 export const runTechnicalScan = async (
     stockUniverse: string[], 
     settings: AppSettings
 ): Promise<StockRecommendation[]> => {
   
-  const results: StockRecommendation[] = [];
+  // Limit universe to scan to keep performance snappy, but prioritize BSE and Banks
+  const prioritizedSymbols = stockUniverse.filter(s => s.startsWith('BSE') || s.includes('BANK'));
+  const others = stockUniverse.filter(s => !prioritizedSymbols.includes(s));
+  
+  // Total 50 stocks per scan cycle for optimal balance of coverage and speed
+  const symbolsToScan = [
+    ...prioritizedSymbols,
+    ...others.sort(() => 0.5 - Math.random()).slice(0, Math.max(0, 50 - prioritizedSymbols.length))
+  ];
 
-  const symbolsToScan = stockUniverse.length > 40 
-    ? [...stockUniverse].sort(() => 0.5 - Math.random()).slice(0, 40)
-    : stockUniverse;
+  // Increase concurrency to 12 for modern browsers/networks
+  const batchResults = await promisePool(symbolsToScan, 12, async (symbol) => {
+      const recommendations: StockRecommendation[] = [];
+      
+      try {
+          // Optimization: Fetch Intraday first, then others in parallel
+          // This ensures if the primary momentum scan fails, we don't block.
+          const btstDataPromise = fetchRealStockData(symbol, settings, "15m", "2d");
+          const weeklyDataPromise = fetchRealStockData(symbol, settings, "1d", "1mo");
+          const monthlyDataPromise = fetchRealStockData(symbol, settings, "1wk", "6mo");
 
-  const batches = chunk(symbolsToScan, 8);
+          const [btstData, weeklyData, monthlyData] = await Promise.all([
+              btstDataPromise,
+              weeklyDataPromise,
+              monthlyDataPromise
+          ]);
 
-  for (const batch of batches) {
-      const batchResults = await Promise.all(batch.map(async (symbol) => {
-          const recommendations: StockRecommendation[] = [];
-          
-          try {
-              const [btstData, weeklyData, monthlyData] = await Promise.all([
-                  fetchRealStockData(symbol, settings, "15m", "2d"),
-                  fetchRealStockData(symbol, settings, "1d", "1mo"),
-                  fetchRealStockData(symbol, settings, "1wk", "6mo")
-              ]);
-
-              if (btstData && btstData.technicals.score >= 70) {
-                  recommendations.push({
-                      symbol,
-                      name: symbol.split('.')[0],
-                      type: 'STOCK',
-                      sector: 'Equity',
-                      currentPrice: btstData.price,
-                      reason: "High Momentum Pattern | " + btstData.technicals.activeSignals.slice(0, 2).join(", "),
-                      riskLevel: btstData.technicals.score > 85 ? 'Low' : 'Medium',
-                      targetPrice: btstData.price + (btstData.technicals.atr * 2.5),
-                      timeframe: 'BTST',
-                      score: btstData.technicals.score,
-                      lotSize: 1,
-                      isTopPick: btstData.technicals.score >= 85
-                  });
-              }
-
-              if (weeklyData && weeklyData.technicals.score >= 70) {
-                  recommendations.push({
-                      symbol,
-                      name: symbol.split('.')[0],
-                      type: 'STOCK',
-                      sector: 'Equity',
-                      currentPrice: weeklyData.price,
-                      reason: "Swing Breakout Potential",
-                      riskLevel: weeklyData.technicals.score > 80 ? 'Low' : 'Medium',
-                      targetPrice: weeklyData.price + (weeklyData.technicals.atr * 4.0),
-                      timeframe: 'WEEKLY',
-                      score: weeklyData.technicals.score,
-                      lotSize: 1,
-                      isTopPick: weeklyData.technicals.score >= 82
-                  });
-              }
-
-              if (monthlyData && monthlyData.technicals.score >= 70) {
-                  recommendations.push({
-                      symbol,
-                      name: symbol.split('.')[0],
-                      type: 'STOCK',
-                      sector: 'Equity',
-                      currentPrice: monthlyData.price,
-                      reason: "Monthly Trend Accumulation",
-                      riskLevel: monthlyData.technicals.score > 75 ? 'Low' : 'Medium',
-                      targetPrice: monthlyData.price + (monthlyData.technicals.atr * 10.0),
-                      timeframe: 'MONTHLY',
-                      score: monthlyData.technicals.score,
-                      lotSize: 1,
-                      isTopPick: monthlyData.technicals.score >= 78
-                  });
-              }
-          } catch (e) {
-              // Silent fail
+          if (btstData && btstData.technicals.score >= 70) {
+              recommendations.push({
+                  symbol,
+                  name: symbol.split('.')[0],
+                  type: 'STOCK',
+                  sector: 'Equity',
+                  currentPrice: btstData.price,
+                  reason: "High Momentum Pattern | " + btstData.technicals.activeSignals.slice(0, 2).join(", "),
+                  riskLevel: btstData.technicals.score > 85 ? 'Low' : 'Medium',
+                  targetPrice: btstData.price + (btstData.technicals.atr * 2.5),
+                  timeframe: 'BTST',
+                  score: btstData.technicals.score,
+                  lotSize: 1,
+                  isTopPick: btstData.technicals.score >= 85
+              });
           }
-          return recommendations;
-      }));
 
-      batchResults.forEach(recs => results.push(...recs));
-  }
+          if (weeklyData && weeklyData.technicals.score >= 70) {
+              recommendations.push({
+                  symbol,
+                  name: symbol.split('.')[0],
+                  type: 'STOCK',
+                  sector: 'Equity',
+                  currentPrice: weeklyData.price,
+                  reason: "Swing Breakout Potential",
+                  riskLevel: weeklyData.technicals.score > 80 ? 'Low' : 'Medium',
+                  targetPrice: weeklyData.price + (weeklyData.technicals.atr * 4.0),
+                  timeframe: 'WEEKLY',
+                  score: weeklyData.technicals.score,
+                  lotSize: 1,
+                  isTopPick: weeklyData.technicals.score >= 82
+              });
+          }
 
-  return results.sort((a, b) => (b.score || 0) - (a.score || 0));
+          if (monthlyData && monthlyData.technicals.score >= 70) {
+              recommendations.push({
+                  symbol,
+                  name: symbol.split('.')[0],
+                  type: 'STOCK',
+                  sector: 'Equity',
+                  currentPrice: monthlyData.price,
+                  reason: "Monthly Trend Accumulation",
+                  riskLevel: monthlyData.technicals.score > 75 ? 'Low' : 'Medium',
+                  targetPrice: monthlyData.price + (monthlyData.technicals.atr * 10.0),
+                  timeframe: 'MONTHLY',
+                  score: monthlyData.technicals.score,
+                  lotSize: 1,
+                  isTopPick: monthlyData.technicals.score >= 78
+              });
+          }
+      } catch (e) {
+          // Silent fail for individual symbol errors
+      }
+      return recommendations;
+  });
+
+  const flatResults = batchResults.flat();
+  return flatResults.sort((a, b) => (b.score || 0) - (a.score || 0));
 };
 
 /**

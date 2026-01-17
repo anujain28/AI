@@ -126,6 +126,38 @@ export const calculateATR = (candles: Candle[], period: number = 14): number => 
 };
 
 /**
+ * Calculates Intraday Levels (Support / Resistance / OI Proxy)
+ */
+export const calculateLevels = (candles: Candle[]) => {
+    if (candles.length < 5) return { support: 0, resistance: 0, oiStrength: 0 };
+    
+    const highs = getHighs(candles);
+    const lows = getLows(candles);
+    const lastPrice = candles[candles.length - 1].close;
+    
+    // Simple S/R based on session extremes
+    const resistance = Math.max(...highs);
+    const support = Math.min(...lows);
+    
+    // Simulate OI Profile (Open Interest proxy)
+    // Positive if Price UP + Volume UP
+    // Negative if Price DOWN + Volume UP (short build-up)
+    let oiScore = 0;
+    for (let i = 1; i < candles.length; i++) {
+        const priceChange = candles[i].close - candles[i-1].close;
+        const volChange = candles[i].volume / (candles[i-1].volume || 1);
+        if (priceChange > 0 && volChange > 1.2) oiScore += 5;
+        if (priceChange < 0 && volChange > 1.2) oiScore -= 3;
+    }
+    
+    return { 
+        support, 
+        resistance, 
+        oiStrength: Math.max(-100, Math.min(100, oiScore * 2)) 
+    };
+};
+
+/**
  * Calculates Intraday Volume Profile Strength & VWAP Approximation
  */
 const calculateIntradayMetrics = (candles: Candle[]) => {
