@@ -1,6 +1,6 @@
 import React from 'react';
 import { StockRecommendation, MarketData } from '../types';
-import { TrendingUp, TrendingDown, Zap, BarChart2, Target, Scan, Star, ExternalLink } from 'lucide-react';
+import { TrendingUp, TrendingDown, Zap, BarChart2, Target, Scan, Star, ExternalLink, Calendar } from 'lucide-react';
 import { getMarketStatus } from '../services/marketStatusService';
 
 interface StockCardProps {
@@ -21,6 +21,8 @@ export const StockCard: React.FC<StockCardProps> = ({ stock, marketData, onTrade
   const tech = currentData?.technicals;
   const score = tech?.score || 0;
 
+  const upside = ((stock.targetPrice - price) / price) * 100;
+
   let theme = {
       border: stock.isTopPick ? 'border-indigo-500/50' : 'border-slate-700',
       bgGradient: stock.isTopPick ? 'from-slate-900 to-indigo-900/20' : 'from-slate-800 to-slate-900',
@@ -28,6 +30,13 @@ export const StockCard: React.FC<StockCardProps> = ({ stock, marketData, onTrade
       accent: 'text-slate-200',
       glow: stock.isTopPick ? 'shadow-[0_0_15px_-5px_rgba(79,70,229,0.4)]' : 'shadow-none',
       badgeBg: 'bg-slate-700'
+  };
+
+  const timeframeColors: Record<string, string> = {
+    'INTRADAY': 'bg-blue-500/20 text-blue-400 border-blue-500/30',
+    'BTST': 'bg-green-500/20 text-green-400 border-green-500/30',
+    'WEEKLY': 'bg-purple-500/20 text-purple-400 border-purple-500/30',
+    'MONTHLY': 'bg-orange-500/20 text-orange-400 border-orange-500/30'
   };
 
   return (
@@ -38,11 +47,16 @@ export const StockCard: React.FC<StockCardProps> = ({ stock, marketData, onTrade
           </div>
       )}
 
-      <div className="absolute top-0 right-0 p-2 text-right z-10">
-         <div className="bg-slate-900/80 backdrop-blur-md border border-slate-700 rounded-lg px-2 py-1 text-[10px] font-bold font-mono flex items-center justify-end gap-1 mb-1 shadow-sm">
+      <div className="absolute top-0 right-0 p-2 text-right z-10 flex flex-col items-end gap-1">
+         <div className="bg-slate-900/80 backdrop-blur-md border border-slate-700 rounded-lg px-2 py-1 text-[10px] font-bold font-mono flex items-center justify-end gap-1 shadow-sm">
             <Zap size={10} className="text-yellow-400 fill-yellow-400" />
             <span className="text-slate-200">{score.toFixed(0)}</span>
          </div>
+         {stock.timeframe && (
+             <div className={`px-1.5 py-0.5 rounded text-[8px] font-black border uppercase tracking-tighter ${timeframeColors[stock.timeframe] || 'bg-slate-800 text-slate-400'}`}>
+                 {stock.timeframe}
+             </div>
+         )}
       </div>
 
       <div className="flex justify-between items-start mb-2 pr-12 relative z-10">
@@ -71,7 +85,10 @@ export const StockCard: React.FC<StockCardProps> = ({ stock, marketData, onTrade
           </div>
           <div className="text-right">
              <div className="text-[9px] text-slate-500 font-bold uppercase tracking-wide flex items-center justify-end gap-1"><Target size={10}/> Target</div>
-             <div className="text-base md:text-lg font-bold text-green-400 font-mono">₹{stock.targetPrice.toFixed(2)}</div>
+             <div className="text-base md:text-lg font-bold text-green-400 font-mono flex flex-col items-end leading-none">
+                 ₹{stock.targetPrice.toFixed(2)}
+                 <span className="text-[9px] text-green-500/80 mt-1">+{upside.toFixed(1)}% Pot.</span>
+             </div>
           </div>
       </div>
 

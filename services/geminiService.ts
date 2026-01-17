@@ -1,62 +1,13 @@
-import { GoogleGenAI, Type } from "@google/genai";
-import { StockRecommendation, MarketSettings, PortfolioItem, HoldingAnalysis, MarketData } from "../types";
+import { PortfolioItem, HoldingAnalysis, MarketData } from "../types";
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+/**
+ * Recommendations are now handled locally by recommendationEngine.ts technical scanner.
+ * This service is kept for type compatibility but logic is minimized.
+ */
 
-export const fetchTopStockPicks = async (
-    totalCapital: number, 
-    stockUniverse: string[] = [], 
-    markets: MarketSettings = { stocks: true }
-): Promise<StockRecommendation[]> => {
-  
-  try {
-    const response = await ai.models.generateContent({
-      model: 'gemini-3-pro-preview',
-      contents: `Search 'https://airobots.streamlit.app/' and find the current top 5 momentum Indian stock picks listed under their 'Trading Robot' or recommendations section. 
-      Identify high-probability setups with target prices. 
-      For each stock, provide: symbol (NSE format like RELIANCE.NS), name, targetPrice, and a short 1-sentence logic/reason. 
-      Format the output as a valid JSON array of objects.`,
-      config: {
-        tools: [{ googleSearch: {} }],
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.ARRAY,
-          items: {
-            type: Type.OBJECT,
-            properties: {
-              symbol: { type: Type.STRING },
-              name: { type: Type.STRING },
-              targetPrice: { type: Type.NUMBER },
-              reason: { type: Type.STRING },
-              riskLevel: { type: Type.STRING, enum: ['Low', 'Medium', 'High'] },
-              timeframe: { type: Type.STRING, enum: ['INTRADAY', 'BTST', 'WEEKLY', 'MONTHLY'] }
-            },
-            required: ['symbol', 'name', 'targetPrice', 'reason']
-          }
-        }
-      }
-    });
-
-    const groundingChunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks;
-    const sourceUrl = groundingChunks?.[0]?.web?.uri || 'https://airobots.streamlit.app/';
-    
-    let picks: any[] = JSON.parse(response.text || '[]');
-    
-    return picks.map(p => ({
-      ...p,
-      symbol: p.symbol.includes('.') ? p.symbol : `${p.symbol}.NS`,
-      type: 'STOCK',
-      sector: 'Momentum AI Robot Pick',
-      currentPrice: 0,
-      lotSize: 1,
-      chartPattern: 'Breakout Pattern',
-      isTopPick: true,
-      sourceUrl
-    }));
-  } catch (e) {
-    console.error("Gemini Recommendations Failed", e);
-    return [];
-  }
+export const fetchTopStockPicks = async (): Promise<any[]> => {
+  console.warn("fetchTopStockPicks via Gemini is deprecated. Use runTechnicalScan.");
+  return [];
 };
 
 export const analyzeHoldings = async (holdings: PortfolioItem[], marketData: MarketData): Promise<HoldingAnalysis[]> => {
