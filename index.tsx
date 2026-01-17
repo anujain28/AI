@@ -1,4 +1,5 @@
-import React, { Component, ErrorInfo, ReactNode } from 'react';
+
+import React, { ErrorInfo, ReactNode } from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
 
@@ -12,8 +13,8 @@ interface ErrorBoundaryState {
   errorInfo: ErrorInfo | null;
 }
 
-// Fixed ErrorBoundary member access issues (state, setState, props) by using explicit Component import and property initializers
-class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+// Fixed ErrorBoundary member access issues (state, setState, props) by using explicit React.Component extension
+class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
   public state: ErrorBoundaryState = {
     hasError: false,
     error: null,
@@ -32,11 +33,12 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     // Log details and update state with errorInfo
     console.error("App Crash Details:", error, errorInfo);
+    // Fixed: Explicitly calling setState which is available on React.Component
     this.setState({ errorInfo });
   }
 
   render() {
-    // Correctly accessing state and props on the component instance
+    // Fixed: Correctly accessing state and props on the component instance
     if (this.state.hasError) {
       return (
         <div className="flex flex-col items-center justify-center min-h-screen bg-[#0f172a] text-white p-6 font-mono text-center">
