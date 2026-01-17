@@ -30,6 +30,8 @@ export interface StockRecommendation {
   chartPattern?: string; 
   isTopPick?: boolean;
   sourceUrl?: string;
+  // Fix: Added missing score property used by recommendation engine and sorting logic
+  score?: number;
 }
 
 export interface HoldingAnalysis {
@@ -84,6 +86,7 @@ export interface TechnicalSignals {
   adx: number;
   atr: number; 
   bollinger: { upper: number; middle: number; lower: number; percentB: number };
+  bitValue?: number;
   ema: { ema9: number; ema21: number };
   obv: number;
   score: number;

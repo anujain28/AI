@@ -1,3 +1,5 @@
+
+// Fix: Import Component directly to ensure proper type inheritance in various TypeScript configurations
 import React, { Component, ErrorInfo, ReactNode } from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
@@ -12,14 +14,17 @@ interface ErrorBoundaryState {
   errorInfo: ErrorInfo | null;
 }
 
-// Fix: Using named import 'Component' from react to ensure clear inheritance and visibility of setState and props in TypeScript
+// Fix: Extending Component directly with generic parameters to resolve 'Property state does not exist' errors
 class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  // Fix: Directly initializing state property
-  state: ErrorBoundaryState = {
-    hasError: false,
-    error: null,
-    errorInfo: null
-  };
+  // Fix: Standard constructor pattern for initializing state in a React Class Component
+  constructor(props: ErrorBoundaryProps) {
+    super(props);
+    this.state = {
+      hasError: false,
+      error: null,
+      errorInfo: null
+    };
+  }
 
   static getDerivedStateFromError(error: Error): Partial<ErrorBoundaryState> {
     return { hasError: true, error };
@@ -27,7 +32,7 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.error("App Crash:", error, errorInfo);
-    // Fix: setState is now correctly identified as a member inherited from Component
+    // Fix: setState is now correctly identified through explicit inheritance from Component
     this.setState({ errorInfo });
   }
 
