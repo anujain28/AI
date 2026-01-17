@@ -4,9 +4,9 @@ import { analyzeStockTechnical } from "./technicalAnalysis";
 
 const YAHOO_CHART_BASE = "https://query1.finance.yahoo.com/v8/finance/chart/";
 
-// Simple memory cache to prevent redundant fetches within short intervals
+// Memory cache to prevent redundant fetches
 const marketCache: Record<string, { data: StockData, timestamp: number }> = {};
-const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes cache
 
 async function fetchWithProxy(targetUrl: string): Promise<any> {
     const proxies = [
@@ -17,8 +17,8 @@ async function fetchWithProxy(targetUrl: string): Promise<any> {
     for (const proxy of proxies) {
         try {
             const controller = new AbortController();
-            // Aggressive timeout for faster fallback
-            const timeoutId = setTimeout(() => controller.abort(), 2500); 
+            // Faster timeout for more aggressive proxy rotation
+            const timeoutId = setTimeout(() => controller.abort(), 2000); 
             const response = await fetch(proxy(targetUrl), { signal: controller.signal });
             clearTimeout(timeoutId);
             if (response.ok) return await response.json();
@@ -28,7 +28,7 @@ async function fetchWithProxy(targetUrl: string): Promise<any> {
 }
 
 async function fetchYahooData(ticker: string, interval: string = "5m", range: string = "1d"): Promise<any> {
-    const cb = Math.floor(Math.random() * 1000);
+    const cb = Date.now();
     const targetUrl = `${YAHOO_CHART_BASE}${ticker}?interval=${interval}&range=${range}&_cb=${cb}`;
     return await fetchWithProxy(targetUrl);
 }
@@ -41,7 +41,6 @@ async function parseYahooResponse(data: any): Promise<StockData | null> {
     const quotes = result.indicators.quote[0];
     const candles: Candle[] = [];
 
-    // Fast parsing loop
     for (let i = 0; i < timestamps.length; i++) {
         if (quotes.open[i] != null && quotes.close[i] != null) {
             candles.push({
@@ -88,8 +87,6 @@ export const fetchRealStockData = async (symbol: string, settings: AppSettings, 
                 return parsed;
             }
         }
-    } catch (e) {
-        // Silent fail for speed
-    }
+    } catch (e) { }
     return null;
 };

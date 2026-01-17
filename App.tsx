@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { checkAndRefreshStockList } from './services/stockListService';
 import { fetchRealStockData } from './services/marketDataService';

@@ -30,7 +30,6 @@ export interface StockRecommendation {
   chartPattern?: string; 
   isTopPick?: boolean;
   sourceUrl?: string;
-  // Fix: Added missing score property used by recommendation engine and sorting logic
   score?: number;
 }
 
