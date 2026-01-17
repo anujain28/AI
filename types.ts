@@ -1,5 +1,6 @@
 
 export type AssetType = 'STOCK' | 'MCX' | 'FOREX' | 'CRYPTO';
+export type BrokerID = 'PAPER' | 'DHAN' | 'SHOONYA' | 'BINANCE' | 'COINDCX' | 'COINSWITCH';
 
 export interface UserProfile {
   name: string;
@@ -17,10 +18,11 @@ export interface Funds {
 }
 
 export interface StrategyRules {
-  rsiBuyZone: number;
-  rsiSellZone: number;
+  oiSpikeThreshold: number; // Percentage increase in OI
+  volMultiplier: number;    // Volume vs Avg Volume
   vwapConfirm: boolean;
-  minVolMult: number;
+  minTime: string;          // e.g., "09:30"
+  maxTime: string;          // e.g., "15:00"
   atrStopMult: number;
   atrTargetMult: number;
   maxTradesPerDay: number;
@@ -37,46 +39,29 @@ export interface StockRecommendation {
   targetPrice: number;
   lotSize: number;
   timeframe?: 'INTRADAY' | 'BTST' | 'WEEKLY' | 'MONTHLY';
-  chartPattern?: string; 
-  isTopPick?: boolean;
-  sourceUrl?: string;
   score?: number;
+  isTopPick?: boolean;
+  support?: number;
+  resistance?: number;
+  sourceUrl?: string;
+  oiData?: {
+    current: number;
+    change: number;
+  };
 }
 
 export interface HoldingAnalysis {
   symbol: string;
-  action: 'BUY' | 'HOLD' | 'SELL';
+  action: 'BUY' | 'SELL' | 'HOLD';
   reason: string;
   targetPrice: number;
   dividendYield: string;
   cagr: string;
 }
 
-export type BrokerID = 'PAPER' | 'DHAN' | 'SHOONYA' | 'BINANCE' | 'COINDCX' | 'COINSWITCH';
-
-export interface PortfolioItem {
-  symbol: string;
-  type: AssetType;
-  quantity: number;
-  avgCost: number;
-  totalCost: number;
-  broker: BrokerID;
-  targets?: {
-      t1: number; 
-      t2: number; 
-      t3: number; 
-  };
-}
-
-export interface Transaction {
-  id: string;
-  type: 'BUY' | 'SELL';
-  symbol: string;
-  assetType: AssetType;
-  quantity: number;
-  price: number;
-  timestamp: number;
-  broker: BrokerID;
+export interface PortfolioHistoryPoint {
+  time: string;
+  value: number;
 }
 
 export interface Candle {
@@ -91,16 +76,14 @@ export interface Candle {
 export interface TechnicalSignals {
   rsi: number;
   macd: { macd: number; signal: number; histogram: number };
-  stoch: { k: number; d: number };
-  adx: number;
   atr: number; 
-  bollinger: { upper: number; middle: number; lower: number; percentB: number };
-  bitValue?: number;
-  ema: { ema9: number; ema21: number };
-  obv: number;
+  vwap?: number;
   score: number;
   activeSignals: string[];
-  signalStrength: 'STRONG BUY' | 'BUY' | 'HOLD' | 'SELL';
+  support: number;
+  resistance: number;
+  volumeProfile: { price: number; volume: number }[];
+  oiProfile?: { current: number; changePercent: number };
 }
 
 export interface StockData {
@@ -122,25 +105,18 @@ export interface MarketSettings {
   crypto?: boolean;
 }
 
-export interface AutoTradeConfig {
-  mode: 'PERCENTAGE' | 'FIXED';
-  value: number;
-}
-
 export interface AppSettings {
   initialFunds: Funds;
-  autoTradeConfig: AutoTradeConfig;
+  autoTradeConfig: { mode: 'PERCENTAGE' | 'FIXED'; value: number };
   telegramBotToken: string;
   telegramChatId: string;
   activeBrokers: BrokerID[];
   enabledMarkets: MarketSettings;
-  strategyRules?: StrategyRules;
+  strategyRules: StrategyRules;
   dhanClientId?: string;
   dhanAccessToken?: string;
   shoonyaUserId?: string;
   shoonyaPassword?: string;
-  shoonyaApiKey?: string;
-  shoonyaVendorCode?: string;
   binanceApiKey?: string;
   binanceSecret?: string;
   coindcxApiKey?: string;
@@ -148,13 +124,22 @@ export interface AppSettings {
   coinswitchApiKey?: string;
 }
 
-export interface PortfolioHistoryPoint {
-  time: string;
-  value: number;
+export interface PortfolioItem {
+  symbol: string;
+  type: AssetType;
+  quantity: number;
+  avgCost: number;
+  totalCost: number;
+  broker: BrokerID;
 }
 
-declare global {
-    interface Window {
-        adsbygoogle: any[];
-    }
+export interface Transaction {
+  id: string;
+  type: 'BUY' | 'SELL';
+  symbol: string;
+  assetType: AssetType;
+  quantity: number;
+  price: number;
+  timestamp: number;
+  broker: BrokerID;
 }

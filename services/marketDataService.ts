@@ -1,6 +1,6 @@
 
 import { Candle, StockData, AppSettings } from "../types";
-import { analyzeStockTechnical } from "./technicalAnalysis";
+import { analyzeStockOIProfile } from "./technicalAnalysis";
 
 const YAHOO_CHART_BASE = "https://query1.finance.yahoo.com/v8/finance/chart/";
 
@@ -57,7 +57,7 @@ async function parseYahooResponse(data: any): Promise<StockData | null> {
     if (candles.length === 0) return null;
 
     const lastCandle = candles[candles.length - 1];
-    const technicals = analyzeStockTechnical(candles);
+    const technicals = analyzeStockOIProfile(candles);
     const meta = result.meta;
     const prevClose = meta.chartPreviousClose || candles[0].open;
     

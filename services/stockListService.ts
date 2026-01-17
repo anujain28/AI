@@ -1,21 +1,35 @@
-const FULL_STOCK_LIST = `360ONE,ABB,ACC,APLAPOLLO,AUBANK,ADANIENSOL,ADANIENT,ADANIGREEN,ADANIPORTS,ADANIPOWER,ATGL,ABCAPITAL,ALKEM,AMBUJACEM,APOLLOHOSP,ASHOKLEY,ASIANPAINT,ASTRAL,AUROPHARMA,DMART,AXISBANK,BSE,BAJAJ-AUTO,BAJFINANCE,BAJAJFINSV,BAJAJHLDNG,BAJAJHFL,BANKBARODA,BANKINDIA,BDL,BEL,BHARATFORG,BHEL,BPCL,BHARTIARTL,BHARTIHEXA,BIOCON,BLUESTARCO,BOSCHLTD,BRITANNIA,CGPOWER,CANBK,CHOLAFIN,CIPLA,COALINDIA,COCHINSHIP,COFORGE,COLPAL,CONCOR,COROMANDEL,CUMMINSIND,DLF,DABUR,DIVISLAB,DIXON,DRREDDY,EICHERMOT,ETERNAL,EXIDEIND,NYKAA,FEDERALBNK,FORTIS,GAIL,GMRAIRPORT,GLENMARK,GODFRYPHLP,GODREJCP,GODREJPROP,GRASIM,HCLTECH,HDFCAMC,HDFCBANK,HDFCLIFE,HAVELLS,HEROMOTOCO,HINDALCO,HAL,HINDPETRO,HINDUNILVR,HINDZINC,POWERINDIA,HUDCO,HYUNDAI,ICICIBANK,ICICIGI,IDFCFIRSTB,IRB,ITCHOTELS,ITC,INDIANB,INDHOTEL,IOC,IRCTC,IRFC,IREDA,IGL,INDUSTOWER,INDUSINDBK,NAUKRI,INFY,INDIGO,JSWENERGY,JSWSTEEL,JINDALSTEL,JIOFIN,JUBLFOOD,KEI,KPITTECH,KALYANKJIL,KOTAKBANK,LTF,LICHSGFIN,LTIM,LT,LICI,LODHA,LUPIN,MRF,M&MFIN,M&M,MANKIND,MARICO,MARUTI,MFSL,MAXHEALTH,MAZDOCK,MOTILALOFS,MPHASIS,MUTHOOTFIN,NHPC,NMDC,NTPCGREEN,NTPC,NATIONALUM,NESTLEIND,OBEROIRLTY,ONGC,OIL,PAYTM,OFSS,POLICYBZR,PIIND,PAGEIND,PATANJALI,PERSISTENT,PHOENIXLTD,PIDILITIND,POLYCAB,PFC,POWERGRID,PREMIERENE,PRESTIGE,PNB,RECLTD,RVNL,RELIANCE,SBICARD,SBILIFE,SRF,MOTHERSON,SHREECEM,SHRIRAMFIN,ENRIN,SIEMENS,SOLARINDS,SONACOMS,SBIN,SAIL,SUNPHARMA,SUPREMEIND,SUZLON,SWIGGY,TVSMOTOR,TATACOMM,TCS,TATACONSUM,TATAELXSI,TMPV,TATAPOWER,TATASTEEL,TATATECH,TECHM,TITAN,TORNTPHARM,TORNTPOWER,TRENT,TIINDIA,UPL,ULTRACEMCO,UNIONBANK,UNITDSPR,VBL,VEDL,VMM,IDEA,VOLTAS,WAAREEENER,WIPRO,YESBANK,ZYDUSLIFE`;
 
-export const getCompanyName = (symbol: string): string => {
-    const upperSymbol = symbol.toUpperCase();
-    if (!upperSymbol.includes('.')) return upperSymbol + '.NS';
-    return upperSymbol; 
+const STORAGE_KEY = 'aitrade_watchlist';
+const DEFAULT_WATCHLIST = ['BSE.NS', 'SBIN.NS', 'RELIANCE.NS', 'TCS.NS', 'HDFCBANK.NS'];
+
+export const checkAndRefreshStockList = async (): Promise<string[]> => {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+        try {
+            return JSON.parse(saved);
+        } catch (e) {
+            return DEFAULT_WATCHLIST;
+        }
+    }
+    return DEFAULT_WATCHLIST;
 };
 
-/**
- * In a production environment, this could fetch from a live NSE CSV endpoint.
- * Currently using the provided static list as the source of truth.
- */
-export const checkAndRefreshStockList = async (): Promise<string[]> => {
-    try {
-        // Mocking a fetch to Yahoo/NSE for list updates
-        // For now, returning the provided 190+ stock list
-        return FULL_STOCK_LIST.split(',').map(s => s.trim().toUpperCase() + '.NS');
-    } catch (e) {
-        return FULL_STOCK_LIST.split(',').map(s => s.trim().toUpperCase() + '.NS');
+export const addToWatchlist = (symbol: string) => {
+    const formatted = symbol.toUpperCase().endsWith('.NS') ? symbol.toUpperCase() : `${symbol.toUpperCase()}.NS`;
+    const saved = localStorage.getItem(STORAGE_KEY);
+    const list = saved ? JSON.parse(saved) : DEFAULT_WATCHLIST;
+    if (!list.includes(formatted)) {
+        const newList = [...list, formatted];
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(newList));
+        return newList;
     }
-}
+    return list;
+};
+
+export const removeFromWatchlist = (symbol: string) => {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    const list = saved ? JSON.parse(saved) : DEFAULT_WATCHLIST;
+    const newList = list.filter((s: string) => s !== symbol);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(newList));
+    return newList;
+};
