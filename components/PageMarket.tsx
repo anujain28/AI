@@ -1,3 +1,4 @@
+
 import React, { useMemo } from 'react';
 import { StockRecommendation, MarketData, MarketSettings } from '../types';
 import { StockCard } from './StockCard';
@@ -50,7 +51,7 @@ export const PageMarket: React.FC<PageMarketProps> = ({
                  <Sparkles size={20} className="text-blue-400 animate-pulse" />
              </h1>
              <p className="text-[10px] text-slate-500 font-bold uppercase tracking-[0.2em] mt-2 flex items-center gap-2">
-                 <BarChart3 size={12} className="text-blue-500" /> Top Picks (Score > 70) Active
+                 <BarChart3 size={12} className="text-blue-500" /> Top Picks (Score &gt; 70) Active
              </p>
          </div>
          <button 
@@ -91,7 +92,7 @@ export const PageMarket: React.FC<PageMarketProps> = ({
                     ))
                 ) : (
                     <div className="col-span-full py-8 text-center bg-slate-900/30 border border-slate-800 rounded-3xl border-dashed">
-                        <p className="text-[10px] text-slate-600 font-black uppercase tracking-widest">No BTST Signals > 70</p>
+                        <p className="text-[10px] text-slate-600 font-black uppercase tracking-widest">No BTST Signals &gt; 70</p>
                     </div>
                 )}
             </div>
@@ -125,7 +126,7 @@ export const PageMarket: React.FC<PageMarketProps> = ({
                     ))
                 ) : (
                     <div className="col-span-full py-8 text-center bg-slate-900/30 border border-slate-800 rounded-3xl border-dashed">
-                        <p className="text-[10px] text-slate-600 font-black uppercase tracking-widest">No Weekly Signals > 70</p>
+                        <p className="text-[10px] text-slate-600 font-black uppercase tracking-widest">No Weekly Signals &gt; 70</p>
                     </div>
                 )}
             </div>
@@ -159,7 +160,7 @@ export const PageMarket: React.FC<PageMarketProps> = ({
                     ))
                 ) : (
                     <div className="col-span-full py-8 text-center bg-slate-900/30 border border-slate-800 rounded-3xl border-dashed">
-                        <p className="text-[10px] text-slate-600 font-black uppercase tracking-widest">No Monthly Signals > 70</p>
+                        <p className="text-[10px] text-slate-600 font-black uppercase tracking-widest">No Monthly Signals &gt; 70</p>
                     </div>
                 )}
             </div>
@@ -170,7 +171,7 @@ export const PageMarket: React.FC<PageMarketProps> = ({
                 <ShieldCheck size={48} className="mx-auto mb-4 text-slate-800" />
                 <h3 className="text-white font-bold mb-2 uppercase italic tracking-tighter text-xl">Robots Standby</h3>
                 <p className="text-[10px] text-slate-500 mb-6 font-medium leading-relaxed uppercase tracking-wider">
-                    Scanning for High Score (> 70) Breakouts...
+                    Scanning for High Score (&gt; 70) Breakouts...
                 </p>
                 <button 
                   onClick={onRefresh}
