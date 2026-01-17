@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { StockRecommendation, PortfolioItem, Funds } from '../types';
 import { X, DollarSign, Briefcase, Calculator } from 'lucide-react';
@@ -39,9 +40,9 @@ export const TradeModal: React.FC<TradeModalProps> = ({
     
     return activeBrokers.filter(b => {
         if (b === 'PAPER') return true;
-        if (type === 'STOCK') return ['DHAN', 'SHOONYA'].includes(b);
-        if (type === 'MCX') return ['DHAN', 'SHOONYA'].includes(b);
-        if (type === 'FOREX') return ['DHAN', 'SHOONYA'].includes(b);
+        if (type === 'STOCK' || type === 'MCX' || type === 'FOREX') {
+            return ['DHAN', 'SHOONYA', 'ZERODHA'].includes(b);
+        }
         return false;
     });
   }, [activeBrokers, stock]);
@@ -107,6 +108,7 @@ export const TradeModal: React.FC<TradeModalProps> = ({
       switch(b) {
           case 'DHAN': return 'bg-purple-600 border-purple-500';
           case 'SHOONYA': return 'bg-orange-600 border-orange-500';
+          case 'ZERODHA': return 'bg-red-600 border-red-500';
           default: return 'bg-slate-600 border-slate-500';
       }
   };

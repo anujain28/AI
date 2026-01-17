@@ -43,6 +43,7 @@ export const PortfolioTable: React.FC<PortfolioTableProps> = ({
       let colorClass = 'bg-slate-700 border-slate-600 text-slate-300';
       if (broker === 'DHAN') colorClass = 'bg-purple-900/30 border-purple-700/50 text-purple-300';
       else if (broker === 'SHOONYA') colorClass = 'bg-orange-900/30 border-orange-700/50 text-orange-300';
+      else if (broker === 'ZERODHA') colorClass = 'bg-red-900/30 border-red-700/50 text-red-300';
       else if (broker === 'BINANCE') colorClass = 'bg-yellow-900/30 border-yellow-700/50 text-yellow-300';
       else if (broker === 'COINDCX') colorClass = 'bg-blue-900/30 border-blue-700/50 text-blue-300';
       return <span className={`text-[9px] px-1 py-0.5 rounded border ${colorClass}`}>{broker.substring(0,4)}</span>;

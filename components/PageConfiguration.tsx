@@ -220,11 +220,11 @@ export const PageConfiguration: React.FC<PageConfigurationProps> = ({ settings, 
                         <h3 className="text-xs font-bold text-blue-400 uppercase tracking-widest mb-2 flex items-center gap-2"><Bell size={14}/> Telegram Alerts</h3>
                         <div>
                             <label className="block text-[10px] text-slate-400 mb-1 font-bold">Bot Token</label>
-                            <input type="text" value={formData.telegramBotToken} onChange={(e) => setFormData({...formData, telegramBotToken: e.target.value})} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-xs text-white outline-none focus:border-blue-500 font-mono" placeholder="123456:ABC-..." />
+                            <input type="text" value={formData.telegramBotToken} onChange={(e) => setFormData({...formData, telegramBotToken: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-xs text-white outline-none focus:border-blue-500 font-mono" placeholder="123456:ABC-..." />
                         </div>
                         <div>
                             <label className="block text-[10px] text-slate-400 mb-1 font-bold">Chat ID</label>
-                            <input type="text" value={formData.telegramChatId} onChange={(e) => setFormData({...formData, telegramChatId: e.target.value})} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-xs text-white outline-none focus:border-blue-500 font-mono" placeholder="-100..." />
+                            <input type="text" value={formData.telegramChatId} onChange={(e) => setFormData({...formData, telegramChatId: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-xs text-white outline-none focus:border-blue-500 font-mono" placeholder="-100..." />
                         </div>
                     </section>
 
@@ -235,9 +235,31 @@ export const PageConfiguration: React.FC<PageConfigurationProps> = ({ settings, 
             )}
 
             {activeSubTab === 'STOCK_BROKERS' && (
-                <div className="space-y-4 animate-slide-up">
+                <div className="space-y-4 animate-slide-up pb-10">
+                    <div className={`p-5 rounded-2xl border transition-all ${formData.activeBrokers.includes('ZERODHA') ? 'bg-surface border-red-500/50 shadow-lg' : 'bg-surface/50 border-slate-800'}`}>
+                         <div className="flex justify-between items-center mb-4">
+                             <div className="flex items-center gap-3">
+                                 <div className="p-2 bg-red-500/20 rounded-xl text-red-400"><Building2 size={20}/></div>
+                                 <div>
+                                     <h4 className="font-bold text-white text-sm">Zerodha (Kite Connect)</h4>
+                                     <p className="text-[10px] text-slate-500 uppercase">Premium API Integration</p>
+                                 </div>
+                             </div>
+                             <button onClick={() => toggleBroker('ZERODHA')} className={`w-10 h-5 rounded-full relative transition-colors ${formData.activeBrokers.includes('ZERODHA') ? 'bg-red-600' : 'bg-slate-700'}`}>
+                                 <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-all ${formData.activeBrokers.includes('ZERODHA') ? 'left-5.5' : 'left-0.5'}`}></div>
+                             </button>
+                         </div>
+                         {formData.activeBrokers.includes('ZERODHA') && (
+                            <div className="space-y-3 animate-slide-up mt-4 pt-4 border-t border-slate-800">
+                                <div><label className="text-[10px] text-slate-400 font-bold">API Key</label><input type="text" value={formData.kiteApiKey || ''} onChange={e => setFormData({...formData, kiteApiKey: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs text-white outline-none focus:border-red-500" placeholder="Kite API Key" /></div>
+                                <div><label className="text-[10px] text-slate-400 font-bold">API Secret</label><input type="password" value={formData.kiteApiSecret || ''} onChange={e => setFormData({...formData, kiteApiSecret: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs text-white outline-none focus:border-red-500" placeholder="Kite API Secret" /></div>
+                                <div><label className="text-[10px] text-slate-400 font-bold">User ID</label><input type="text" value={formData.kiteUserId || ''} onChange={e => setFormData({...formData, kiteUserId: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs text-white outline-none focus:border-red-500" placeholder="Kite User ID" /></div>
+                            </div>
+                         )}
+                    </div>
+
                     <div className={`p-5 rounded-2xl border transition-all ${formData.activeBrokers.includes('DHAN') ? 'bg-surface border-purple-500/50 shadow-lg' : 'bg-surface/50 border-slate-800'}`}>
-                         <div className="flex justify-between items-center">
+                         <div className="flex justify-between items-center mb-4">
                              <div className="flex items-center gap-3">
                                  <div className="p-2 bg-purple-500/20 rounded-xl text-purple-400"><Building2 size={20}/></div>
                                  <div>
@@ -250,8 +272,9 @@ export const PageConfiguration: React.FC<PageConfigurationProps> = ({ settings, 
                              </button>
                          </div>
                     </div>
+
                     <div className={`p-5 rounded-2xl border transition-all ${formData.activeBrokers.includes('SHOONYA') ? 'bg-surface border-orange-500/50 shadow-lg' : 'bg-surface/50 border-slate-800'}`}>
-                         <div className="flex justify-between items-center">
+                         <div className="flex justify-between items-center mb-4">
                              <div className="flex items-center gap-3">
                                  <div className="p-2 bg-orange-500/20 rounded-xl text-orange-400"><Building2 size={20}/></div>
                                  <div>

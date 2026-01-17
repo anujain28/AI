@@ -12,6 +12,7 @@ const fetchWithProxy = async (url: string, options: any) => {
 
 let MOCK_DHAN_DB: PortfolioItem[] = [];
 let MOCK_SHOONYA_DB: PortfolioItem[] = [];
+let MOCK_ZERODHA_DB: PortfolioItem[] = [];
 
 // Fix: Add missing AssetType keys to resolve Record property missing errors
 const SLICE_CONFIG: Record<AssetType, number> = {
@@ -55,12 +56,20 @@ const fetchShoonyaHoldings = async (settings: AppSettings): Promise<PortfolioIte
     return MOCK_SHOONYA_DB;
 };
 
+const fetchZerodhaHoldings = async (settings: AppSettings): Promise<PortfolioItem[]> => {
+    if (!settings.kiteApiKey) return MOCK_ZERODHA_DB;
+    // In a real implementation, you'd perform OAuth via Kite Connect and use a session token.
+    // Placeholder logic.
+    return MOCK_ZERODHA_DB;
+};
+
 export const fetchHoldings = async (broker: BrokerID, settings: AppSettings): Promise<PortfolioItem[]> => {
     await new Promise(resolve => setTimeout(resolve, 300));
 
     switch(broker) {
         case 'DHAN': return fetchDhanHoldings(settings);
         case 'SHOONYA': return fetchShoonyaHoldings(settings);
+        case 'ZERODHA': return fetchZerodhaHoldings(settings);
         default: return [];
     }
 }
@@ -71,6 +80,7 @@ export const fetchBrokerBalance = async (broker: string, settings: AppSettings):
     switch (broker) {
         case 'DHAN': return settings.dhanClientId ? 250000.50 : 0; 
         case 'SHOONYA': return settings.shoonyaUserId ? 180000.00 : 0; 
+        case 'ZERODHA': return settings.kiteUserId ? 420000.00 : 0;
         default: return 0;
     }
 };
@@ -87,6 +97,7 @@ const executeSlicedOrder = async (
 ): Promise<{ success: boolean; orderId?: string; message: string }> => {
     
     if (broker === 'DHAN' && !settings.dhanClientId) return { success: false, message: "Dhan credentials missing" };
+    if (broker === 'ZERODHA' && !settings.kiteApiKey) return { success: false, message: "Kite API credentials missing" };
     
     const sliceSize = SLICE_CONFIG[assetType] || 100;
     let remaining = quantity;
@@ -111,6 +122,7 @@ export const placeOrder = async (broker: BrokerID, symbol: string, quantity: num
     switch(broker) {
         case 'DHAN': db = MOCK_DHAN_DB; break;
         case 'SHOONYA': db = MOCK_SHOONYA_DB; break;
+        case 'ZERODHA': db = MOCK_ZERODHA_DB; break;
         default: db = []; break;
     }
     return executeSlicedOrder(broker, symbol, quantity, side, price, assetType, settings, db);

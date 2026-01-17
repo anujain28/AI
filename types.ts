@@ -52,7 +52,7 @@ export interface HoldingAnalysis {
   cagr: string;
 }
 
-export type BrokerID = 'PAPER' | 'DHAN' | 'SHOONYA' | 'BINANCE' | 'COINDCX' | 'COINSWITCH';
+export type BrokerID = 'PAPER' | 'DHAN' | 'SHOONYA' | 'ZERODHA' | 'BINANCE' | 'COINDCX' | 'COINSWITCH';
 
 export interface PortfolioItem {
   symbol: string;
@@ -141,6 +141,9 @@ export interface AppSettings {
   shoonyaPassword?: string;
   shoonyaApiKey?: string;
   shoonyaVendorCode?: string;
+  kiteApiKey?: string;
+  kiteApiSecret?: string;
+  kiteUserId?: string;
   binanceApiKey?: string;
   binanceSecret?: string;
   coindcxApiKey?: string;
