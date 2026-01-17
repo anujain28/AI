@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { AppSettings, Transaction, BrokerID } from '../types';
-import { Save, Building2, Bell, List, Trash2, FileText, Search, CheckSquare, Square, ChevronDown, ChevronRight, Tags } from 'lucide-react';
+import { Save, Building2, Bell, List, Trash2, FileText, Search, CheckSquare, Square, ChevronDown, ChevronRight, Tags, ShieldCheck, Key } from 'lucide-react';
 import { getFullUniverse, getIdeasWatchlist, saveIdeasWatchlist, getGroupedUniverse } from '../services/stockListService';
 
 interface PageConfigurationProps {
@@ -16,7 +16,7 @@ type TabType = 'REPORTING' | 'STOCK_BROKERS' | 'IDEAS_WATCHLIST';
 
 export const PageConfiguration: React.FC<PageConfigurationProps> = ({ settings, onSave, transactions, activeBots, onToggleBot }) => {
   const [formData, setFormData] = useState<AppSettings>(settings);
-  const [activeSubTab, setActiveSubTab] = useState<TabType>('IDEAS_WATCHLIST');
+  const [activeSubTab, setActiveSubTab] = useState<TabType>('STOCK_BROKERS');
   const [watchlist, setWatchlist] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [expandedIndustries, setExpandedIndustries] = useState<string[]>([]);
@@ -27,7 +27,6 @@ export const PageConfiguration: React.FC<PageConfigurationProps> = ({ settings, 
   useEffect(() => {
     const saved = getIdeasWatchlist();
     setWatchlist(saved);
-    // Expand top 3 industries by default
     setExpandedIndustries(industries.slice(0, 3));
   }, [industries]);
 
@@ -45,10 +44,8 @@ export const PageConfiguration: React.FC<PageConfigurationProps> = ({ settings, 
     
     let next: string[];
     if (allSelected) {
-      // Deselect all in industry
       next = watchlist.filter(s => !stocksInIndustry.includes(s));
     } else {
-      // Select all in industry
       const newStocks = stocksInIndustry.filter(s => !watchlist.includes(s));
       next = [...watchlist, ...newStocks];
     }
@@ -89,7 +86,7 @@ export const PageConfiguration: React.FC<PageConfigurationProps> = ({ settings, 
     return next;
   }, [searchTerm, groupedUniverse]);
 
-  const toggleBroker = (broker: any) => {
+  const toggleBroker = (broker: BrokerID) => {
     setFormData(prev => {
       const activeBrokers = prev.activeBrokers as BrokerID[];
       const isActive = activeBrokers.includes(broker);
@@ -108,9 +105,9 @@ export const PageConfiguration: React.FC<PageConfigurationProps> = ({ settings, 
   };
 
   const tabs: {id: TabType, label: string, icon: React.ReactNode}[] = [
+      { id: 'STOCK_BROKERS', label: 'Brokers', icon: <Building2 size={16}/> },
       { id: 'IDEAS_WATCHLIST', label: 'Ideas Watch', icon: <List size={16}/> },
       { id: 'REPORTING', label: 'Reporting', icon: <FileText size={16}/> },
-      { id: 'STOCK_BROKERS', label: 'Brokers', icon: <Building2 size={16}/> },
   ];
 
   return (
@@ -136,6 +133,110 @@ export const PageConfiguration: React.FC<PageConfigurationProps> = ({ settings, 
         </div>
 
         <div className="flex-1 overflow-y-auto custom-scrollbar space-y-6 pr-1">
+            {activeSubTab === 'STOCK_BROKERS' && (
+                <div className="space-y-4 animate-slide-up pb-10">
+                    <div className="bg-blue-900/20 border border-blue-500/30 p-4 rounded-xl flex items-start gap-3 mb-4">
+                        <ShieldCheck size={18} className="text-blue-400 flex-shrink-0 mt-0.5" />
+                        <p className="text-[10px] text-blue-200 leading-relaxed font-medium">
+                            <strong>Local Security:</strong> All API keys and credentials are saved strictly within your browser's local storage. We never upload your keys to any server.
+                        </p>
+                    </div>
+
+                    {/* DHAN */}
+                    <div className={`p-5 rounded-2xl border transition-all ${formData.activeBrokers.includes('DHAN') ? 'bg-surface border-purple-500/50 shadow-lg' : 'bg-surface/50 border-slate-800'}`}>
+                         <div className="flex justify-between items-center">
+                             <div className="flex items-center gap-3">
+                                 <div className="p-2 bg-purple-500/20 rounded-xl text-purple-400"><Building2 size={20}/></div>
+                                 <div>
+                                     <h4 className="font-bold text-white text-sm">Dhan (Live)</h4>
+                                     <p className="text-[10px] text-slate-500 uppercase tracking-widest font-black">Trade in Equity & F&O</p>
+                                 </div>
+                             </div>
+                             <button onClick={() => toggleBroker('DHAN')} className={`w-10 h-5 rounded-full relative transition-colors ${formData.activeBrokers.includes('DHAN') ? 'bg-purple-600' : 'bg-slate-700'}`}>
+                                 <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-all ${formData.activeBrokers.includes('DHAN') ? 'left-5.5' : 'left-0.5'}`}></div>
+                             </button>
+                         </div>
+                         {formData.activeBrokers.includes('DHAN') && (
+                            <div className="space-y-3 animate-slide-up mt-4 pt-4 border-t border-slate-800">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="text-[10px] text-slate-400 font-bold uppercase mb-1 block">Client ID</label>
+                                        <input type="text" value={formData.dhanClientId || ''} onChange={e => setFormData({...formData, dhanClientId: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-xs text-white outline-none focus:border-purple-500 font-mono" placeholder="Your Client ID" />
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] text-slate-400 font-bold uppercase mb-1 block">Access Token</label>
+                                        <input type="password" value={formData.dhanAccessToken || ''} onChange={e => setFormData({...formData, dhanAccessToken: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-xs text-white outline-none focus:border-purple-500 font-mono" placeholder="Dhan API Token" />
+                                    </div>
+                                </div>
+                            </div>
+                         )}
+                    </div>
+
+                    {/* SHOONYA */}
+                    <div className={`p-5 rounded-2xl border transition-all ${formData.activeBrokers.includes('SHOONYA') ? 'bg-surface border-orange-500/50 shadow-lg' : 'bg-surface/50 border-slate-800'}`}>
+                         <div className="flex justify-between items-center">
+                             <div className="flex items-center gap-3">
+                                 <div className="p-2 bg-orange-500/20 rounded-xl text-orange-400"><Building2 size={20}/></div>
+                                 <div>
+                                     <h4 className="font-bold text-white text-sm">Shoonya (Finvasia)</h4>
+                                     <p className="text-[10px] text-slate-500 uppercase tracking-widest font-black">Zero Brokerage Integration</p>
+                                 </div>
+                             </div>
+                             <button onClick={() => toggleBroker('SHOONYA')} className={`w-10 h-5 rounded-full relative transition-colors ${formData.activeBrokers.includes('SHOONYA') ? 'bg-orange-600' : 'bg-slate-700'}`}>
+                                 <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-all ${formData.activeBrokers.includes('SHOONYA') ? 'left-5.5' : 'left-0.5'}`}></div>
+                             </button>
+                         </div>
+                         {formData.activeBrokers.includes('SHOONYA') && (
+                            <div className="space-y-4 animate-slide-up mt-4 pt-4 border-t border-slate-800">
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="text-[10px] text-slate-400 font-bold uppercase mb-1 block">User ID</label>
+                                        <input type="text" value={formData.shoonyaUserId || ''} onChange={e => setFormData({...formData, shoonyaUserId: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-xs text-white outline-none focus:border-orange-500 font-mono" placeholder="User ID" />
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] text-slate-400 font-bold uppercase mb-1 block">Password</label>
+                                        <input type="password" value={formData.shoonyaPassword || ''} onChange={e => setFormData({...formData, shoonyaPassword: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-xs text-white outline-none focus:border-orange-500 font-mono" placeholder="Password" />
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="text-[10px] text-slate-400 font-bold uppercase mb-1 block">API Key</label>
+                                        <input type="password" value={formData.shoonyaApiKey || ''} onChange={e => setFormData({...formData, shoonyaApiKey: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-xs text-white outline-none focus:border-orange-500 font-mono" placeholder="API Key" />
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] text-slate-400 font-bold uppercase mb-1 block">Vendor Code</label>
+                                        <input type="text" value={formData.shoonyaVendorCode || ''} onChange={e => setFormData({...formData, shoonyaVendorCode: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-xs text-white outline-none focus:border-orange-500 font-mono" placeholder="Vendor Code" />
+                                    </div>
+                                </div>
+                            </div>
+                         )}
+                    </div>
+
+                    {/* ZERODHA */}
+                    <div className={`p-5 rounded-2xl border transition-all ${formData.activeBrokers.includes('ZERODHA') ? 'bg-surface border-red-500/50 shadow-lg' : 'bg-surface/50 border-slate-800'}`}>
+                         <div className="flex justify-between items-center mb-4">
+                             <div className="flex items-center gap-3">
+                                 <div className="p-2 bg-red-500/20 rounded-xl text-red-400"><Building2 size={20}/></div>
+                                 <div>
+                                     <h4 className="font-bold text-white text-sm">Zerodha (Kite Connect)</h4>
+                                     <p className="text-[10px] text-slate-500 uppercase tracking-widest font-black">Premium API Integration</p>
+                                 </div>
+                             </div>
+                             <button onClick={() => toggleBroker('ZERODHA')} className={`w-10 h-5 rounded-full relative transition-colors ${formData.activeBrokers.includes('ZERODHA') ? 'bg-red-600' : 'bg-slate-700'}`}>
+                                 <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-all ${formData.activeBrokers.includes('ZERODHA') ? 'left-5.5' : 'left-0.5'}`}></div>
+                             </button>
+                         </div>
+                         {formData.activeBrokers.includes('ZERODHA') && (
+                            <div className="space-y-3 animate-slide-up mt-4 pt-4 border-t border-slate-800">
+                                <div><label className="text-[10px] text-slate-400 font-bold">API Key</label><input type="text" value={formData.kiteApiKey || ''} onChange={e => setFormData({...formData, kiteApiKey: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs text-white outline-none focus:border-red-500 font-mono" placeholder="Kite API Key" /></div>
+                                <div><label className="text-[10px] text-slate-400 font-bold">API Secret</label><input type="password" value={formData.kiteApiSecret || ''} onChange={e => setFormData({...formData, kiteApiSecret: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs text-white outline-none focus:border-red-500 font-mono" placeholder="Kite API Secret" /></div>
+                                <div><label className="text-[10px] text-slate-400 font-bold">User ID</label><input type="text" value={formData.kiteUserId || ''} onChange={e => setFormData({...formData, kiteUserId: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs text-white outline-none focus:border-red-500 font-mono" placeholder="Kite User ID" /></div>
+                            </div>
+                         )}
+                    </div>
+                </div>
+            )}
+
             {activeSubTab === 'IDEAS_WATCHLIST' && (
                 <div className="space-y-4 animate-slide-up h-full flex flex-col">
                     <div className="bg-slate-900/50 p-4 rounded-2xl border border-slate-800 flex flex-col h-full max-h-[70vh]">
@@ -208,7 +309,6 @@ export const PageConfiguration: React.FC<PageConfigurationProps> = ({ settings, 
                             })}
                         </div>
                     </div>
-                    <p className="text-[9px] text-slate-600 italic px-2">Robots will scan the selected industries and stocks for momentum signals.</p>
                 </div>
             )}
 
@@ -217,11 +317,11 @@ export const PageConfiguration: React.FC<PageConfigurationProps> = ({ settings, 
                     <section className="bg-surface p-6 rounded-2xl border border-slate-800 space-y-4">
                         <h3 className="text-xs font-bold text-blue-400 uppercase tracking-widest mb-2 flex items-center gap-2"><Bell size={14}/> Telegram Reporting Alerts</h3>
                         <div>
-                            <label className="block text-[10px] text-slate-400 mb-1 font-bold">Bot Token</label>
+                            <label className="block text-[10px] text-slate-400 mb-1 font-bold uppercase">Bot Token</label>
                             <input type="text" value={formData.telegramBotToken} onChange={(e) => setFormData({...formData, telegramBotToken: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-xs text-white outline-none focus:border-blue-500 font-mono" placeholder="123456:ABC-..." />
                         </div>
                         <div>
-                            <label className="block text-[10px] text-slate-400 mb-1 font-bold">Chat ID</label>
+                            <label className="block text-[10px] text-slate-400 mb-1 font-bold uppercase">Chat ID</label>
                             <input type="text" value={formData.telegramChatId} onChange={(e) => setFormData({...formData, telegramChatId: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-xs text-white outline-none focus:border-blue-500 font-mono" placeholder="-100..." />
                         </div>
                     </section>
@@ -229,33 +329,6 @@ export const PageConfiguration: React.FC<PageConfigurationProps> = ({ settings, 
                     <button onClick={handleReset} className="w-full py-4 rounded-xl text-xs font-bold text-red-400 bg-red-900/10 border border-red-900/30 flex items-center justify-center gap-2 mt-4 hover:bg-red-900/20 transition-all">
                         <Trash2 size={14}/> Factory Reset
                     </button>
-                </div>
-            )}
-
-            {activeSubTab === 'STOCK_BROKERS' && (
-                <div className="space-y-4 animate-slide-up pb-10">
-                    <div className={`p-5 rounded-2xl border transition-all ${formData.activeBrokers.includes('ZERODHA') ? 'bg-surface border-red-500/50 shadow-lg' : 'bg-surface/50 border-slate-800'}`}>
-                         <div className="flex justify-between items-center mb-4">
-                             <div className="flex items-center gap-3">
-                                 <div className="p-2 bg-red-500/20 rounded-xl text-red-400"><Building2 size={20}/></div>
-                                 <div>
-                                     <h4 className="font-bold text-white text-sm">Zerodha (Kite Connect)</h4>
-                                     <p className="text-[10px] text-slate-500 uppercase">Premium API Integration</p>
-                                 </div>
-                             </div>
-                             <button onClick={() => toggleBroker('ZERODHA')} className={`w-10 h-5 rounded-full relative transition-colors ${formData.activeBrokers.includes('ZERODHA') ? 'bg-red-600' : 'bg-slate-700'}`}>
-                                 <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-all ${formData.activeBrokers.includes('ZERODHA') ? 'left-5.5' : 'left-0.5'}`}></div>
-                             </button>
-                         </div>
-                         {formData.activeBrokers.includes('ZERODHA') && (
-                            <div className="space-y-3 animate-slide-up mt-4 pt-4 border-t border-slate-800">
-                                <div><label className="text-[10px] text-slate-400 font-bold">API Key</label><input type="text" value={formData.kiteApiKey || ''} onChange={e => setFormData({...formData, kiteApiKey: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs text-white outline-none focus:border-red-500" placeholder="Kite API Key" /></div>
-                                <div><label className="text-[10px] text-slate-400 font-bold">API Secret</label><input type="password" value={formData.kiteApiSecret || ''} onChange={e => setFormData({...formData, kiteApiSecret: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs text-white outline-none focus:border-red-500" placeholder="Kite API Secret" /></div>
-                                <div><label className="text-[10px] text-slate-400 font-bold">User ID</label><input type="text" value={formData.kiteUserId || ''} onChange={e => setFormData({...formData, kiteUserId: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs text-white outline-none focus:border-red-500" placeholder="Kite User ID" /></div>
-                            </div>
-                         )}
-                    </div>
-                    {/* ... other brokers ... */}
                 </div>
             )}
         </div>

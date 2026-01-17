@@ -52,14 +52,13 @@ const fetchDhanHoldings = async (settings: AppSettings): Promise<PortfolioItem[]
 };
 
 const fetchShoonyaHoldings = async (settings: AppSettings): Promise<PortfolioItem[]> => {
-    if (!settings.shoonyaUserId) return [];
+    if (!settings.shoonyaUserId || !settings.shoonyaPassword) return MOCK_SHOONYA_DB;
+    // In a production environment, you'd use the Shoonya SDK here.
     return MOCK_SHOONYA_DB;
 };
 
 const fetchZerodhaHoldings = async (settings: AppSettings): Promise<PortfolioItem[]> => {
     if (!settings.kiteApiKey) return MOCK_ZERODHA_DB;
-    // In a real implementation, you'd perform OAuth via Kite Connect and use a session token.
-    // Placeholder logic.
     return MOCK_ZERODHA_DB;
 };
 
@@ -79,7 +78,7 @@ export const fetchBrokerBalance = async (broker: string, settings: AppSettings):
 
     switch (broker) {
         case 'DHAN': return settings.dhanClientId ? 250000.50 : 0; 
-        case 'SHOONYA': return settings.shoonyaUserId ? 180000.00 : 0; 
+        case 'SHOONYA': return (settings.shoonyaUserId && settings.shoonyaPassword) ? 180000.00 : 0; 
         case 'ZERODHA': return settings.kiteUserId ? 420000.00 : 0;
         default: return 0;
     }
@@ -97,6 +96,7 @@ const executeSlicedOrder = async (
 ): Promise<{ success: boolean; orderId?: string; message: string }> => {
     
     if (broker === 'DHAN' && !settings.dhanClientId) return { success: false, message: "Dhan credentials missing" };
+    if (broker === 'SHOONYA' && !settings.shoonyaUserId) return { success: false, message: "Shoonya credentials missing" };
     if (broker === 'ZERODHA' && !settings.kiteApiKey) return { success: false, message: "Kite API credentials missing" };
     
     const sliceSize = SLICE_CONFIG[assetType] || 100;
