@@ -96,7 +96,8 @@ export default function App() {
   const refreshActivePrices = useCallback(async () => {
     const symbols = Array.from(new Set([
         ...recommendations.map(r => r.symbol),
-        ...paperPortfolio.map(p => p.symbol)
+        ...paperPortfolio.map(p => p.symbol),
+        '^NSEI', '^NSEBANK', '^INDIAVIX' // Forced indices for the Terminal
     ]));
 
     if (symbols.length === 0) return;
