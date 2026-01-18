@@ -1,5 +1,5 @@
 
-const CACHE_NAME = 'aitrade-v5-' + Date.now(); // Bumped to v5 to force sync
+const CACHE_NAME = 'aitrade-v6-' + Date.now(); // Bumped to v6 to clear legacy AI calls
 const urlsToCache = [
   '/',
   '/index.html',
@@ -7,7 +7,6 @@ const urlsToCache = [
 ];
 
 self.addEventListener('install', (event) => {
-  // Force the waiting service worker to become the active service worker.
   self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME)
@@ -18,9 +17,7 @@ self.addEventListener('install', (event) => {
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     Promise.all([
-      // Take control of all open clients immediately
       self.clients.claim(),
-      // Delete all old caches
       caches.keys().then((cacheNames) => {
         return Promise.all(
           cacheNames.map((cacheName) => {
@@ -36,7 +33,6 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  // NAVIGATION REQUESTS: Always try network first for the main document
   if (event.request.mode === 'navigate') {
     event.respondWith(
       fetch(event.request).catch(() => caches.match(event.request))
@@ -44,7 +40,6 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // OTHER ASSETS: Stale-while-revalidate
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
       const fetchPromise = fetch(event.request).then((networkResponse) => {
