@@ -3,121 +3,125 @@ import { StockRecommendation, AppSettings, NewsItem, BrokerIntelResponse } from 
 import { fetchRealStockData } from "./marketDataService";
 
 /**
- * High-conviction universe focusing on liquid Nifty 50 and Next 50 leaders.
+ * High-conviction universe for secondary technical validation.
  */
 const INSTITUTIONAL_CORE = [
   'RELIANCE.NS', 'TCS.NS', 'HDFCBANK.NS', 'ICICIBANK.NS', 'INFY.NS', 
   'BHARTIARTL.NS', 'AXISBANK.NS', 'SBIN.NS', 'LICI.NS', 'ITC.NS',
   'MARUTI.NS', 'TATAMOTORS.NS', 'SUNPHARMA.NS', 'JSWSTEEL.NS', 'LT.NS',
-  'ADANIENT.NS', 'ONGC.NS', 'TATASTEEL.NS', 'COALINDIA.NS', 'TITAN.NS',
-  'ULTRACEMCO.NS', 'BHARTIHEXA.NS', 'ZOMATO.NS', 'PAYTM.NS', 'HAL.NS',
-  'BEL.NS', 'MAZDOCK.NS', 'IRFC.NS', 'RVNL.NS', 'SUZLON.NS', 'TRENT.NS',
-  'DLF.NS', 'SIEMENS.NS', 'ABB.NS', 'BAJFINANCE.NS', 'WIPRO.NS', 'JIOFIN.NS'
+  'ADANIENT.NS', 'ONGC.NS', 'TATASTEEL.NS', 'COALINDIA.NS', 'TITAN.NS'
 ];
 
-const RSS_FEEDS = [
-  { url: "https://economictimes.indiatimes.com/markets/stocks/recos/rssfeeds/81872147.cms", source: "Economic Times" },
-  { url: "https://economictimes.indiatimes.com/markets/stocks/rssfeeds/2146842.cms", source: "ET Markets" },
-  { url: "https://www.moneycontrol.com/rss/stockadvices.xml", source: "Moneycontrol Advice" }
-];
+const STOCK_IDEAS_URL = "https://www.moneycontrol.com/markets/stock-ideas/";
 
-async function fetchRSSNews(): Promise<NewsItem[]> {
-  const allNews: NewsItem[] = [];
-  
-  for (const feed of RSS_FEEDS) {
-    const proxies = [
-      `https://api.allorigins.win/raw?url=${encodeURIComponent(feed.url)}`,
-      `https://corsproxy.io/?${encodeURIComponent(feed.url)}`
-    ];
+/**
+ * Parses a standard Moneycontrol recommendation string:
+ * "Buy Tata Motors; target of Rs 1100: ICICI Direct"
+ */
+function parseCallString(title: string) {
+  const buyMatch = title.match(/Buy\s+(.*?);/i);
+  const sellMatch = title.match(/Sell\s+(.*?);/i);
+  const targetMatch = title.match(/target\s+of\s+Rs\s+([\d,.]+)/i);
+  const brokerMatch = title.match(/:\s+(.*)$/i);
 
-    for (const proxy of proxies) {
-      try {
-        const res = await fetch(proxy);
-        if (!res.ok) continue;
-        const xmlText = await res.text();
-        const parser = new DOMParser();
-        const xmlDoc = parser.parseFromString(xmlText, "text/xml");
-        const items = xmlDoc.querySelectorAll("item");
-        
-        items.forEach((item, idx) => {
-          if (idx > 5) return; // Limit items per feed for variety
-          allNews.push({
-            title: item.querySelector("title")?.textContent || "",
-            link: item.querySelector("link")?.textContent || "",
-            pubDate: item.querySelector("pubDate")?.textContent || "",
-            description: item.querySelector("description")?.textContent || "",
-            source: feed.source
+  const action = buyMatch ? 'BUY' : sellMatch ? 'SELL' : 'HOLD';
+  const symbol = (buyMatch ? buyMatch[1] : sellMatch ? sellMatch[1] : title.split(';')[0]).trim();
+  const target = targetMatch ? targetMatch[1].replace(/,/g, '') : null;
+  const broker = brokerMatch ? brokerMatch[1].trim() : "Market Expert";
+
+  return { action, symbol, target, broker };
+}
+
+async function fetchLiveStockIdeas(): Promise<NewsItem[]> {
+  const proxies = [
+    `https://api.allorigins.win/raw?url=${encodeURIComponent(STOCK_IDEAS_URL)}`,
+    `https://corsproxy.io/?${encodeURIComponent(STOCK_IDEAS_URL)}`
+  ];
+
+  for (const proxy of proxies) {
+    try {
+      const res = await fetch(proxy);
+      if (!res.ok) continue;
+      const html = await res.text();
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(html, "text/html");
+      
+      // Moneycontrol Stock Ideas titles are typically in <a> tags within specific container classes
+      // We look for titles containing "Buy" or "Sell"
+      const links = Array.from(doc.querySelectorAll('a[title]'));
+      const calls: NewsItem[] = [];
+      
+      const seenTitles = new Set();
+
+      for (const link of links) {
+        const title = link.getAttribute('title') || "";
+        if ((title.startsWith('Buy') || title.startsWith('Sell')) && !seenTitles.has(title)) {
+          seenTitles.add(title);
+          const parsed = parseCallString(title);
+          
+          calls.push({
+            title: title,
+            link: link.getAttribute('href')?.startsWith('http') ? link.getAttribute('href')! : `https://www.moneycontrol.com${link.getAttribute('href')}`,
+            pubDate: new Date().toISOString(), // Page scrape doesn't always have easy dates, use current
+            description: `Expert ${parsed.action} call by ${parsed.broker}. Target Price: ₹${parsed.target || 'TBA'}.`,
+            source: parsed.broker
           });
-        });
-        break; // Successfully fetched this feed, move to next
-      } catch (e) {
-        console.warn(`RSS Proxy failed for ${feed.source}`, proxy, e);
+
+          if (calls.length >= 10) break;
+        }
       }
+
+      if (calls.length > 0) return calls;
+    } catch (e) {
+      console.warn("Proxy failed for stock ideas scrape", proxy, e);
     }
   }
-
-  // Sort by date (descending)
-  return allNews.sort((a, b) => new Date(b.pubDate).getTime() - new Date(a.pubDate).getTime());
+  return [];
 }
 
 /**
- * Broker Intel Service (Unified News & Technical Engine)
+ * Broker Intel Service
+ * Fetches "Latest Calls" directly from Moneycontrol Stock Ideas page.
  */
 export const fetchBrokerIntel = async (settings: AppSettings): Promise<BrokerIntelResponse> => {
   try {
-    // 1. Fetch Technical Calls (Best 5 - 10 Logic)
-    const technicalResults = await Promise.all(INSTITUTIONAL_CORE.map(async (ticker) => {
+    // 1. Fetch Technical Validation for high-conviction stocks
+    const technicalResults = await Promise.all(INSTITUTIONAL_CORE.slice(0, 10).map(async (ticker) => {
       try {
         const data = await fetchRealStockData(ticker, settings, "15m", "2d");
-        if (!data) return null;
-
-        const tech = data.technicals;
-        const price = data.price;
+        if (!data || data.technicals.score < 60) return null;
+        
         const symbol = ticker.split('.')[0];
-
-        if (tech.score < 65) return null;
-
-        let signalContext = "";
-        if (tech.activeSignals.includes("BB Breakout")) signalContext = "Breakout detected.";
-        else if (tech.activeSignals.includes("EMA Bull Stack")) signalContext = "Strong trend confirmed.";
-        else if (tech.activeSignals.includes("High Volume Pulse")) signalContext = "Institutional buying pulse.";
-        else signalContext = "Bullish momentum reversal.";
-
-        const reason = `Quant Intelligence: ${signalContext} Support zone at ₹${(price * 0.985).toFixed(2)}. Alpha targets projected.`;
-
         return {
           symbol: ticker,
           name: symbol,
           type: 'STOCK',
-          sector: 'Consensus Idea',
-          currentPrice: price,
-          reason,
-          riskLevel: tech.score > 80 ? 'Low' : 'Medium',
-          targetPrice: price * (1 + (tech.atr / price) * 3.5),
-          score: tech.score,
+          sector: 'Technical Alpha',
+          currentPrice: data.price,
+          reason: `Technical Scanner: ${data.technicals.activeSignals[0] || 'Bullish Momentum'} confirmed.`,
+          riskLevel: data.technicals.score > 75 ? 'Low' : 'Medium',
+          targetPrice: data.price * (1 + (data.technicals.atr / data.price) * 3),
+          score: data.technicals.score,
           lotSize: 1,
-          isTopPick: tech.score > 75,
+          isTopPick: data.technicals.score > 70,
           sourceUrl: `https://www.moneycontrol.com/india/stockpricequote/${symbol.toLowerCase()}`
         } as StockRecommendation;
-      } catch (err) {
-        return null;
-      }
+      } catch (err) { return null; }
     }));
 
-    // 2. Fetch Latest News & ET Recos
-    const newsFeed = await fetchRSSNews();
+    // 2. Scrape Latest Broker Calls (This is the "Stock Ideas" page content)
+    const latestCalls = await fetchLiveStockIdeas();
 
-    const validData = technicalResults
+    const validTechnicalRecs = technicalResults
       .filter((r): r is StockRecommendation => r !== null)
-      .sort((a, b) => (b.score || 0) - (a.score || 0))
-      .slice(0, 10);
+      .sort((a, b) => (b.score || 0) - (a.score || 0));
 
     return { 
-      data: validData,
-      news: newsFeed
+      data: validTechnicalRecs,
+      news: latestCalls
     };
   } catch (error: any) {
-    console.error("Institutional Engine Failure:", error);
+    console.error("Broker Intel Engine Failure:", error);
     return { data: [], news: [], error: 'DATA_UNAVAILABLE' };
   }
 };
