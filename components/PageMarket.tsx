@@ -2,7 +2,7 @@
 import { useMemo } from 'react';
 import { StockRecommendation, MarketData, MarketSettings } from '../types';
 import { StockCard } from './StockCard';
-import { RefreshCw, Zap, Sparkles, Search, Clock, TrendingUp, Calendar, Repeat, Target, Radar } from 'lucide-react';
+import { RefreshCw, Zap, Sparkles, Search, Clock, TrendingUp, Calendar, Repeat, Target, Radar, Loader2 } from 'lucide-react';
 
 interface PageMarketProps {
   recommendations: StockRecommendation[];
@@ -41,6 +41,8 @@ export const PageMarket: React.FC<PageMarketProps> = ({
     </div>
   );
 
+  const hasData = recommendations.length > 0;
+
   return (
     <div className="p-4 pb-24 animate-fade-in max-w-lg mx-auto md:max-w-none">
       {/* Header */}
@@ -64,20 +66,35 @@ export const PageMarket: React.FC<PageMarketProps> = ({
          </button>
       </div>
 
-      {isLoading && (
-          <div className="mb-8 animate-fade-in bg-slate-900/50 p-4 rounded-2xl border border-slate-800">
-              <div className="flex justify-between items-end mb-2">
-                  <span className="text-[9px] font-black uppercase tracking-widest text-blue-400 flex items-center gap-2">
-                      <Target size={12} className="animate-pulse" />
-                      Deep Scanning 150 Symbols...
-                  </span>
-                  <span className="text-[10px] font-mono text-white font-bold">{scanProgress}%</span>
+      {/* Background Scan Progress (Non-blocking) */}
+      {isLoading && hasData && (
+          <div className="mb-6 bg-blue-600/10 border border-blue-500/20 p-3 rounded-2xl flex items-center gap-4 animate-slide-up">
+              <Loader2 size={16} className="text-blue-400 animate-spin" />
+              <div className="flex-1">
+                  <div className="flex justify-between text-[8px] font-black text-blue-400 uppercase tracking-widest mb-1.5">
+                      <span>Updating Market Opportunities...</span>
+                      <span>{scanProgress}%</span>
+                  </div>
+                  <div className="h-1 w-full bg-slate-800 rounded-full overflow-hidden">
+                      <div className="h-full bg-blue-500 transition-all duration-300" style={{ width: `${scanProgress}%` }}></div>
+                  </div>
               </div>
-              <div className="h-2 w-full bg-slate-800 rounded-full overflow-hidden">
-                  <div 
-                    className="h-full bg-blue-600 transition-all duration-300 shadow-[0_0_12px_#2563eb]" 
-                    style={{ width: `${scanProgress}%` }}
-                  ></div>
+          </div>
+      )}
+
+      {/* Initial Blocking Loader (Only if no data) */}
+      {isLoading && !hasData && (
+          <div className="py-20 animate-fade-in bg-slate-900/50 p-8 rounded-3xl border border-slate-800 text-center">
+              <div className="relative inline-block mb-6">
+                  <div className="w-16 h-16 border-4 border-blue-600/20 border-t-blue-500 rounded-full animate-spin"></div>
+                  <Target size={24} className="absolute inset-0 m-auto text-blue-400 animate-pulse" />
+              </div>
+              <h2 className="text-xl font-black text-white uppercase italic tracking-tighter">Deep Scanning Markets</h2>
+              <div className="mt-4 flex flex-col items-center gap-2">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Processing 150 Symbols • {scanProgress}%</span>
+                  <div className="h-2 w-48 bg-slate-800 rounded-full overflow-hidden">
+                      <div className="h-full bg-blue-600 transition-all duration-300" style={{ width: `${scanProgress}%` }}></div>
+                  </div>
               </div>
           </div>
       )}
@@ -100,7 +117,8 @@ export const PageMarket: React.FC<PageMarketProps> = ({
           </div>
       )}
 
-      {!isLoading && (
+      {/* Idea Cards - Always visible once loaded */}
+      {hasData && (
           <div className="space-y-4">
               {intraday.length > 0 && (
                   <section className="animate-slide-up">
