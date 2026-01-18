@@ -73,6 +73,7 @@ export default function App() {
   const [isTradeModalOpen, setIsTradeModalOpen] = useState(false);
   const [selectedStock, setSelectedStock] = useState<StockRecommendation | null>(null);
   const [marketStatus, setMarketStatus] = useState(getMarketStatus('STOCK'));
+  const [intelError, setIntelError] = useState<string | null>(null);
   
   const refreshIntervalRef = useRef<any>(null);
   const botIntervalRef = useRef<any>(null);
@@ -124,12 +125,20 @@ export default function App() {
     
     if (recommendations.length === 0) {
         setIsLoading(true);
-        const [recs, intel] = await Promise.all([
-          runTechnicalScan(combinedUniverse, settings),
-          fetchBrokerIntel(settings)
-        ]);
-        setRecommendations(recs);
-        setBrokerIntel(intel);
+        setIntelError(null);
+        try {
+            const [recs, intelRes] = await Promise.all([
+              runTechnicalScan(combinedUniverse, settings),
+              fetchBrokerIntel(settings)
+            ]);
+            setRecommendations(recs);
+            setBrokerIntel(intelRes.data);
+            if (intelRes.error) {
+              setIntelError(intelRes.error);
+            }
+        } catch (e) {
+            console.error("Critical Load Failure", e);
+        }
     }
 
     const symbolsToUpdate = new Set([
@@ -242,7 +251,7 @@ export default function App() {
       
       <main className="flex-1 overflow-y-auto custom-scrollbar w-full max-w-lg mx-auto md:max-w-7xl md:border-x md:border-slate-800">
         {activePage === 0 && <PageMarket settings={settings} recommendations={recommendations} marketData={marketData} onTrade={(s) => { setSelectedStock(s); setIsTradeModalOpen(true); }} onRefresh={() => { setRecommendations([]); setBrokerIntel([]); loadMarketData(); }} isLoading={isLoading} enabledMarkets={settings.enabledMarkets} />}
-        {activePage === 1 && <PageBrokerIntel recommendations={brokerIntel} marketData={marketData} onTrade={(s) => { setSelectedStock(s); setIsTradeModalOpen(true); }} onRefresh={() => { setRecommendations([]); setBrokerIntel([]); loadMarketData(); }} isLoading={isLoading} />}
+        {activePage === 1 && <PageBrokerIntel recommendations={brokerIntel} marketData={marketData} onTrade={(s) => { setSelectedStock(s); setIsTradeModalOpen(true); }} onRefresh={() => { setRecommendations([]); setBrokerIntel([]); loadMarketData(); }} isLoading={isLoading} error={intelError} />}
         {activePage === 2 && <PageScalper recommendations={recommendations} marketData={marketData} funds={funds} holdings={paperPortfolio} onBuy={handleBuy} onSell={handleSell} onRefresh={loadMarketData} />}
         {activePage === 3 && <PageScan marketData={marketData} settings={settings} onTrade={(s) => { setSelectedStock(s); setIsTradeModalOpen(true); }} />}
         {activePage === 4 && <PagePaperTrading holdings={paperPortfolio} marketData={marketData} analysisData={analysisData} onSell={(s, b) => handleSell(s, 0, marketData[s]?.price || 0, b)} onAnalyze={() => setIsAnalyzing(true)} isAnalyzing={isAnalyzing} funds={funds} activeBots={activeBots} onToggleBot={(b) => setActiveBots(p => ({...p, [b]: !p[b]}))} transactions={transactions} onUpdateFunds={(f) => { setFunds(f); saveData('funds', f); }} />}

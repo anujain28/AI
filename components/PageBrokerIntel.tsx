@@ -2,7 +2,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { StockRecommendation, MarketData } from '../types';
 import { StockCard } from './StockCard';
-import { RefreshCw, Calendar, Zap, TrendingUp, ShieldCheck, Globe, Search, AlertCircle, Newspaper, ArrowRight, MessageSquare, Database, ExternalLink } from 'lucide-react';
+import { RefreshCw, Calendar, Zap, TrendingUp, ShieldCheck, Globe, Search, AlertCircle, Newspaper, ArrowRight, MessageSquare, Database, ExternalLink, Key } from 'lucide-react';
 
 interface PageBrokerIntelProps {
   recommendations: StockRecommendation[];
@@ -10,6 +10,7 @@ interface PageBrokerIntelProps {
   onTrade: (stock: StockRecommendation) => void;
   onRefresh: () => void;
   isLoading: boolean;
+  error?: string | null;
 }
 
 export const PageBrokerIntel: React.FC<PageBrokerIntelProps> = ({
@@ -17,7 +18,8 @@ export const PageBrokerIntel: React.FC<PageBrokerIntelProps> = ({
   marketData,
   onTrade,
   onRefresh,
-  isLoading
+  isLoading,
+  error
 }) => {
   const [activeTimeframe, setActiveTimeframe] = useState<'BTST' | 'WEEKLY' | 'MONTHLY'>('BTST');
   const [loadingStep, setLoadingStep] = useState(0);
@@ -53,6 +55,13 @@ export const PageBrokerIntel: React.FC<PageBrokerIntelProps> = ({
       monthly: recommendations.filter(r => r.timeframe === 'MONTHLY').length,
     };
   }, [recommendations]);
+
+  const handleSelectKey = async () => {
+    if (window.aistudio?.openSelectKey) {
+      await window.aistudio.openSelectKey();
+      onRefresh();
+    }
+  };
 
   return (
     <div className="p-4 pb-24 animate-fade-in max-w-lg mx-auto md:max-w-none">
@@ -138,6 +147,33 @@ export const PageBrokerIntel: React.FC<PageBrokerIntelProps> = ({
             <div className="w-48 h-1 bg-slate-800 rounded-full overflow-hidden">
                 <div className="h-full bg-blue-500 animate-[loading_2s_infinite]"></div>
             </div>
+        </div>
+      ) : error === 'QUOTA_EXCEEDED' ? (
+        <div className="text-center py-16 border border-dashed border-red-500/40 rounded-3xl bg-red-900/10 px-6 animate-fade-in">
+          <div className="w-16 h-16 bg-red-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
+            <AlertCircle size={32} className="text-red-400 animate-pulse" />
+          </div>
+          <h3 className="text-lg font-black text-white uppercase tracking-tighter mb-2 italic">Intelligence Throttled</h3>
+          <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest leading-relaxed mb-6">
+            The Gemini API quota for the shared key has been exhausted.<br/>
+            Please select your own API key to continue exploring.
+          </p>
+          <div className="flex flex-col gap-3 max-w-[240px] mx-auto">
+            <button 
+              onClick={handleSelectKey} 
+              className="flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-5 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all active:scale-95 shadow-lg shadow-blue-500/20"
+            >
+              <Key size={14}/> Select Personal API Key
+            </button>
+            <a 
+              href="https://ai.google.dev/gemini-api/docs/billing" 
+              target="_blank" 
+              rel="noreferrer" 
+              className="text-[9px] text-slate-500 font-bold uppercase tracking-widest hover:text-white transition-colors"
+            >
+              Learn about API Billing & Quotas
+            </a>
+          </div>
         </div>
       ) : (
         <div className="space-y-4">

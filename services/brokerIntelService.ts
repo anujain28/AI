@@ -28,14 +28,18 @@ async function promisePool<T, R>(
     return results;
 }
 
+export interface BrokerIntelResponse {
+  data: StockRecommendation[];
+  error?: 'QUOTA_EXCEEDED' | 'NOT_FOUND' | 'UNKNOWN';
+}
+
 /**
  * Broker Intel Service
  * Targets specific high-conviction ideas from Moneycontrol Stock Ideas.
  */
-export const fetchBrokerIntel = async (settings: AppSettings): Promise<StockRecommendation[]> => {
+export const fetchBrokerIntel = async (settings: AppSettings): Promise<BrokerIntelResponse> => {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   
-  // Specific instruction to focus on one source
   const prompt = `Search for the LATEST stock recommendations (February 2025) specifically from this page: https://www.moneycontrol.com/markets/stock-ideas/
     Identify the top Buy/Sell ideas mentioned on this page. 
     
@@ -90,17 +94,14 @@ export const fetchBrokerIntel = async (settings: AppSettings): Promise<StockReco
     }
 
     if (!Array.isArray(rawData) || rawData.length === 0) {
-        console.warn("Broker Intel: No data found for Moneycontrol Stock Ideas.");
-        return [];
+        return { data: [] };
     }
 
-    // Enriching data with a safety-first approach
     const enriched = await promisePool(rawData, 6, async (item: any) => {
       try {
         const baseSymbol = item.symbol.trim().toUpperCase().replace('.NS', '').split(' ')[0];
         const ticker = `${baseSymbol}.NS`;
         
-        // Fast technical enrichment (2s timeout)
         const mktData = await Promise.race([
             fetchRealStockData(ticker, settings, "1d", "1mo"),
             new Promise((_, reject) => setTimeout(() => reject('Timeout'), 2000))
@@ -144,9 +145,17 @@ export const fetchBrokerIntel = async (settings: AppSettings): Promise<StockReco
       }
     });
 
-    return enriched.filter((r): r is StockRecommendation => r !== null);
-  } catch (error) {
+    return { data: enriched.filter((r): r is StockRecommendation => r !== null) };
+  } catch (error: any) {
     console.error("Broker Intel Grounding Failure:", error);
-    return [];
+    
+    if (error.message?.includes('429') || error.message?.includes('QUOTA_EXCEEDED')) {
+      return { data: [], error: 'QUOTA_EXCEEDED' };
+    }
+    if (error.message?.includes('Requested entity was not found')) {
+      return { data: [], error: 'NOT_FOUND' };
+    }
+    
+    return { data: [], error: 'UNKNOWN' };
   }
 };
