@@ -2,7 +2,7 @@
 import React, { useState, useMemo } from 'react';
 import { StockRecommendation, MarketData } from '../types';
 import { StockCard } from './StockCard';
-import { Building2, RefreshCw, Calendar, Zap, TrendingUp, Info, ExternalLink, ShieldCheck } from 'lucide-react';
+import { Building2, RefreshCw, Calendar, Zap, TrendingUp, Info, ExternalLink, ShieldCheck, Globe, Search, AlertCircle } from 'lucide-react';
 
 interface PageBrokerIntelProps {
   recommendations: StockRecommendation[];
@@ -43,7 +43,7 @@ export const PageBrokerIntel: React.FC<PageBrokerIntelProps> = ({
           </h1>
           <p className="text-[10px] font-black uppercase tracking-[0.2em] mt-2 flex items-center gap-2 text-slate-500">
             <Building2 size={12} className="text-indigo-500" />
-            Institutional Alpha Aggregator
+            Institutional Alpha Tracker
           </p>
         </div>
         <button 
@@ -57,18 +57,20 @@ export const PageBrokerIntel: React.FC<PageBrokerIntelProps> = ({
 
       <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-4 mb-6">
         <div className="flex items-center gap-2 mb-3">
-          <Info size={14} className="text-indigo-400" />
-          <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Synthesized Sources</span>
+          <Globe size={14} className="text-indigo-400" />
+          <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Active Intelligence Sources</span>
         </div>
         <div className="flex flex-wrap gap-2">
-          {['Angel One', '5paisa', 'Kotak', 'HDFC', 'Groww', 'Sharekhan'].map(s => (
-            <span key={s} className="text-[8px] font-black bg-slate-800 px-2 py-1 rounded text-slate-400 uppercase">{s}</span>
+          {['Angel One', '5paisa', 'Kotak', 'HDFC', 'Groww', 'Zerodha', 'Sharekhan'].map(s => (
+            <span key={s} className="text-[8px] font-black bg-slate-800/80 px-2 py-1.5 rounded-lg border border-slate-700 text-slate-400 uppercase">
+                {s}
+            </span>
           ))}
         </div>
       </div>
 
       {/* Timeframe Selector */}
-      <div className="flex bg-slate-900/80 backdrop-blur-sm rounded-2xl p-1.5 border border-slate-800 mb-8">
+      <div className="flex bg-slate-900/80 backdrop-blur-sm rounded-2xl p-1.5 border border-slate-800 mb-8 sticky top-4 z-30 shadow-2xl">
         {[
           { id: 'BTST', label: 'BTST', icon: <Zap size={14} />, count: stats.btst },
           { id: 'WEEKLY', label: 'Weekly', icon: <Calendar size={14} />, count: stats.weekly },
@@ -93,10 +95,18 @@ export const PageBrokerIntel: React.FC<PageBrokerIntelProps> = ({
       </div>
 
       {isLoading ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {[1, 2, 3, 4].map(i => (
-            <div key={i} className="h-48 bg-slate-900/50 rounded-2xl border border-slate-800 animate-pulse"></div>
-          ))}
+        <div className="flex flex-col items-center justify-center py-20 gap-6">
+            <div className="relative">
+                <Search size={48} className="text-indigo-500 animate-pulse" />
+                <div className="absolute inset-0 border-4 border-indigo-500/20 border-t-indigo-500 rounded-full animate-spin"></div>
+            </div>
+            <div className="text-center">
+                <p className="text-xs font-black text-white uppercase tracking-widest mb-1">Crawling Brokerage Repositories...</p>
+                <p className="text-[9px] text-slate-500 uppercase font-bold">Grounding search on Angel, HDFC, Kotak & more</p>
+            </div>
+            <div className="w-48 h-1 bg-slate-800 rounded-full overflow-hidden">
+                <div className="h-full bg-indigo-500 animate-[loading_2s_infinite]"></div>
+            </div>
         </div>
       ) : (
         <div className="space-y-4">
@@ -107,17 +117,26 @@ export const PageBrokerIntel: React.FC<PageBrokerIntelProps> = ({
               ))}
             </div>
           ) : (
-            <div className="text-center py-20 border border-dashed border-slate-800 rounded-3xl">
-              <Zap size={32} className="mx-auto text-slate-700 mb-4 opacity-20" />
-              <p className="text-[10px] font-black text-slate-600 uppercase tracking-widest">
-                Scouting {activeTimeframe} Alpha...
+            <div className="text-center py-20 border border-dashed border-slate-800 rounded-3xl bg-slate-900/20">
+              <AlertCircle size={32} className="mx-auto text-slate-700 mb-4 opacity-20" />
+              <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">
+                No active {activeTimeframe} picks found
               </p>
+              <button onClick={onRefresh} className="mt-4 text-[9px] font-black text-indigo-400 hover:underline uppercase tracking-widest">
+                Force Kernel Refresh
+              </button>
             </div>
           )}
         </div>
       )}
       
       <div className="h-12"></div>
+      <style>{`
+        @keyframes loading {
+          0% { transform: translateX(-100%); }
+          100% { transform: translateX(100%); }
+        }
+      `}</style>
     </div>
   );
 };
