@@ -7,7 +7,7 @@ const marketCache: Record<string, { data: StockData, timestamp: number }> = {};
 const pendingRequests = new Map<string, Promise<StockData | null>>();
 
 /**
- * Turbo Proxy Racer - Races 3 proxies with a 2.5s hard timeout
+ * Turbo Proxy Racer - Races multiple proxies with a fail-fast timeout
  */
 async function fetchWithProxy(targetUrl: string, settings: AppSettings): Promise<any> {
     const proxies = [
@@ -17,11 +17,9 @@ async function fetchWithProxy(targetUrl: string, settings: AppSettings): Promise
     ];
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 2800);
+    const timeoutId = setTimeout(() => controller.abort(), 3500); // 3.5s limit
 
     try {
-        // Fixed: Replaced Promise.any with custom racing logic to avoid compatibility errors in environments below ES2021.
-        // This logic resolves with the first successful (fulfilled) response.
         const responseText = await new Promise<any>((resolve, reject) => {
             let settledCount = 0;
             let resolved = false;
@@ -33,11 +31,14 @@ async function fetchWithProxy(targetUrl: string, settings: AppSettings): Promise
                 }).then(async res => {
                     if (!res.ok) throw new Error("Fetch failed");
                     const json = await res.json();
-                    if (!json?.chart?.result) throw new Error("Invalid response structure");
+                    
+                    // AllOrigins wrapper check
+                    const finalData = json.contents ? JSON.parse(json.contents) : json;
+                    if (!finalData?.chart?.result) throw new Error("Invalid structure");
                     
                     if (!resolved) {
                         resolved = true;
-                        resolve(json);
+                        resolve(finalData);
                     }
                 }).catch(() => {
                     settledCount++;
@@ -102,9 +103,9 @@ export const fetchRealStockData = async (
 ): Promise<StockData | null> => {
     const cacheKey = `${symbol}_${interval}_${range}`;
     
-    // Memory Cache Check
+    // Increased TTL to 30 seconds for background scan stability
     const cached = marketCache[cacheKey];
-    if (cached && (Date.now() - cached.timestamp < 10000)) {
+    if (cached && (Date.now() - cached.timestamp < 30000)) {
         return cached.data;
     }
 
