@@ -2,7 +2,7 @@
 import { useMemo, useEffect, useState } from 'react';
 import { StockRecommendation, MarketData, MarketSettings } from '../types';
 import { StockCard } from './StockCard';
-import { RefreshCw, Zap, Sparkles, Bot, Compass, Search, Target, Link2, ExternalLink } from 'lucide-react';
+import { RefreshCw, Zap, Sparkles, Bot, Compass, Search, Target, Link2, ExternalLink, BarChart2 } from 'lucide-react';
 import { getMarketStatus } from '../services/marketStatusService';
 
 interface PageMarketProps {
@@ -47,12 +47,12 @@ export const PageMarket: React.FC<PageMarketProps> = ({
       <div className="flex justify-between items-start mb-6">
          <div>
              <h1 className="text-3xl font-black text-white italic leading-none uppercase tracking-tighter flex items-center gap-2">
-                 {isWeekend ? 'Weekend Scout' : isAfterHours ? 'Post-Market AI' : 'Live Alpha Hub'}
+                 {isWeekend ? 'Weekend Scout' : isAfterHours ? 'Post-Market Alpha' : 'Live Momentum Hub'}
                  {isWeekend ? <Compass size={24} className="text-indigo-400 animate-pulse" /> : <Sparkles size={22} className="text-blue-400 animate-pulse" />}
              </h1>
              <p className={`text-[10px] font-black uppercase tracking-[0.2em] mt-2 flex items-center gap-2 ${marketStatus.isOpen ? 'text-green-500' : 'text-slate-500'}`}>
-                 <Bot size={12} className={isWeekend ? 'text-indigo-500' : 'text-blue-500'} />
-                 Real-Time Robot Intelligence v4.2
+                 <BarChart2 size={12} className={isWeekend ? 'text-indigo-500' : 'text-blue-500'} />
+                 Quantitative Technical Engine v4.2
              </p>
          </div>
          <button 
@@ -67,18 +67,18 @@ export const PageMarket: React.FC<PageMarketProps> = ({
       {!isLoading && (
         <div className="mb-6 p-4 bg-slate-900/80 border border-slate-800 rounded-2xl animate-slide-up">
             <div className="flex items-center gap-3 mb-2">
-                <Link2 size={16} className="text-blue-400" />
+                <Search size={16} className="text-blue-400" />
                 <span className="text-[10px] font-black text-blue-400 uppercase tracking-widest">
-                  Intelligence Grounding
+                  Live Technical Grounding
                 </span>
             </div>
             <div className="flex items-center justify-between">
                 <p className="text-[9px] text-slate-400 font-bold uppercase">
-                  Source: <span className="text-white">airobots.streamlit.app</span>
+                  Active Universe: <span className="text-white">NSE India Top 100</span>
                 </p>
-                <a href="https://airobots.streamlit.app/" target="_blank" rel="noreferrer" className="text-[9px] text-blue-400 font-black flex items-center gap-1 hover:underline">
-                    VISIT SOURCE <ExternalLink size={10}/>
-                </a>
+                <div className="text-[9px] text-blue-400 font-black flex items-center gap-1">
+                    REAL-TIME SYNC <BarChart2 size={10}/>
+                </div>
             </div>
         </div>
       )}
@@ -106,7 +106,7 @@ export const PageMarket: React.FC<PageMarketProps> = ({
                     </div>
                     <div>
                         <h2 className="text-xl font-black text-white uppercase tracking-tight italic">
-                            BEST 5 ROBOT PICKS
+                            TOP CONVICTION PICKS
                         </h2>
                         <p className="text-[9px] font-bold uppercase tracking-widest text-blue-400">
                             High Intensity Market Alpha

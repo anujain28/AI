@@ -2,7 +2,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { StockRecommendation, MarketData } from '../types';
 import { StockCard } from './StockCard';
-import { RefreshCw, Calendar, Zap, TrendingUp, ShieldCheck, Globe, Search, AlertCircle, Newspaper, ArrowRight, MessageSquare, Database, ExternalLink, Key } from 'lucide-react';
+import { RefreshCw, Calendar, Zap, TrendingUp, ShieldCheck, Globe, Search, AlertCircle, Newspaper, ArrowRight, Database, ExternalLink, BarChart2 } from 'lucide-react';
 
 interface PageBrokerIntelProps {
   recommendations: StockRecommendation[];
@@ -25,11 +25,11 @@ export const PageBrokerIntel: React.FC<PageBrokerIntelProps> = ({
   const [loadingStep, setLoadingStep] = useState(0);
 
   const steps = [
-    "NAVIGATING TO MONEYCONTROL IDEAS...",
-    "PARSING EXPERT RECOMMENDATIONS...",
-    "EXTRACTING TARGETS & STOP LOSSES...",
     "SYNCING WITH NSE TICKER CORE...",
-    "VALIDATING MOMENTUM SIGNALS..."
+    "CALCULATING TECHNICAL CONVICTION...",
+    "EXTRACTING TARGETS & STOP LOSSES...",
+    "VALIDATING MOMENTUM SIGNALS...",
+    "FINALIZING INSTITUTIONAL PICKS..."
   ];
 
   useEffect(() => {
@@ -37,7 +37,7 @@ export const PageBrokerIntel: React.FC<PageBrokerIntelProps> = ({
     if (isLoading) {
       interval = setInterval(() => {
         setLoadingStep(s => (s + 1) % steps.length);
-      }, 3000);
+      }, 1500);
     } else {
       setLoadingStep(0);
     }
@@ -56,13 +56,6 @@ export const PageBrokerIntel: React.FC<PageBrokerIntelProps> = ({
     };
   }, [recommendations]);
 
-  const handleSelectKey = async () => {
-    if (window.aistudio?.openSelectKey) {
-      await window.aistudio.openSelectKey();
-      onRefresh();
-    }
-  };
-
   return (
     <div className="p-4 pb-24 animate-fade-in max-w-lg mx-auto md:max-w-none">
       <div className="flex justify-between items-start mb-6">
@@ -72,8 +65,8 @@ export const PageBrokerIntel: React.FC<PageBrokerIntelProps> = ({
             <Newspaper size={24} className="text-blue-400" />
           </h1>
           <p className="text-[10px] font-black uppercase tracking-[0.2em] mt-2 flex items-center gap-2 text-slate-500">
-            <Globe size={12} className="text-indigo-500" />
-            Moneycontrol Intelligence Core
+            <Globe size={12} className="text-blue-500" />
+            Institutional Technical Engine
           </p>
         </div>
         <button 
@@ -89,18 +82,18 @@ export const PageBrokerIntel: React.FC<PageBrokerIntelProps> = ({
         <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Database size={14} className="text-blue-400" />
-              <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Target Grounding URL</span>
+              <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Data Source: Yahoo Finance</span>
             </div>
-            <a href="https://www.moneycontrol.com/markets/stock-ideas/" target="_blank" rel="noreferrer" className="text-[9px] text-blue-400 font-black flex items-center gap-1 hover:underline">
-                OPEN SOURCE <ExternalLink size={10}/>
-            </a>
+            <span className="text-[9px] text-blue-400 font-black flex items-center gap-1">
+                FREE API ACTIVE <BarChart2 size={10}/>
+            </span>
         </div>
         <div className="flex flex-wrap gap-2">
             <span className="text-[8px] font-black bg-blue-900/20 px-2 py-1.5 rounded-lg border border-blue-800/30 text-blue-400 uppercase">
-                Technical Expert Picks
+                Momentum Consensus
             </span>
             <span className="text-[8px] font-black bg-slate-800/80 px-2 py-1.5 rounded-lg border border-slate-700 text-slate-400 uppercase">
-                Institutional Consensus
+                Bluechip Focus
             </span>
         </div>
       </div>
@@ -141,39 +134,12 @@ export const PageBrokerIntel: React.FC<PageBrokerIntelProps> = ({
                   {steps[loadingStep]}
                 </p>
                 <p className="text-[9px] text-slate-500 uppercase font-bold flex items-center justify-center gap-1">
-                    <MessageSquare size={10}/> SCANNING MONEYCONTROL STOCK IDEAS
+                    SCANNING INSTITUTIONAL BLUECHIPS
                 </p>
             </div>
             <div className="w-48 h-1 bg-slate-800 rounded-full overflow-hidden">
                 <div className="h-full bg-blue-500 animate-[loading_2s_infinite]"></div>
             </div>
-        </div>
-      ) : error === 'QUOTA_EXCEEDED' ? (
-        <div className="text-center py-16 border border-dashed border-red-500/40 rounded-3xl bg-red-900/10 px-6 animate-fade-in">
-          <div className="w-16 h-16 bg-red-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
-            <AlertCircle size={32} className="text-red-400 animate-pulse" />
-          </div>
-          <h3 className="text-lg font-black text-white uppercase tracking-tighter mb-2 italic">Intelligence Throttled</h3>
-          <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest leading-relaxed mb-6">
-            The Gemini API quota for the shared key has been exhausted.<br/>
-            Please select your own API key to continue exploring.
-          </p>
-          <div className="flex flex-col gap-3 max-w-[240px] mx-auto">
-            <button 
-              onClick={handleSelectKey} 
-              className="flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-5 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all active:scale-95 shadow-lg shadow-blue-500/20"
-            >
-              <Key size={14}/> Select Personal API Key
-            </button>
-            <a 
-              href="https://ai.google.dev/gemini-api/docs/billing" 
-              target="_blank" 
-              rel="noreferrer" 
-              className="text-[9px] text-slate-500 font-bold uppercase tracking-widest hover:text-white transition-colors"
-            >
-              Learn about API Billing & Quotas
-            </a>
-          </div>
         </div>
       ) : (
         <div className="space-y-4">
@@ -187,14 +153,14 @@ export const PageBrokerIntel: React.FC<PageBrokerIntelProps> = ({
             <div className="text-center py-20 border border-dashed border-slate-800 rounded-3xl bg-slate-900/20 px-6">
               <AlertCircle size={32} className="mx-auto text-slate-700 mb-4 opacity-20" />
               <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest leading-relaxed">
-                No active {activeTimeframe} ideas found on Moneycontrol today.<br/>
-                Try refreshing or checking search tool permissions.
+                No high-conviction {activeTimeframe} technical ideas found.<br/>
+                Try refreshing for latest market consensus.
               </p>
               <button 
                 onClick={onRefresh} 
                 className="mt-6 flex items-center gap-2 mx-auto bg-blue-600 hover:bg-blue-500 text-white px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all active:scale-95 shadow-lg shadow-blue-500/20"
               >
-                Force Deep Crawl <ArrowRight size={14}/>
+                Refresh Data <ArrowRight size={14}/>
               </button>
             </div>
           )}
