@@ -13,11 +13,11 @@ async function fetchWithProxy(targetUrl: string): Promise<any> {
     const proxies = [
         `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`,
         `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`,
-        `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(targetUrl)}`
+        `https://proxy.cors.sh/${targetUrl}`
     ];
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 4500); // 4.5s max wait
+    const timeoutId = setTimeout(() => controller.abort(), 5000); // 5s wait
 
     try {
         const responseText = await new Promise<any>((resolve, reject) => {
@@ -25,37 +25,45 @@ async function fetchWithProxy(targetUrl: string): Promise<any> {
             let resolved = false;
             
             proxies.forEach(url => {
-                fetch(url, { signal: controller.signal })
-                    .then(async res => {
-                        if (!res.ok) throw new Error("Proxy response not OK");
-                        const raw = await res.text();
-                        
-                        // Handle potential AllOrigins or other wrapper structures
-                        let json;
-                        try {
-                            json = JSON.parse(raw);
-                            // If it's wrapped in a "contents" field (AllOrigins)
-                            if (json.contents) json = JSON.parse(json.contents);
-                        } catch (e) {
-                            // If raw text is already the target JSON
-                            json = JSON.parse(raw);
-                        }
-
-                        if (json?.chart?.result) {
-                            if (!resolved) {
-                                resolved = true;
-                                resolve(json);
+                fetch(url, { 
+                    signal: controller.signal,
+                    headers: url.includes('cors.sh') ? { 'x-cors-gratis': 'true' } : {}
+                })
+                .then(async res => {
+                    if (!res.ok) throw new Error("Proxy response not OK");
+                    const raw = await res.text();
+                    
+                    let json;
+                    try {
+                        json = JSON.parse(raw);
+                        // AllOrigins double-encapsulation fix
+                        if (json.contents) {
+                            try {
+                                json = JSON.parse(json.contents);
+                            } catch (e) {
+                                // contents might be the raw HTML or a non-JSON string
                             }
-                        } else {
-                            throw new Error("Invalid Yahoo Chart format");
                         }
-                    })
-                    .catch(() => {
-                        settledCount++;
-                        if (settledCount === proxies.length && !resolved) {
-                            reject(new Error("All proxies failed"));
+                    } catch (e) {
+                        // Fallback: raw might be the JSON string already
+                        json = JSON.parse(raw);
+                    }
+
+                    if (json?.chart?.result) {
+                        if (!resolved) {
+                            resolved = true;
+                            resolve(json);
                         }
-                    });
+                    } else {
+                        throw new Error("Invalid structure");
+                    }
+                })
+                .catch(() => {
+                    settledCount++;
+                    if (settledCount === proxies.length && !resolved) {
+                        reject(new Error("All proxies failed"));
+                    }
+                });
             });
         });
 
@@ -115,7 +123,8 @@ export const fetchRealStockData = async (
     const cacheKey = `${ticker}_${interval}_${range}`;
     
     const cached = marketCache[cacheKey];
-    if (cached && (Date.now() - cached.timestamp < 30000)) {
+    // Cache result for 45 seconds to keep data fresh but avoid redundant fetches
+    if (cached && (Date.now() - cached.timestamp < 45000)) {
         return cached.data;
     }
 

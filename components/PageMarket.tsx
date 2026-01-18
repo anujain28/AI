@@ -1,8 +1,8 @@
 
-import { useMemo, useEffect, useState } from 'react';
+import { useMemo } from 'react';
 import { StockRecommendation, MarketData, MarketSettings } from '../types';
 import { StockCard } from './StockCard';
-import { RefreshCw, Zap, Sparkles, Search, Clock, TrendingUp, Calendar, Repeat, Target } from 'lucide-react';
+import { RefreshCw, Zap, Sparkles, Search, Clock, TrendingUp, Calendar, Repeat, Target, Radar } from 'lucide-react';
 
 interface PageMarketProps {
   recommendations: StockRecommendation[];
@@ -10,6 +10,7 @@ interface PageMarketProps {
   onTrade: (stock: StockRecommendation) => void;
   onRefresh: () => void;
   isLoading: boolean;
+  scanProgress: number;
   enabledMarkets: MarketSettings;
   settings: any;
 }
@@ -20,20 +21,8 @@ export const PageMarket: React.FC<PageMarketProps> = ({
   onTrade,
   onRefresh,
   isLoading,
+  scanProgress
 }) => {
-  const [scanProgress, setScanProgress] = useState(0);
-  
-  useEffect(() => {
-    if (isLoading) {
-      const interval = setInterval(() => {
-        setScanProgress(p => (p < 95 ? p + 4 : p));
-      }, 100); 
-      return () => clearInterval(interval);
-    } else {
-      setScanProgress(0);
-    }
-  }, [isLoading]);
-
   // Conviction-based categorization
   const intraday = useMemo(() => recommendations.filter(r => r.timeframe === 'INTRADAY').slice(0, 5), [recommendations]);
   const btst = useMemo(() => recommendations.filter(r => r.timeframe === 'BTST').slice(0, 5), [recommendations]);
@@ -63,7 +52,7 @@ export const PageMarket: React.FC<PageMarketProps> = ({
              </h1>
              <p className="text-[10px] font-black uppercase tracking-[0.2em] mt-2 flex items-center gap-2 text-slate-500">
                  <Zap size={12} className="text-yellow-500" />
-                 Shoonya & Yahoo Turbo Feed
+                 Multi-Source Signal Convergence
              </p>
          </div>
          <button 
@@ -80,22 +69,33 @@ export const PageMarket: React.FC<PageMarketProps> = ({
               <div className="flex justify-between items-end mb-2">
                   <span className="text-[9px] font-black uppercase tracking-widest text-blue-400 flex items-center gap-2">
                       <Target size={12} className="animate-pulse" />
-                      Mapping Alpha Universes...
+                      Scanning Market Alpha...
                   </span>
-                  <span className="text-[9px] font-mono text-slate-500">{scanProgress}%</span>
+                  <span className="text-[10px] font-mono text-white font-bold">{scanProgress}%</span>
               </div>
-              <div className="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden">
-                  <div className="h-full bg-blue-600 transition-all duration-300 shadow-[0_0_12px_#2563eb]" style={{ width: `${scanProgress}%` }}></div>
+              <div className="h-2 w-full bg-slate-800 rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-blue-600 transition-all duration-300 shadow-[0_0_12px_#2563eb]" 
+                    style={{ width: `${scanProgress}%` }}
+                  ></div>
               </div>
           </div>
       )}
 
       {!isLoading && recommendations.length === 0 && (
-          <div className="text-center py-20 border border-dashed border-slate-800 rounded-3xl">
+          <div className="text-center py-20 border border-dashed border-slate-800 rounded-3xl bg-slate-900/20 px-6">
               <Search size={32} className="mx-auto text-slate-700 mb-4 opacity-20" />
-              <p className="text-[10px] font-black text-slate-600 uppercase tracking-widest">
-                  No convergence detected.
+              <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest">No Alpha Detected</h3>
+              <p className="text-[9px] text-slate-600 uppercase font-bold mt-2 leading-relaxed">
+                  Market technicals are currently neutral. Try refreshing or adjust your engine universe in Config.
               </p>
+              <button 
+                onClick={onRefresh}
+                className="mt-6 px-6 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2 mx-auto border border-slate-700"
+              >
+                <Radar size={14} className="text-blue-400" />
+                Trigger Deep Scan
+              </button>
           </div>
       )}
 
@@ -103,7 +103,7 @@ export const PageMarket: React.FC<PageMarketProps> = ({
           <div className="space-y-4">
               {intraday.length > 0 && (
                   <section className="animate-slide-up">
-                      <SectionTitle icon={Clock} title="Intraday" sub="High Conviction Scalps" color="text-red-500" />
+                      <SectionTitle icon={Clock} title="Intraday" sub="Fast Momentum Scalps" color="text-red-500" />
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
                           {intraday.map(item => <StockCard key={item.symbol} stock={item} marketData={marketData} onTrade={onTrade} />)}
                       </div>
@@ -130,7 +130,7 @@ export const PageMarket: React.FC<PageMarketProps> = ({
 
               {monthly.length > 0 && (
                   <section className="animate-slide-up">
-                      <SectionTitle icon={Calendar} title="Monthly" sub="Position Trades" color="text-purple-500" />
+                      <SectionTitle icon={Calendar} title="Monthly" sub="Value Position Trades" color="text-purple-500" />
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
                           {monthly.map(item => <StockCard key={item.symbol} stock={item} marketData={marketData} onTrade={onTrade} />)}
                       </div>

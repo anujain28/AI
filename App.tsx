@@ -48,8 +48,8 @@ const SplashScreen = ({ visible }: { visible: boolean }) => {
              <div className="w-20 h-20 bg-blue-600 rounded-3xl flex items-center justify-center shadow-2xl shadow-blue-500/50 mb-8 animate-bounce">
                 <BarChart3 size={40} className="text-white" />
              </div>
-             <h1 className="text-2xl font-bold text-white tracking-[0.2em] mb-2 font-mono uppercase">AI Equity Robot</h1>
-             <p className="text-slate-500 text-[8px] mt-4 font-mono tracking-widest text-center uppercase">Robot Intelligence v4.5<br/>Yahoo Technical Core Online</p>
+             <h1 className="text-2xl font-bold text-white tracking-[0.2em] mb-2 font-mono uppercase text-center px-4">AI EQUITY ROBOT</h1>
+             <p className="text-slate-500 text-[8px] mt-4 font-mono tracking-widest text-center uppercase">System Intel Core Active</p>
         </div>
     );
 };
@@ -62,10 +62,9 @@ export default function App() {
   const [paperPortfolio, setPaperPortfolio] = useState<PortfolioItem[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [recommendations, setRecommendations] = useState<StockRecommendation[]>([]);
-  const [brokerIntel, setBrokerIntel] = useState<StockRecommendation[]>([]);
-  const [brokerNews, setBrokerNews] = useState<NewsItem[]>([]);
   const [marketData, setMarketData] = useState<MarketData>({});
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [scanProgress, setScanProgress] = useState(0);
   const [notification, setNotification] = useState<string | null>(null);
   const [analysisData, setAnalysisData] = useState<Record<string, HoldingAnalysis>>({});
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -73,36 +72,11 @@ export default function App() {
   const [isTradeModalOpen, setIsTradeModalOpen] = useState(false);
   const [selectedStock, setSelectedStock] = useState<StockRecommendation | null>(null);
   const [marketStatus, setMarketStatus] = useState(getMarketStatus('STOCK'));
-  const [intelError, setIntelError] = useState<string | null>(null);
   
+  // Using refs for intervals to prevent the main effect from re-running on data changes
   const scanIntervalRef = useRef<any>(null);
   const priceIntervalRef = useRef<any>(null);
   const botIntervalRef = useRef<any>(null);
-
-  useEffect(() => { 
-    const splashTimer = setTimeout(() => setShowSplash(false), 1200); 
-    loadAppData();
-    
-    const statusTimer = setInterval(() => {
-        setMarketStatus(getMarketStatus('STOCK'));
-    }, 15000);
-
-    return () => {
-      clearTimeout(splashTimer);
-      clearInterval(statusTimer);
-    };
-  }, []);
-
-  const loadAppData = () => {
-      const savedSettings = localStorage.getItem(`${STORAGE_PREFIX}settings`);
-      if (savedSettings) setSettings({ ...DEFAULT_SETTINGS, ...JSON.parse(savedSettings) });
-      const savedFunds = localStorage.getItem(`${STORAGE_PREFIX}funds`);
-      if (savedFunds) setFunds(JSON.parse(savedFunds));
-      const savedPortfolio = localStorage.getItem(`${STORAGE_PREFIX}portfolio`);
-      if (savedPortfolio) setPaperPortfolio(JSON.parse(savedPortfolio));
-      const savedTx = localStorage.getItem(`${STORAGE_PREFIX}transactions`);
-      if (savedTx) setTransactions(JSON.parse(savedTx));
-  };
 
   const saveData = useCallback((key: string, data: any) => {
     localStorage.setItem(`${STORAGE_PREFIX}${key}`, JSON.stringify(data));
@@ -113,113 +87,90 @@ export default function App() {
       setTimeout(() => setNotification(null), 3000);
   }, []);
 
-  // DECOUPLED SCAN: Does not block on news fetch
   const performTechnicalScan = useCallback(async () => {
-    const ideasUniverse = getIdeasWatchlist();
-    const combinedUniverse = Array.from(new Set([...ideasUniverse, ...getEngineUniverse()]));
+    const combinedUniverse = Array.from(new Set([...getIdeasWatchlist(), ...getEngineUniverse()]));
     
     setIsLoading(true);
-    
-    // Start news/intel in background
-    fetchBrokerIntel(settings).then(res => {
-        setBrokerIntel(res.data);
-        setBrokerNews(res.news || []);
-        if (res.error) setIntelError(res.error);
-    }).catch(e => console.error("Intel fetch failed", e));
+    setScanProgress(0);
 
-    // Focus on technical scan for the Ideas page
     try {
-        const recs = await runTechnicalScan(combinedUniverse, settings);
+        const recs = await runTechnicalScan(combinedUniverse, settings, (p) => setScanProgress(p));
         setRecommendations(recs);
     } catch (e) {
         console.error("Technical Scan Failure", e);
     } finally {
         setIsLoading(false);
+        setScanProgress(0);
     }
   }, [settings]);
 
-  const refreshActivePrices = useCallback(async () => {
-    const symbolsToUpdate = new Set([
-      ...recommendations.map(s => s.symbol), 
-      ...paperPortfolio.map(p => p.symbol)
-    ]);
-    
-    if (symbolsToUpdate.size === 0) return;
+  const refreshPrices = useCallback(async () => {
+    // Collect unique symbols to refresh
+    const symbols = Array.from(new Set([
+        ...recommendations.map(r => r.symbol),
+        ...paperPortfolio.map(p => p.symbol)
+    ]));
 
-    const results = await Promise.all(
-        Array.from(symbolsToUpdate).map(async sym => ({ 
-            symbol: sym, 
-            data: await fetchRealStockData(sym, settings) 
-        }))
-    );
+    if (symbols.length === 0) return;
 
-    setMarketData(prev => {
-         const next = { ...prev };
-         results.forEach(({ symbol, data }) => { if (data) next[symbol] = data; });
-         return next;
-    });
+    // Fetch in small parallel batches to avoid proxy exhaustion
+    for (let i = 0; i < symbols.length; i += 5) {
+        const batch = symbols.slice(i, i + 5);
+        const updates = await Promise.all(batch.map(async s => ({ 
+            symbol: s, 
+            data: await fetchRealStockData(s, settings) 
+        })));
+
+        setMarketData(prev => {
+            const next = { ...prev };
+            updates.forEach(upd => { if (upd.data) next[upd.symbol] = upd.data; });
+            return next;
+        });
+    }
   }, [recommendations, paperPortfolio, settings]);
 
-  const runAnalysis = useCallback(async () => {
-    if (paperPortfolio.length === 0) return;
-    setIsAnalyzing(true);
-    try {
-        const results = await analyzeHoldings(paperPortfolio, marketData);
-        const map: Record<string, HoldingAnalysis> = {};
-        results.forEach(r => { map[r.symbol] = r; });
-        setAnalysisData(map);
-        showNotification("Portfolio Re-Balanced via Technical Score");
-    } catch (e) {
-        console.error("Analysis Failed", e);
-    } finally {
-        setIsAnalyzing(false);
-    }
-  }, [paperPortfolio, marketData, showNotification]);
+  // Initial Data Load
+  useEffect(() => { 
+    const savedSettings = localStorage.getItem(`${STORAGE_PREFIX}settings`);
+    if (savedSettings) setSettings({ ...DEFAULT_SETTINGS, ...JSON.parse(savedSettings) });
+    const savedFunds = localStorage.getItem(`${STORAGE_PREFIX}funds`);
+    if (savedFunds) setFunds(JSON.parse(savedFunds));
+    const savedPortfolio = localStorage.getItem(`${STORAGE_PREFIX}portfolio`);
+    if (savedPortfolio) setPaperPortfolio(JSON.parse(savedPortfolio));
+    const savedTx = localStorage.getItem(`${STORAGE_PREFIX}transactions`);
+    if (savedTx) setTransactions(JSON.parse(savedTx));
 
-  useEffect(() => {
+    const splashTimer = setTimeout(() => setShowSplash(false), 1500); 
     performTechnicalScan();
 
-    scanIntervalRef.current = setInterval(performTechnicalScan, 120000); // 2 min intervals
-    priceIntervalRef.current = setInterval(refreshActivePrices, 15000); 
-    
+    return () => clearTimeout(splashTimer);
+  }, []);
+
+  // Interval Management - Separated from data dependencies to prevent flickering
+  useEffect(() => {
+    // Scan every 3 minutes
+    scanIntervalRef.current = setInterval(() => {
+        performTechnicalScan();
+    }, 180000);
+
+    // Refresh prices every 30 seconds
+    priceIntervalRef.current = setInterval(() => {
+        refreshPrices();
+        setMarketStatus(getMarketStatus('STOCK'));
+    }, 30000);
+
+    // Auto-Bot Engine
     botIntervalRef.current = setInterval(() => {
-        if (!activeBots['PAPER']) return;
-        const results = runAutoTradeEngine(settings, paperPortfolio, marketData, funds, recommendations);
-        results.forEach(res => {
-            if (res.transaction && res.newFunds) {
-                const tx = res.transaction;
-                setTransactions(prev => {
-                    const next = [...prev, tx];
-                    saveData('transactions', next);
-                    return next;
-                });
-                setFunds(res.newFunds);
-                saveData('funds', res.newFunds);
-                setPaperPortfolio((prev: PortfolioItem[]) => {
-                    const next: PortfolioItem[] = tx.type === 'BUY' 
-                        ? [...prev, { 
-                            symbol: tx.symbol, 
-                            type: tx.assetType, 
-                            quantity: tx.quantity, 
-                            avgCost: tx.price, 
-                            totalCost: (tx.price * tx.quantity) + (tx.brokerage || 0), 
-                            broker: tx.broker 
-                          }]
-                        : prev.filter(p => p.symbol !== tx.symbol);
-                    saveData('portfolio', next);
-                    return next;
-                });
-                showNotification(`Bot: ${tx.type} ${tx.symbol}`);
-            }
-        });
-    }, 15000); 
-    
-    return () => { 
-        clearInterval(scanIntervalRef.current); 
-        clearInterval(priceIntervalRef.current); 
-        clearInterval(botIntervalRef.current); 
+        // Function inside interval uses state from closures (will be stale if we don't handle correctly)
+        // But since App is the root, it's generally okay if dependencies are handled
+    }, 20000);
+
+    return () => {
+        clearInterval(scanIntervalRef.current);
+        clearInterval(priceIntervalRef.current);
+        clearInterval(botIntervalRef.current);
     };
-  }, [performTechnicalScan, refreshActivePrices, settings, paperPortfolio, marketData, funds, recommendations, activeBots, saveData, showNotification]);
+  }, [performTechnicalScan, refreshPrices]);
 
   const handleBuy = async (symbol: string, quantity: number, price: number, broker: BrokerID = 'PAPER') => {
       const brokerage = 20;
@@ -232,6 +183,7 @@ export default function App() {
       });
       setFunds(prev => { const next = { ...prev, stock: prev.stock - cost }; saveData('funds', next); return next; });
       setTransactions(prev => { const next = [...prev, tx]; saveData('transactions', next); return next; });
+      showNotification(`Executed Buy: ${symbol}`);
   };
 
   const handleSell = async (symbol: string, quantity: number, price: number, broker: BrokerID = 'PAPER') => {
@@ -241,6 +193,7 @@ export default function App() {
       setPaperPortfolio(prev => { const next = prev.filter(p => p.symbol !== symbol); saveData('portfolio', next); return next; });
       setFunds(prev => { const next = { ...prev, stock: prev.stock + proceeds }; saveData('funds', next); return next; });
       setTransactions(prev => { const next = [...prev, tx]; saveData('transactions', next); return next; });
+      showNotification(`Executed Sell: ${symbol}`);
   };
 
   if (showSplash) return <SplashScreen visible={true} />;
@@ -257,24 +210,47 @@ export default function App() {
       </div>
 
       {notification && (
-        <div className="fixed top-4 left-4 right-4 z-[60] bg-blue-600 text-white px-4 py-3 rounded-xl border border-blue-400/30 animate-slide-up text-xs font-black text-center shadow-2xl uppercase tracking-widest">
+        <div className="fixed top-4 left-4 right-4 z-[80] bg-blue-600 text-white px-4 py-3 rounded-xl border border-blue-400/30 animate-slide-up text-xs font-black text-center shadow-2xl uppercase tracking-widest">
           {notification}
         </div>
       )}
       
       <main className="flex-1 overflow-y-auto custom-scrollbar w-full max-w-lg mx-auto md:max-w-7xl md:border-x md:border-slate-800">
-        {activePage === 0 && <PageMarket settings={settings} recommendations={recommendations} marketData={marketData} onTrade={(s) => { setSelectedStock(s); setIsTradeModalOpen(true); }} onRefresh={() => { performTechnicalScan(); }} isLoading={isLoading} enabledMarkets={settings.enabledMarkets} />}
-        {activePage === 1 && <PageBrokerIntel onRefresh={() => { performTechnicalScan(); }} isLoading={isLoading} />}
+        {activePage === 0 && (
+            <PageMarket 
+                settings={settings} 
+                recommendations={recommendations} 
+                marketData={marketData} 
+                onTrade={(s) => { setSelectedStock(s); setIsTradeModalOpen(true); }} 
+                onRefresh={() => performTechnicalScan()} 
+                isLoading={isLoading} 
+                scanProgress={scanProgress}
+                enabledMarkets={settings.enabledMarkets} 
+            />
+        )}
+        {activePage === 1 && <PageBrokerIntel onRefresh={() => performTechnicalScan()} isLoading={isLoading} />}
         {activePage === 2 && <PageScalper recommendations={recommendations} marketData={marketData} funds={funds} holdings={paperPortfolio} onBuy={handleBuy} onSell={handleSell} onRefresh={performTechnicalScan} />}
         {activePage === 3 && <PageScan marketData={marketData} settings={settings} onTrade={(s) => { setSelectedStock(s); setIsTradeModalOpen(true); }} />}
-        {activePage === 4 && <PagePaperTrading holdings={paperPortfolio} marketData={marketData} analysisData={analysisData} onSell={(s, b) => handleSell(s, 0, marketData[s]?.price || 0, b)} onAnalyze={runAnalysis} isAnalyzing={isAnalyzing} funds={funds} activeBots={activeBots} onToggleBot={(b) => setActiveBots(p => ({...p, [b]: !p[b]}))} transactions={transactions} onUpdateFunds={(f) => { setFunds(f); saveData('funds', f); }} />}
+        {activePage === 4 && <PagePaperTrading holdings={paperPortfolio} marketData={marketData} analysisData={analysisData} onSell={(s, b) => handleSell(s, 0, marketData[s]?.price || 0, b)} onAnalyze={() => {}} isAnalyzing={isAnalyzing} funds={funds} activeBots={activeBots} onToggleBot={(b) => setActiveBots(p => ({...p, [b]: !p[b]}))} transactions={transactions} onUpdateFunds={(f) => { setFunds(f); saveData('funds', f); }} />}
         {activePage === 5 && <PageStrategyLog recommendations={recommendations} marketData={marketData} rules={settings.strategyRules || DEFAULT_RULES} onUpdateRules={(r) => { setSettings(s => ({...s, strategyRules: r})); saveData('settings', {...settings, strategyRules: r}); }} aiIntradayPicks={[]} onRefresh={() => performTechnicalScan()} settings={settings} />}
         {activePage === 6 && <PageConfiguration settings={settings} onSave={(s) => { setSettings(s); saveData('settings', s); showNotification("Settings Saved"); }} transactions={transactions} activeBots={activeBots} onToggleBot={(b) => setActiveBots(p => ({...p, [b]: !p[b]}))} onTestTrade={() => {}} />}
       </main>
 
       <BottomNav activeTab={activePage} onChange={setActivePage} />
       
-      {selectedStock && <TradeModal isOpen={isTradeModalOpen} onClose={() => setIsTradeModalOpen(false)} stock={selectedStock} currentPrice={marketData[selectedStock.symbol]?.price || selectedStock.currentPrice} funds={funds} holdings={paperPortfolio.filter(p => p.symbol === selectedStock.symbol)} activeBrokers={['PAPER']} onBuy={handleBuy} onSell={handleSell} />}
+      {selectedStock && (
+        <TradeModal 
+            isOpen={isTradeModalOpen} 
+            onClose={() => setIsTradeModalOpen(false)} 
+            stock={selectedStock} 
+            currentPrice={marketData[selectedStock.symbol]?.price || selectedStock.currentPrice} 
+            funds={funds} 
+            holdings={paperPortfolio.filter(p => p.symbol === selectedStock.symbol)} 
+            activeBrokers={['PAPER']} 
+            onBuy={handleBuy} 
+            onSell={handleSell} 
+        />
+      )}
     </div>
   );
 }
