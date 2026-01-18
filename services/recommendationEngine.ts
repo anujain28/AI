@@ -1,6 +1,5 @@
 import { StockRecommendation, AppSettings, StockData } from "../types";
 import { fetchRealStockData } from "./marketDataService";
-import { getGroupedUniverse } from "./stockListService";
 import { getMarketStatus } from "./marketStatusService";
 import { GoogleGenAI, Type } from "@google/genai";
 
@@ -28,7 +27,7 @@ async function promisePool<T, R>(
 
 /**
  * AI Robot Recommendation Engine.
- * Scans the market and uses Gemini to select the 'Best 5' high-conviction picks.
+ * Scans the market and uses Gemini 3 Flash to select the 'Best 5' high-conviction picks.
  */
 export const runTechnicalScan = async (
     stockUniverse: string[], 
@@ -38,13 +37,13 @@ export const runTechnicalScan = async (
   const marketStatus = getMarketStatus('STOCK');
   const isWeekend = !marketStatus.isOpen && marketStatus.message.includes('Weekend');
 
-  // Filter to a liquid subset of the universe for the technical scan
+  // Focus on a subset of the universe for performance and reliability
   const scanTargets = stockUniverse.filter(s => 
     s.startsWith('BSE') || 
-    ['RELIANCE.NS', 'HDFCBANK.NS', 'ICICIBANK.NS', 'TCS.NS', 'INFY.NS', 'SBIN.NS', 'AXISBANK.NS', 'BHARTIARTL.NS', 'TRENT.NS', 'ZOMATO.NS', 'TATASTEEL.NS', 'MARUTI.NS'].includes(s)
-  ).slice(0, 50);
+    ['RELIANCE.NS', 'HDFCBANK.NS', 'ICICIBANK.NS', 'TCS.NS', 'INFY.NS', 'SBIN.NS', 'AXISBANK.NS', 'BHARTIARTL.NS', 'TRENT.NS', 'ZOMATO.NS', 'TATASTEEL.NS', 'MARUTI.NS', 'BAJFINANCE.NS'].includes(s)
+  ).slice(0, 40);
 
-  const rawTechnicalResults = await promisePool(scanTargets, 10, async (symbol) => {
+  const rawTechnicalResults = await promisePool(scanTargets, 8, async (symbol) => {
       try {
           const interval = isWeekend ? "1d" : "15m";
           const range = isWeekend ? "1mo" : "2d";
@@ -69,19 +68,20 @@ export const runTechnicalScan = async (
 
   const validData = rawTechnicalResults.filter(r => r !== null) as any[];
   
-  // High-momentum candidates for AI Review
-  const topCandidates = validData.sort((a, b) => b.score - a.score).slice(0, 15);
+  // Sort by score to find potential top candidates
+  const topCandidates = validData.sort((a, b) => b.score - a.score).slice(0, 12);
 
   let best5Symbols: string[] = topCandidates.slice(0, 5).map(t => t.symbol);
 
-  // Use Gemini to act as the "Robot" picking the absolute best 5
+  // Use Gemini to act as the "Robot" picking the absolute best 5 picks from the top candidates
   try {
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
       const response = await ai.models.generateContent({
           model: 'gemini-3-flash-preview',
-          contents: `Review these technical stock candidates and select exactly 5 "AI Robot High-Conviction Picks" that have the best probability of immediate breakout or strong trend continuation for paper trading. 
-          Respond with ONLY a JSON array of symbols.
-          Data: ${JSON.stringify(topCandidates)}`,
+          contents: `Act as the 'AI Robots' stock selection engine. Review these 12 high-momentum technical stock candidates and select exactly 5 "Alpha Robot Picks" that have the most explosive short-term setup. 
+          Respond with ONLY a JSON array of the 5 symbols.
+          Market Context: ${marketStatus.message}
+          Candidate Data: ${JSON.stringify(topCandidates)}`,
           config: {
               responseMimeType: 'application/json',
               responseSchema: {
@@ -95,7 +95,7 @@ export const runTechnicalScan = async (
           best5Symbols = parsed.slice(0, 5);
       }
   } catch (err) {
-      console.warn("AI Picking failed, falling back to technical sort", err);
+      console.warn("AI Selection failed, falling back to technical score", err);
   }
 
   const finalRecommendations: StockRecommendation[] = validData.map(item => {
@@ -106,9 +106,9 @@ export const runTechnicalScan = async (
           type: 'STOCK',
           sector: 'Equity',
           currentPrice: item.currentPrice,
-          reason: isTopPick ? "AI Robot Alpha Signal - High Conviction" : (item.signals[0] || "Trend Alignment"),
-          riskLevel: item.score > 80 ? 'Low' : item.score > 50 ? 'Medium' : 'High',
-          targetPrice: item.currentPrice * (1 + (item.atr / item.currentPrice) * 3),
+          reason: isTopPick ? "AI Robot Top Pick: High Probability Setup" : (item.signals[0] || "Trend Following"),
+          riskLevel: item.score > 80 ? 'Low' : item.score > 55 ? 'Medium' : 'High',
+          targetPrice: item.currentPrice * (1 + (item.atr / item.currentPrice) * 2.5),
           timeframe: isWeekend ? 'WEEKLY' : 'BTST',
           score: item.score,
           lotSize: 1,
