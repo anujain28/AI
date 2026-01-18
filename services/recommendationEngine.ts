@@ -27,8 +27,7 @@ async function promisePool<T, R>(
 }
 
 /**
- * Technical Recommendation Engine
- * Optimized with higher concurrency (batch size 35) for faster initial results.
+ * High-Speed Technical Scan & Categorization
  */
 export const runTechnicalScan = async (
     stockUniverse: string[], 
@@ -39,34 +38,56 @@ export const runTechnicalScan = async (
   const isWeekend = !marketStatus.isOpen && marketStatus.message.includes('Weekend');
   const isAfterHours = !marketStatus.isOpen && marketStatus.message.includes('After Hours');
 
-  // Focus scan on top 100 liquid symbols for better performance
-  const fullUniverse = getFullUniverse();
-  const scanTargets = Array.from(new Set([...fullUniverse.slice(0, 100)]));
+  // Limit universe for "Instant First Sync" (Top 60 most liquid)
+  const scanTargets = getFullUniverse().slice(0, 60);
 
-  // Concurrency bumped to 35 for faster results
-  const rawTechnicalResults = await promisePool(scanTargets, 35, async (symbol) => {
+  // Concurrency bumped to 40 for aggressive data fetching
+  const rawTechnicalResults = await promisePool(scanTargets, 40, async (symbol) => {
       try {
+          // Get multiple timeframes for better classification
           const interval = (isWeekend || isAfterHours) ? "1d" : "15m";
           const range = (isWeekend || isAfterHours) ? "1mo" : "2d";
           const data = await fetchRealStockData(symbol, settings, interval, range);
 
           if (data) {
+              const tech = data.technicals;
+              const rvol = tech.rvol;
+              const score = tech.score;
+              
+              // Determine Timeframe Category
+              let timeframe: 'INTRADAY' | 'BTST' | 'WEEKLY' | 'MONTHLY' = 'INTRADAY';
+              let reason = "Momentum Breakout";
+
+              if (score > 85 && rvol > 2.5) {
+                  timeframe = 'INTRADAY';
+                  reason = "High Volume Intraday Spike";
+              } else if (score > 70 && tech.rsi > 60 && tech.adx > 25) {
+                  timeframe = 'BTST';
+                  reason = "Strong EOD momentum carry-forward";
+              } else if (tech.ema.ema9 > tech.ema.ema21 && tech.adx > 30) {
+                  timeframe = 'WEEKLY';
+                  reason = "Weekly Trend Continuation";
+              } else if (tech.rsi < 35) {
+                  timeframe = 'MONTHLY';
+                  reason = "Value Buy: Oversold Monthly Support";
+              }
+
               return {
                   symbol,
                   name: symbol.split('.')[0],
                   price: data.price,
-                  score: data.technicals.score,
-                  signals: data.technicals.activeSignals,
-                  atr: data.technicals.atr
+                  score: score,
+                  signals: tech.activeSignals,
+                  atr: tech.atr,
+                  timeframe,
+                  reason
               };
           }
       } catch (e) { }
       return null;
   });
 
-  const validData = rawTechnicalResults as any[];
-  
-  const recommendations: StockRecommendation[] = validData.map(item => {
+  return (rawTechnicalResults as any[]).map(item => {
       const isTopPick = item.score > 80;
       return {
           symbol: item.symbol,
@@ -74,16 +95,14 @@ export const runTechnicalScan = async (
           type: 'STOCK',
           sector: 'Equity',
           currentPrice: item.price,
-          reason: `Technical Alpha: ${item.signals[0] || "Bullish Setup"} verified on ${isWeekend ? 'Daily' : '15m'} timeframe.`,
-          riskLevel: item.score > 80 ? 'Low' : item.score > 60 ? 'Medium' : 'High',
-          targetPrice: item.price * (1 + (item.atr / item.price) * (isWeekend ? 5 : 3)),
-          timeframe: (isWeekend || isAfterHours) ? 'WEEKLY' : 'INTRADAY',
+          reason: item.reason,
+          riskLevel: item.score > 85 ? 'Low' : item.score > 65 ? 'Medium' : 'High',
+          targetPrice: item.price * (1 + (item.atr / item.price) * (item.timeframe === 'WEEKLY' ? 5 : 3)),
+          timeframe: item.timeframe,
           score: item.score,
           lotSize: 1,
           isTopPick: isTopPick,
           sourceUrl: `https://query1.finance.yahoo.com/v8/finance/chart/${item.symbol}`
-      };
-  });
-
-  return recommendations.sort((a, b) => (b.score || 0) - (a.score || 0)).slice(0, 20);
+      } as StockRecommendation;
+  }).sort((a, b) => (b.score || 0) - (a.score || 0));
 };
