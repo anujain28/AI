@@ -3,12 +3,14 @@ import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react'
 import { getIdeasWatchlist, getEngineUniverse } from './services/stockListService';
 import { fetchRealStockData } from './services/marketDataService';
 import { runTechnicalScan } from './services/recommendationEngine';
+import { fetchBrokerIntel } from './services/brokerIntelService';
 import { StockRecommendation, PortfolioItem, MarketData, Transaction, AppSettings, Funds, HoldingAnalysis, StrategyRules, AssetType, BrokerID } from './types';
 import { TradeModal } from './components/TradeModal';
 import { runAutoTradeEngine } from './services/autoTradeEngine';
 import { BarChart3, Briefcase, RefreshCw, Sparkles, Clock, Zap } from 'lucide-react';
 import { BottomNav } from './components/BottomNav';
 import { PageMarket } from './components/PageMarket';
+import { PageBrokerIntel } from './components/PageBrokerIntel';
 import { PagePaperTrading } from './components/PagePaperTrading';
 import { PageLivePNL } from './components/PageLivePNL';
 import { PageConfiguration } from './components/PageConfiguration';
@@ -61,6 +63,7 @@ export default function App() {
   const [paperPortfolio, setPaperPortfolio] = useState<PortfolioItem[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [recommendations, setRecommendations] = useState<StockRecommendation[]>([]);
+  const [brokerIntel, setBrokerIntel] = useState<StockRecommendation[]>([]);
   const [marketData, setMarketData] = useState<MarketData>({});
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [notification, setNotification] = useState<string | null>(null);
@@ -121,11 +124,20 @@ export default function App() {
     
     if (recommendations.length === 0) {
         setIsLoading(true);
-        const recs = await runTechnicalScan(combinedUniverse, settings);
+        const [recs, intel] = await Promise.all([
+          runTechnicalScan(combinedUniverse, settings),
+          fetchBrokerIntel(settings)
+        ]);
         setRecommendations(recs);
+        setBrokerIntel(intel);
     }
 
-    const symbolsToUpdate = new Set([...recommendations.map(s => s.symbol), ...paperPortfolio.map(p => p.symbol)]);
+    const symbolsToUpdate = new Set([
+      ...recommendations.map(s => s.symbol), 
+      ...brokerIntel.map(s => s.symbol),
+      ...paperPortfolio.map(p => p.symbol)
+    ]);
+    
     const results = await Promise.all(
         Array.from(symbolsToUpdate).map(async sym => ({ 
             symbol: sym, 
@@ -139,7 +151,7 @@ export default function App() {
          return next;
     });
     setIsLoading(false);
-  }, [recommendations, paperPortfolio, settings]);
+  }, [recommendations, brokerIntel, paperPortfolio, settings]);
 
   useEffect(() => {
     loadMarketData();
@@ -159,7 +171,6 @@ export default function App() {
                 });
                 setFunds(res.newFunds);
                 saveData('funds', res.newFunds);
-                // Fixed: Explicitly typed 'next' as PortfolioItem[] to fix AssetType assignment error from Transaction.
                 setPaperPortfolio((prev: PortfolioItem[]) => {
                     const next: PortfolioItem[] = tx.type === 'BUY' 
                         ? [...prev, { 
@@ -190,7 +201,6 @@ export default function App() {
       const brokerage = 20;
       const cost = (quantity * price) + brokerage;
       const tx: Transaction = { id: Date.now().toString(), type: 'BUY', symbol, assetType: 'STOCK', quantity, price, timestamp: Date.now(), broker, brokerage };
-      // Fixed: Explicitly typed 'next' as PortfolioItem[] for handleBuy consistency.
       setPaperPortfolio(prev => { 
           const next: PortfolioItem[] = [...prev, { symbol, type: 'STOCK', quantity, avgCost: price, totalCost: cost, broker }]; 
           saveData('portfolio', next); 
@@ -231,12 +241,13 @@ export default function App() {
       )}
       
       <main className="flex-1 overflow-y-auto custom-scrollbar w-full max-w-lg mx-auto md:max-w-7xl md:border-x md:border-slate-800">
-        {activePage === 0 && <PageMarket settings={settings} recommendations={recommendations} marketData={marketData} onTrade={(s) => { setSelectedStock(s); setIsTradeModalOpen(true); }} onRefresh={() => { setRecommendations([]); loadMarketData(); }} isLoading={isLoading} enabledMarkets={settings.enabledMarkets} />}
-        {activePage === 1 && <PageScalper recommendations={recommendations} marketData={marketData} funds={funds} holdings={paperPortfolio} onBuy={handleBuy} onSell={handleSell} onRefresh={loadMarketData} />}
-        {activePage === 2 && <PageScan marketData={marketData} settings={settings} onTrade={(s) => { setSelectedStock(s); setIsTradeModalOpen(true); }} />}
-        {activePage === 3 && <PagePaperTrading holdings={paperPortfolio} marketData={marketData} analysisData={analysisData} onSell={(s, b) => handleSell(s, 0, marketData[s]?.price || 0, b)} onAnalyze={() => setIsAnalyzing(true)} isAnalyzing={isAnalyzing} funds={funds} activeBots={activeBots} onToggleBot={(b) => setActiveBots(p => ({...p, [b]: !p[b]}))} transactions={transactions} onUpdateFunds={(f) => { setFunds(f); saveData('funds', f); }} />}
-        {activePage === 4 && <PageStrategyLog recommendations={recommendations} marketData={marketData} rules={settings.strategyRules || DEFAULT_RULES} onUpdateRules={(r) => { setSettings(s => ({...s, strategyRules: r})); saveData('settings', {...settings, strategyRules: r}); }} aiIntradayPicks={[]} onRefresh={() => loadMarketData()} settings={settings} />}
-        {activePage === 5 && <PageConfiguration settings={settings} onSave={(s) => { setSettings(s); saveData('settings', s); showNotification("Settings Saved"); }} transactions={transactions} activeBots={activeBots} onToggleBot={(b) => setActiveBots(p => ({...p, [b]: !p[b]}))} onTestTrade={() => {}} />}
+        {activePage === 0 && <PageMarket settings={settings} recommendations={recommendations} marketData={marketData} onTrade={(s) => { setSelectedStock(s); setIsTradeModalOpen(true); }} onRefresh={() => { setRecommendations([]); setBrokerIntel([]); loadMarketData(); }} isLoading={isLoading} enabledMarkets={settings.enabledMarkets} />}
+        {activePage === 1 && <PageBrokerIntel recommendations={brokerIntel} marketData={marketData} onTrade={(s) => { setSelectedStock(s); setIsTradeModalOpen(true); }} onRefresh={() => { setRecommendations([]); setBrokerIntel([]); loadMarketData(); }} isLoading={isLoading} />}
+        {activePage === 2 && <PageScalper recommendations={recommendations} marketData={marketData} funds={funds} holdings={paperPortfolio} onBuy={handleBuy} onSell={handleSell} onRefresh={loadMarketData} />}
+        {activePage === 3 && <PageScan marketData={marketData} settings={settings} onTrade={(s) => { setSelectedStock(s); setIsTradeModalOpen(true); }} />}
+        {activePage === 4 && <PagePaperTrading holdings={paperPortfolio} marketData={marketData} analysisData={analysisData} onSell={(s, b) => handleSell(s, 0, marketData[s]?.price || 0, b)} onAnalyze={() => setIsAnalyzing(true)} isAnalyzing={isAnalyzing} funds={funds} activeBots={activeBots} onToggleBot={(b) => setActiveBots(p => ({...p, [b]: !p[b]}))} transactions={transactions} onUpdateFunds={(f) => { setFunds(f); saveData('funds', f); }} />}
+        {activePage === 5 && <PageStrategyLog recommendations={recommendations} marketData={marketData} rules={settings.strategyRules || DEFAULT_RULES} onUpdateRules={(r) => { setSettings(s => ({...s, strategyRules: r})); saveData('settings', {...settings, strategyRules: r}); }} aiIntradayPicks={[]} onRefresh={() => loadMarketData()} settings={settings} />}
+        {activePage === 6 && <PageConfiguration settings={settings} onSave={(s) => { setSettings(s); saveData('settings', s); showNotification("Settings Saved"); }} transactions={transactions} activeBots={activeBots} onToggleBot={(b) => setActiveBots(p => ({...p, [b]: !p[b]}))} onTestTrade={() => {}} />}
       </main>
 
       <BottomNav activeTab={activePage} onChange={setActivePage} />
