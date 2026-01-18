@@ -1,8 +1,8 @@
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { StockRecommendation, MarketData } from '../types';
 import { StockCard } from './StockCard';
-import { RefreshCw, Calendar, Zap, TrendingUp, ShieldCheck, Globe, Search, AlertCircle, Newspaper, ArrowRight, Database, ExternalLink, BarChart2 } from 'lucide-react';
+import { RefreshCw, Globe, Search, AlertCircle, Newspaper, ArrowRight, ExternalLink, BarChart2, Info } from 'lucide-react';
 
 interface PageBrokerIntelProps {
   recommendations: StockRecommendation[];
@@ -21,15 +21,13 @@ export const PageBrokerIntel: React.FC<PageBrokerIntelProps> = ({
   isLoading,
   error
 }) => {
-  const [activeTimeframe, setActiveTimeframe] = useState<'BTST' | 'WEEKLY' | 'MONTHLY'>('BTST');
   const [loadingStep, setLoadingStep] = useState(0);
 
   const steps = [
     "SYNCING WITH NSE TICKER CORE...",
     "CALCULATING TECHNICAL CONVICTION...",
-    "EXTRACTING TARGETS & STOP LOSSES...",
     "VALIDATING MOMENTUM SIGNALS...",
-    "FINALIZING INSTITUTIONAL PICKS..."
+    "FETCHING MONEYCONTROL CONTEXT..."
   ];
 
   useEffect(() => {
@@ -44,29 +42,17 @@ export const PageBrokerIntel: React.FC<PageBrokerIntelProps> = ({
     return () => clearInterval(interval);
   }, [isLoading]);
 
-  const filteredPicks = useMemo(() => {
-    return recommendations.filter(r => r.timeframe === activeTimeframe);
-  }, [recommendations, activeTimeframe]);
-
-  const stats = useMemo(() => {
-    return {
-      btst: recommendations.filter(r => r.timeframe === 'BTST').length,
-      weekly: recommendations.filter(r => r.timeframe === 'WEEKLY').length,
-      monthly: recommendations.filter(r => r.timeframe === 'MONTHLY').length,
-    };
-  }, [recommendations]);
-
   return (
     <div className="p-4 pb-24 animate-fade-in max-w-lg mx-auto md:max-w-none">
       <div className="flex justify-between items-start mb-6">
         <div>
           <h1 className="text-3xl font-black text-white italic leading-none uppercase tracking-tighter flex items-center gap-2">
-            Stock Ideas
+            Broker Intel
             <Newspaper size={24} className="text-blue-400" />
           </h1>
           <p className="text-[10px] font-black uppercase tracking-[0.2em] mt-2 flex items-center gap-2 text-slate-500">
             <Globe size={12} className="text-blue-500" />
-            Institutional Technical Engine
+            Moneycontrol Stock Ideas Core
           </p>
         </div>
         <button 
@@ -78,49 +64,46 @@ export const PageBrokerIntel: React.FC<PageBrokerIntelProps> = ({
         </button>
       </div>
 
-      <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-4 mb-6 flex flex-col gap-3">
-        <div className="flex items-center justify-between">
+      {/* Live Web Section - "Show it as it is" */}
+      <div className="mb-8 space-y-4">
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-2xl">
+          <div className="p-3 bg-slate-800/50 border-b border-slate-700 flex justify-between items-center">
             <div className="flex items-center gap-2">
-              <Database size={14} className="text-blue-400" />
-              <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Data Source: Yahoo Finance</span>
+              <Globe size={14} className="text-blue-400" />
+              <span className="text-[10px] font-black text-white uppercase tracking-widest">Moneycontrol Web Feed</span>
             </div>
-            <span className="text-[9px] text-blue-400 font-black flex items-center gap-1">
-                FREE API ACTIVE <BarChart2 size={10}/>
-            </span>
-        </div>
-        <div className="flex flex-wrap gap-2">
-            <span className="text-[8px] font-black bg-blue-900/20 px-2 py-1.5 rounded-lg border border-blue-800/30 text-blue-400 uppercase">
-                Momentum Consensus
-            </span>
-            <span className="text-[8px] font-black bg-slate-800/80 px-2 py-1.5 rounded-lg border border-slate-700 text-slate-400 uppercase">
-                Bluechip Focus
-            </span>
+            <a 
+              href="https://www.moneycontrol.com/markets/stock-ideas/" 
+              target="_blank" 
+              rel="noreferrer" 
+              className="px-3 py-1 bg-blue-600 rounded-lg text-[9px] font-black text-white flex items-center gap-1.5 hover:bg-blue-500 transition-colors"
+            >
+              OPEN FULL SITE <ExternalLink size={10}/>
+            </a>
+          </div>
+          
+          {/* Iframe View - Some browsers/sites may block this via X-Frame-Options */}
+          <div className="relative aspect-[16/10] md:aspect-[21/9] bg-slate-950">
+            <iframe 
+              src="https://www.moneycontrol.com/markets/stock-ideas/" 
+              className="w-full h-full border-0"
+              title="Moneycontrol Stock Ideas"
+              loading="lazy"
+            />
+            {/* Fallback Overlay for blocked frames */}
+            <div className="absolute inset-0 pointer-events-none flex flex-col items-center justify-center p-6 text-center bg-slate-950/60 backdrop-blur-[1px]">
+               <Info size={24} className="text-slate-600 mb-2" />
+               <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest max-w-[200px]">
+                 Note: Web view may be limited by external site policies. Use trading cards below for execution.
+               </p>
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* Timeframe Selector */}
-      <div className="flex bg-slate-900/80 backdrop-blur-sm rounded-2xl p-1.5 border border-slate-800 mb-8 sticky top-4 z-30 shadow-2xl">
-        {[
-          { id: 'BTST', label: 'BTST', icon: <Zap size={14} />, count: stats.btst },
-          { id: 'WEEKLY', label: 'Weekly', icon: <Calendar size={14} />, count: stats.weekly },
-          { id: 'MONTHLY', label: 'Monthly', icon: <TrendingUp size={14} />, count: stats.monthly }
-        ].map(tab => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTimeframe(tab.id as any)}
-            className={`flex-1 flex flex-col items-center justify-center py-2.5 rounded-xl transition-all ${
-              activeTimeframe === tab.id 
-                ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20' 
-                : 'text-slate-500 hover:text-white'
-            }`}
-          >
-            <div className="flex items-center gap-2 mb-0.5">
-              {tab.icon}
-              <span className="text-[10px] font-black uppercase tracking-widest">{tab.label}</span>
-            </div>
-            <span className={`text-[8px] font-mono ${activeTimeframe === tab.id ? 'text-blue-200' : 'text-slate-600'}`}>{tab.count} Picks</span>
-          </button>
-        ))}
+      <div className="flex items-center gap-2 mb-4 px-1">
+          <BarChart2 size={16} className="text-blue-500" />
+          <h3 className="text-lg font-black text-white uppercase italic tracking-tight">Active Trading Ideas</h3>
       </div>
 
       {isLoading ? (
@@ -133,19 +116,16 @@ export const PageBrokerIntel: React.FC<PageBrokerIntelProps> = ({
                 <p className="text-xs font-black text-white uppercase tracking-widest mb-1 min-h-[1.5em] transition-all duration-500">
                   {steps[loadingStep]}
                 </p>
-                <p className="text-[9px] text-slate-500 uppercase font-bold flex items-center justify-center gap-1">
-                    SCANNING INSTITUTIONAL BLUECHIPS
+                <p className="text-[9px] text-slate-500 uppercase font-bold">
+                    SYNCING INSTITUTIONAL DATA
                 </p>
-            </div>
-            <div className="w-48 h-1 bg-slate-800 rounded-full overflow-hidden">
-                <div className="h-full bg-blue-500 animate-[loading_2s_infinite]"></div>
             </div>
         </div>
       ) : (
         <div className="space-y-4">
-          {filteredPicks.length > 0 ? (
+          {recommendations.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-slide-up">
-              {filteredPicks.map(stock => (
+              {recommendations.map(stock => (
                 <StockCard key={stock.symbol} stock={stock} marketData={marketData} onTrade={onTrade} />
               ))}
             </div>
@@ -153,7 +133,7 @@ export const PageBrokerIntel: React.FC<PageBrokerIntelProps> = ({
             <div className="text-center py-20 border border-dashed border-slate-800 rounded-3xl bg-slate-900/20 px-6">
               <AlertCircle size={32} className="mx-auto text-slate-700 mb-4 opacity-20" />
               <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest leading-relaxed">
-                No high-conviction {activeTimeframe} technical ideas found.<br/>
+                No active ideas found.<br/>
                 Try refreshing for latest market consensus.
               </p>
               <button 
@@ -168,12 +148,6 @@ export const PageBrokerIntel: React.FC<PageBrokerIntelProps> = ({
       )}
       
       <div className="h-12"></div>
-      <style>{`
-        @keyframes loading {
-          0% { transform: translateX(-100%); }
-          100% { transform: translateX(100%); }
-        }
-      `}</style>
     </div>
   );
 };
