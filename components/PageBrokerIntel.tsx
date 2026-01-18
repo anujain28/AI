@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { StockRecommendation, MarketData, NewsItem } from '../types';
 import { StockCard } from './StockCard';
-import { RefreshCw, Globe, Search, AlertCircle, Newspaper, ExternalLink, BarChart2, Info, Zap, MessageSquareQuote, TrendingUp } from 'lucide-react';
+import { RefreshCw, Globe, Search, AlertCircle, Newspaper, ExternalLink, BarChart2, Info, Zap, MessageSquareQuote, TrendingUp, ChevronRight, Terminal } from 'lucide-react';
 
 const STOCK_IDEAS_URL = "https://www.moneycontrol.com/markets/stock-ideas/";
 
@@ -28,10 +28,10 @@ export const PageBrokerIntel: React.FC<PageBrokerIntelProps> = ({
   const [loadingStep, setLoadingStep] = useState(0);
 
   const steps = [
-    "EXECUTING MONEYCONTROL SCRAPER...",
-    "EXTRACTING LATEST CALLS...",
-    "SYNCING BEST 5 RECOMMENDATIONS...",
-    "PARSING EXPERT TARGETS..."
+    "INITIALIZING SCRAPER ENGINE...",
+    "PARSING MONEYCONTROL TABLES...",
+    "FALLING BACK TO NEWS ADVICE...",
+    "CALCULATING BEST 5 TARGETS..."
   ];
 
   useEffect(() => {
@@ -47,16 +47,17 @@ export const PageBrokerIntel: React.FC<PageBrokerIntelProps> = ({
   }, [isLoading]);
 
   return (
-    <div className="p-4 pb-24 animate-fade-in max-w-lg mx-auto md:max-w-none">
-      <div className="flex justify-between items-start mb-6">
+    <div className="p-4 pb-24 animate-fade-in max-w-lg mx-auto md:max-w-none flex flex-col h-full">
+      {/* Header */}
+      <div className="flex justify-between items-start mb-6 shrink-0">
         <div>
           <h1 className="text-3xl font-black text-white italic leading-none uppercase tracking-tighter flex items-center gap-2">
             Broker Intel
-            <Newspaper size={24} className="text-blue-400" />
+            <Terminal size={24} className="text-blue-400" />
           </h1>
           <p className="text-[10px] font-black uppercase tracking-[0.2em] mt-2 flex items-center gap-2 text-slate-500">
             <Globe size={12} className="text-blue-500" />
-            Live Scraped Stock Ideas
+            Live Scraper Core v2.0
           </p>
         </div>
         <button 
@@ -68,92 +69,115 @@ export const PageBrokerIntel: React.FC<PageBrokerIntelProps> = ({
         </button>
       </div>
 
-      {/* 1. Show it as it is - Moneycontrol Iframe */}
-      <div className="mb-10 space-y-4">
-        <div className="flex items-center justify-between px-1">
-          <div className="flex items-center gap-2">
-            <Globe size={20} className="text-blue-400" />
-            <h3 className="text-xl font-black text-white uppercase italic tracking-tight leading-none">Live Feed (As it is)</h3>
+      <div className="space-y-8 flex-1">
+        {/* 1. Latest Calls - Scraped Content */}
+        <section>
+          <div className="flex items-center justify-between mb-4 px-1">
+            <div className="flex items-center gap-2">
+              <MessageSquareQuote size={20} className="text-yellow-400" />
+              <h3 className="text-xl font-black text-white uppercase italic tracking-tight leading-none">Extracted Latest Calls</h3>
+            </div>
+            <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Moneycontrol Scrape</span>
           </div>
-          <a href={STOCK_IDEAS_URL} target="_blank" rel="noreferrer" className="text-[9px] font-black text-blue-500 uppercase tracking-widest flex items-center gap-1.5 hover:text-blue-400 transition-colors">
-            OPEN SOURCE <ExternalLink size={10}/>
-          </a>
-        </div>
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-2xl h-[500px] relative">
-          <iframe 
-            src={STOCK_IDEAS_URL} 
-            className="w-full h-full border-0"
-            title="Moneycontrol Stock Ideas"
-            loading="lazy"
-          />
-          {isLoading && (
-            <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm flex flex-col items-center justify-center p-6 text-center z-10">
-               <Loader2 className="animate-spin text-blue-500 mb-4" size={40} />
-               <p className="text-xs font-black text-white uppercase tracking-widest">{steps[loadingStep]}</p>
-            </div>
-          )}
-        </div>
-      </div>
 
-      {/* 2. Latest Calls - Extracted List */}
-      <div className="mb-10 space-y-4">
-        <div className="flex items-center gap-2 px-1">
-          <MessageSquareQuote size={20} className="text-yellow-400" />
-          <h3 className="text-xl font-black text-white uppercase italic tracking-tight leading-none">Extracted Latest Calls</h3>
-        </div>
-
-        <div className="bg-slate-900/50 border border-slate-800 rounded-3xl p-6 shadow-2xl">
-          {isLoading ? (
-            <div className="space-y-4">
-               {[1,2,3].map(i => <div key={i} className="h-12 bg-slate-800 rounded-xl animate-pulse"></div>)}
-            </div>
-          ) : news.length > 0 ? (
-            <div className="space-y-3">
-              {news.map((item, idx) => (
-                <div 
-                  key={idx} 
-                  className="p-4 bg-slate-800/40 rounded-2xl border border-slate-700/50 hover:bg-slate-800 transition-all flex items-start gap-3 group"
-                >
-                  <div className="p-2 bg-slate-900 rounded-xl text-yellow-400 shrink-0 group-hover:bg-yellow-400/10 transition-colors">
-                    <TrendingUp size={16} />
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-4 shadow-2xl relative overflow-hidden">
+             {isLoading ? (
+               <div className="space-y-3 py-6">
+                  {[1,2,3].map(i => (
+                    <div key={i} className="h-14 bg-slate-800/50 rounded-2xl animate-pulse"></div>
+                  ))}
+                  <div className="text-center mt-4">
+                    <p className="text-[9px] font-black text-blue-500 uppercase tracking-[0.2em] animate-pulse">
+                      {steps[loadingStep]}
+                    </p>
                   </div>
-                  <p className="text-xs font-bold text-slate-100 leading-relaxed">
-                    {item.title}
-                  </p>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-10 text-slate-600">
-               <Info size={32} className="mx-auto opacity-20 mb-3" />
-               <p className="text-[10px] font-black uppercase tracking-widest">No active calls extracted.</p>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* 3. Best 5 Recommendations (Clean UI) */}
-      <div className="mb-4 px-1 border-t border-slate-800 pt-10">
-          <div className="flex items-center gap-2 mb-6">
-            <Zap size={20} className="text-blue-400 fill-blue-400" />
-            <h3 className="text-xl font-black text-white uppercase italic tracking-tight leading-none">Best 5 Recommendations</h3>
+               </div>
+             ) : news.length > 0 ? (
+               <div className="space-y-3 max-h-[400px] overflow-y-auto custom-scrollbar pr-2">
+                 {news.map((item, idx) => (
+                    <div 
+                      key={idx} 
+                      className="p-4 bg-slate-800/30 rounded-2xl border border-slate-700/30 hover:bg-slate-800 transition-all flex items-start gap-3 group"
+                    >
+                      <div className="mt-1 p-1 bg-slate-900 rounded shadow-inner text-yellow-400 shrink-0">
+                        <ChevronRight size={14} />
+                      </div>
+                      <div className="flex-1">
+                         <p className="text-xs font-bold text-slate-100 leading-relaxed group-hover:text-white">
+                           {item.title}
+                         </p>
+                         <div className="flex items-center justify-between mt-2">
+                            <span className="text-[8px] font-black text-slate-600 uppercase tracking-widest">
+                               Source: Moneycontrol
+                            </span>
+                            {item.link !== '#' && (
+                              <a href={item.link} target="_blank" rel="noreferrer" className="text-[8px] font-black text-blue-500 uppercase tracking-widest flex items-center gap-1 hover:text-blue-400">
+                                View Source <ExternalLink size={8}/>
+                              </a>
+                            )}
+                         </div>
+                      </div>
+                    </div>
+                 ))}
+               </div>
+             ) : (
+               <div className="py-20 text-center text-slate-700">
+                  <AlertCircle size={32} className="mx-auto mb-3 opacity-20" />
+                  <p className="text-[10px] font-black uppercase tracking-widest">No active calls found.</p>
+               </div>
+             )}
           </div>
-          
+        </section>
+
+        {/* 2. Live Feed - Iframe */}
+        <section>
+          <div className="flex items-center justify-between mb-4 px-1">
+            <div className="flex items-center gap-2">
+              <Globe size={20} className="text-blue-400" />
+              <h3 className="text-xl font-black text-white uppercase italic tracking-tight leading-none">Market Context (Source)</h3>
+            </div>
+          </div>
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden shadow-2xl h-[400px] relative group">
+            <iframe 
+              src={STOCK_IDEAS_URL} 
+              className="w-full h-full border-0 grayscale group-hover:grayscale-0 transition-all duration-500 opacity-60 group-hover:opacity-100"
+              title="Moneycontrol Live Context"
+              loading="lazy"
+            />
+            <div className="absolute inset-0 pointer-events-none bg-gradient-to-t from-slate-950 via-transparent to-transparent opacity-40"></div>
+          </div>
+        </section>
+
+        {/* 3. Best 5 Recommendations */}
+        <section className="pb-10">
+          <div className="flex items-center gap-2 mb-6 px-1 border-t border-slate-800 pt-10">
+            <div className="p-2 bg-blue-600/20 text-blue-400 rounded-xl border border-blue-500/20">
+              <Zap size={20} className="fill-blue-400" />
+            </div>
+            <div>
+              <h3 className="text-xl font-black text-white uppercase italic tracking-tight leading-none">Best 5 Quant Picks</h3>
+              <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest mt-1">High-Conviction Technical Alignment</p>
+            </div>
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-slide-up">
-            {recommendations.length > 0 ? (
+            {isLoading ? (
+              [1,2,3].map(i => <div key={i} className="h-48 bg-slate-900 border border-slate-800 rounded-3xl animate-pulse"></div>)
+            ) : recommendations.length > 0 ? (
               recommendations.map(stock => (
                 <StockCard key={stock.symbol} stock={stock} marketData={marketData} onTrade={onTrade} />
               ))
-            ) : !isLoading && (
-              <div className="col-span-full py-10 text-center border border-dashed border-slate-800 rounded-3xl">
-                  <Search size={24} className="mx-auto text-slate-700 mb-2 opacity-20" />
-                  <p className="text-[10px] font-black text-slate-600 uppercase tracking-widest">Scanning technical alpha...</p>
+            ) : (
+              <div className="col-span-full py-10 text-center border border-dashed border-slate-800 rounded-3xl text-slate-600">
+                <Search size={24} className="mx-auto mb-2 opacity-20" />
+                <p className="text-[10px] font-black uppercase tracking-widest">Scanning technical alpha...</p>
               </div>
             )}
           </div>
+        </section>
       </div>
-      
-      <div className="h-12"></div>
+
+      <div className="h-6 shrink-0"></div>
     </div>
   );
 };
