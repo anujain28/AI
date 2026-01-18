@@ -113,7 +113,8 @@ export const fetchRealStockData = async (
     const cacheKey = `${ticker}_${interval}_${range}`;
     
     const cached = marketCache[cacheKey];
-    if (cached && (Date.now() - cached.timestamp < 20000)) {
+    // Changed TTL from 20000 to 8000 to support 10-second UI refreshes
+    if (cached && (Date.now() - cached.timestamp < 8000)) {
         return cached.data;
     }
 

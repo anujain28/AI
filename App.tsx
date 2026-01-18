@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { getIdeasWatchlist } from './services/stockListService';
 import { fetchRealStockData } from './services/marketDataService';
@@ -156,7 +157,7 @@ export default function App() {
     performTechnicalScan();
 
     scanTimerRef.current = setInterval(performTechnicalScan, 180000); 
-    priceTimerRef.current = setInterval(refreshActivePrices, 25000); 
+    priceTimerRef.current = setInterval(refreshActivePrices, 10000); 
 
     return () => {
         clearInterval(scanTimerRef.current);
@@ -226,7 +227,6 @@ export default function App() {
             />
         )}
         {activePage === 3 && <PageScan marketData={marketData} settings={settings} onTrade={() => {}} />}
-        {/* Fixed: Supplied missing quantity and price arguments to handleSell by wrapping it in a function that looks them up in the paper portfolio and market data state. */}
         {activePage === 4 && <PagePaperTrading holdings={paperPortfolio} marketData={marketData} analysisData={{}} onSell={(symbol, broker) => {
             const h = paperPortfolio.find(p => p.symbol === symbol && p.broker === broker);
             if (h) {

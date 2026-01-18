@@ -87,7 +87,7 @@ export const runTechnicalScan = async (
 ): Promise<StockRecommendation[]> => {
   
   const allSymbols = getFullUniverse();
-  // Deep scan 150 stocks to find high-volatility movers that pass the 2% profit filter
+  // Deep scan 150 stocks to find high-volatility movers that pass the 1% profit filter
   const scanTargets = allSymbols.slice(0, 150); 
   const results: StockRecommendation[] = [];
 
@@ -104,9 +104,9 @@ export const runTechnicalScan = async (
           const profitValue = targetPrice - data.price;
           const profitPercent = (profitValue / data.price) * 100;
 
-          // HARD FILTER: Profit % >= 2.0% as per user requirement
+          // HARD FILTER: Profit % >= 1.0% (Reduced from 2% to broaden selection)
           // MIN SCORE: 40+ to ensure we get a decent list of "Ideas"
-          if (profitPercent >= 2.0 && analysis.score >= 40) {
+          if (profitPercent >= 1.0 && analysis.score >= 40) {
               let timeframe: 'INTRADAY' | 'BTST' | 'WEEKLY' | 'MONTHLY' = 'BTST';
               if (data.technicals.rvol > 2.5) timeframe = 'INTRADAY';
               else if (analysis.score > 120) timeframe = 'WEEKLY';
@@ -134,6 +134,6 @@ export const runTechnicalScan = async (
       }
   }, onProgress);
 
-  // Return top 20 picks that meet the 2% ROI hurdle
+  // Return top 20 picks that meet the 1% ROI hurdle
   return results.sort((a, b) => (b.score || 0) - (a.score || 0)).slice(0, 20);
 };

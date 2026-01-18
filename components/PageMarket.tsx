@@ -52,7 +52,7 @@ export const PageMarket: React.FC<PageMarketProps> = ({
              </h1>
              <p className="text-[10px] font-black uppercase tracking-[0.2em] mt-2 flex items-center gap-2 text-slate-500">
                  <Zap size={12} className="text-yellow-500" />
-                 2% ROI Filter Active
+                 1% Alpha Filter Active
              </p>
          </div>
          <button 
@@ -85,9 +85,9 @@ export const PageMarket: React.FC<PageMarketProps> = ({
       {!isLoading && recommendations.length === 0 && (
           <div className="text-center py-20 border border-dashed border-slate-800 rounded-3xl bg-slate-900/20 px-6">
               <Search size={32} className="mx-auto text-slate-700 mb-4 opacity-20" />
-              <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest">Scanning For 2% Alpha</h3>
+              <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest">Scanning For 1% Alpha</h3>
               <p className="text-[9px] text-slate-600 uppercase font-bold mt-2 leading-relaxed">
-                  The Robot did not find stocks with &gt;2% projected profit in the current 150-symbol scan. 
+                  The Robot did not find stocks with &gt;1% projected profit in the current 150-symbol scan. 
                   Try again during active market hours (09:15 - 15:30).
               </p>
               <button 
