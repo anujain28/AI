@@ -7,17 +7,17 @@ const marketCache: Record<string, { data: StockData, timestamp: number }> = {};
 const pendingRequests = new Map<string, Promise<StockData | null>>();
 
 /**
- * Turbo Proxy Racer - Races multiple proxies with a fail-fast timeout
+ * Turbo Proxy Racer - Resolves with the first successful response
  */
-async function fetchWithProxy(targetUrl: string, settings: AppSettings): Promise<any> {
+async function fetchWithProxy(targetUrl: string): Promise<any> {
     const proxies = [
         `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`,
         `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`,
-        `https://proxy.cors.sh/${targetUrl}`
+        `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(targetUrl)}`
     ];
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 3500); // 3.5s limit
+    const timeoutId = setTimeout(() => controller.abort(), 4500); // 4.5s max wait
 
     try {
         const responseText = await new Promise<any>((resolve, reject) => {
@@ -25,27 +25,37 @@ async function fetchWithProxy(targetUrl: string, settings: AppSettings): Promise
             let resolved = false;
             
             proxies.forEach(url => {
-                fetch(url, { 
-                    signal: controller.signal,
-                    headers: url.includes('cors.sh') ? { 'x-cors-gratis': 'true' } : {}
-                }).then(async res => {
-                    if (!res.ok) throw new Error("Fetch failed");
-                    const json = await res.json();
-                    
-                    // AllOrigins wrapper check
-                    const finalData = json.contents ? JSON.parse(json.contents) : json;
-                    if (!finalData?.chart?.result) throw new Error("Invalid structure");
-                    
-                    if (!resolved) {
-                        resolved = true;
-                        resolve(finalData);
-                    }
-                }).catch(() => {
-                    settledCount++;
-                    if (settledCount === proxies.length && !resolved) {
-                        reject(new Error("All proxies failed"));
-                    }
-                });
+                fetch(url, { signal: controller.signal })
+                    .then(async res => {
+                        if (!res.ok) throw new Error("Proxy response not OK");
+                        const raw = await res.text();
+                        
+                        // Handle potential AllOrigins or other wrapper structures
+                        let json;
+                        try {
+                            json = JSON.parse(raw);
+                            // If it's wrapped in a "contents" field (AllOrigins)
+                            if (json.contents) json = JSON.parse(json.contents);
+                        } catch (e) {
+                            // If raw text is already the target JSON
+                            json = JSON.parse(raw);
+                        }
+
+                        if (json?.chart?.result) {
+                            if (!resolved) {
+                                resolved = true;
+                                resolve(json);
+                            }
+                        } else {
+                            throw new Error("Invalid Yahoo Chart format");
+                        }
+                    })
+                    .catch(() => {
+                        settledCount++;
+                        if (settledCount === proxies.length && !resolved) {
+                            reject(new Error("All proxies failed"));
+                        }
+                    });
             });
         });
 
@@ -101,9 +111,9 @@ export const fetchRealStockData = async (
     interval: string = "5m", 
     range: string = "1d"
 ): Promise<StockData | null> => {
-    const cacheKey = `${symbol}_${interval}_${range}`;
+    const ticker = symbol.includes('.') ? symbol : `${symbol}.NS`;
+    const cacheKey = `${ticker}_${interval}_${range}`;
     
-    // Increased TTL to 30 seconds for background scan stability
     const cached = marketCache[cacheKey];
     if (cached && (Date.now() - cached.timestamp < 30000)) {
         return cached.data;
@@ -112,10 +122,9 @@ export const fetchRealStockData = async (
     if (pendingRequests.has(cacheKey)) return pendingRequests.get(cacheKey)!;
 
     const requestPromise = (async () => {
-        const ticker = symbol.includes('.') ? symbol : `${symbol}.NS`;
         try {
             const targetUrl = `${YAHOO_CHART_BASE}${ticker}?interval=${interval}&range=${range}`;
-            const raw = await fetchWithProxy(targetUrl, settings);
+            const raw = await fetchWithProxy(targetUrl);
             if (!raw) return null;
             
             const parsed = await parseYahooResponse(raw);

@@ -113,22 +113,26 @@ export default function App() {
       setTimeout(() => setNotification(null), 3000);
   }, []);
 
+  // DECOUPLED SCAN: Does not block on news fetch
   const performTechnicalScan = useCallback(async () => {
     const ideasUniverse = getIdeasWatchlist();
     const combinedUniverse = Array.from(new Set([...ideasUniverse, ...getEngineUniverse()]));
     
     setIsLoading(true);
+    
+    // Start news/intel in background
+    fetchBrokerIntel(settings).then(res => {
+        setBrokerIntel(res.data);
+        setBrokerNews(res.news || []);
+        if (res.error) setIntelError(res.error);
+    }).catch(e => console.error("Intel fetch failed", e));
+
+    // Focus on technical scan for the Ideas page
     try {
-        const [recs, intelRes] = await Promise.all([
-          runTechnicalScan(combinedUniverse, settings),
-          fetchBrokerIntel(settings)
-        ]);
+        const recs = await runTechnicalScan(combinedUniverse, settings);
         setRecommendations(recs);
-        setBrokerIntel(intelRes.data);
-        setBrokerNews(intelRes.news || []);
-        if (intelRes.error) setIntelError(intelRes.error);
     } catch (e) {
-        console.error("Scan Failure", e);
+        console.error("Technical Scan Failure", e);
     } finally {
         setIsLoading(false);
     }
@@ -173,10 +177,10 @@ export default function App() {
   }, [paperPortfolio, marketData, showNotification]);
 
   useEffect(() => {
-    performTechnicalScan().then(() => refreshActivePrices());
+    performTechnicalScan();
 
-    scanIntervalRef.current = setInterval(performTechnicalScan, 60000); 
-    priceIntervalRef.current = setInterval(refreshActivePrices, 10000); 
+    scanIntervalRef.current = setInterval(performTechnicalScan, 120000); // 2 min intervals
+    priceIntervalRef.current = setInterval(refreshActivePrices, 15000); 
     
     botIntervalRef.current = setInterval(() => {
         if (!activeBots['PAPER']) return;
@@ -259,7 +263,7 @@ export default function App() {
       )}
       
       <main className="flex-1 overflow-y-auto custom-scrollbar w-full max-w-lg mx-auto md:max-w-7xl md:border-x md:border-slate-800">
-        {activePage === 0 && <PageMarket settings={settings} recommendations={recommendations} marketData={marketData} onTrade={(s) => { setSelectedStock(s); setIsTradeModalOpen(true); }} onRefresh={() => { setRecommendations([]); setBrokerIntel([]); performTechnicalScan(); }} isLoading={isLoading} enabledMarkets={settings.enabledMarkets} />}
+        {activePage === 0 && <PageMarket settings={settings} recommendations={recommendations} marketData={marketData} onTrade={(s) => { setSelectedStock(s); setIsTradeModalOpen(true); }} onRefresh={() => { performTechnicalScan(); }} isLoading={isLoading} enabledMarkets={settings.enabledMarkets} />}
         {activePage === 1 && <PageBrokerIntel onRefresh={() => { performTechnicalScan(); }} isLoading={isLoading} />}
         {activePage === 2 && <PageScalper recommendations={recommendations} marketData={marketData} funds={funds} holdings={paperPortfolio} onBuy={handleBuy} onSell={handleSell} onRefresh={performTechnicalScan} />}
         {activePage === 3 && <PageScan marketData={marketData} settings={settings} onTrade={(s) => { setSelectedStock(s); setIsTradeModalOpen(true); }} />}
