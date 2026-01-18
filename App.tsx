@@ -4,7 +4,7 @@ import { getIdeasWatchlist, getEngineUniverse } from './services/stockListServic
 import { fetchRealStockData } from './services/marketDataService';
 import { runTechnicalScan } from './services/recommendationEngine';
 import { fetchBrokerIntel } from './services/brokerIntelService';
-import { StockRecommendation, PortfolioItem, MarketData, Transaction, AppSettings, Funds, HoldingAnalysis, StrategyRules, AssetType, BrokerID } from './types';
+import { StockRecommendation, PortfolioItem, MarketData, Transaction, AppSettings, Funds, HoldingAnalysis, StrategyRules, AssetType, BrokerID, NewsItem } from './types';
 import { TradeModal } from './components/TradeModal';
 import { runAutoTradeEngine } from './services/autoTradeEngine';
 import { BarChart3, Briefcase, RefreshCw, Sparkles, Clock, Zap } from 'lucide-react';
@@ -64,6 +64,7 @@ export default function App() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [recommendations, setRecommendations] = useState<StockRecommendation[]>([]);
   const [brokerIntel, setBrokerIntel] = useState<StockRecommendation[]>([]);
+  const [brokerNews, setBrokerNews] = useState<NewsItem[]>([]);
   const [marketData, setMarketData] = useState<MarketData>({});
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [notification, setNotification] = useState<string | null>(null);
@@ -123,22 +124,21 @@ export default function App() {
     const ideasUniverse = getIdeasWatchlist();
     const combinedUniverse = Array.from(new Set([...ideasUniverse, ...getEngineUniverse()]));
     
-    if (recommendations.length === 0) {
-        setIsLoading(true);
-        setIntelError(null);
-        try {
-            const [recs, intelRes] = await Promise.all([
-              runTechnicalScan(combinedUniverse, settings),
-              fetchBrokerIntel(settings)
-            ]);
-            setRecommendations(recs);
-            setBrokerIntel(intelRes.data);
-            if (intelRes.error) {
-              setIntelError(intelRes.error);
-            }
-        } catch (e) {
-            console.error("Critical Load Failure", e);
+    setIsLoading(true);
+    setIntelError(null);
+    try {
+        const [recs, intelRes] = await Promise.all([
+          runTechnicalScan(combinedUniverse, settings),
+          fetchBrokerIntel(settings)
+        ]);
+        setRecommendations(recs);
+        setBrokerIntel(intelRes.data);
+        setBrokerNews(intelRes.news || []);
+        if (intelRes.error) {
+          setIntelError(intelRes.error);
         }
+    } catch (e) {
+        console.error("Critical Load Failure", e);
     }
 
     const symbolsToUpdate = new Set([
@@ -160,7 +160,7 @@ export default function App() {
          return next;
     });
     setIsLoading(false);
-  }, [recommendations, brokerIntel, paperPortfolio, settings]);
+  }, [paperPortfolio, settings]);
 
   useEffect(() => {
     loadMarketData();
@@ -251,7 +251,7 @@ export default function App() {
       
       <main className="flex-1 overflow-y-auto custom-scrollbar w-full max-w-lg mx-auto md:max-w-7xl md:border-x md:border-slate-800">
         {activePage === 0 && <PageMarket settings={settings} recommendations={recommendations} marketData={marketData} onTrade={(s) => { setSelectedStock(s); setIsTradeModalOpen(true); }} onRefresh={() => { setRecommendations([]); setBrokerIntel([]); loadMarketData(); }} isLoading={isLoading} enabledMarkets={settings.enabledMarkets} />}
-        {activePage === 1 && <PageBrokerIntel recommendations={brokerIntel} marketData={marketData} onTrade={(s) => { setSelectedStock(s); setIsTradeModalOpen(true); }} onRefresh={() => { setRecommendations([]); setBrokerIntel([]); loadMarketData(); }} isLoading={isLoading} error={intelError} />}
+        {activePage === 1 && <PageBrokerIntel recommendations={brokerIntel} news={brokerNews} marketData={marketData} onTrade={(s) => { setSelectedStock(s); setIsTradeModalOpen(true); }} onRefresh={() => { setRecommendations([]); setBrokerIntel([]); loadMarketData(); }} isLoading={isLoading} error={intelError} />}
         {activePage === 2 && <PageScalper recommendations={recommendations} marketData={marketData} funds={funds} holdings={paperPortfolio} onBuy={handleBuy} onSell={handleSell} onRefresh={loadMarketData} />}
         {activePage === 3 && <PageScan marketData={marketData} settings={settings} onTrade={(s) => { setSelectedStock(s); setIsTradeModalOpen(true); }} />}
         {activePage === 4 && <PagePaperTrading holdings={paperPortfolio} marketData={marketData} analysisData={analysisData} onSell={(s, b) => handleSell(s, 0, marketData[s]?.price || 0, b)} onAnalyze={() => setIsAnalyzing(true)} isAnalyzing={isAnalyzing} funds={funds} activeBots={activeBots} onToggleBot={(b) => setActiveBots(p => ({...p, [b]: !p[b]}))} transactions={transactions} onUpdateFunds={(f) => { setFunds(f); saveData('funds', f); }} />}

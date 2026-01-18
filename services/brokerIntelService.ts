@@ -1,10 +1,9 @@
 
-import { StockRecommendation, AppSettings } from "../types";
+import { StockRecommendation, AppSettings, NewsItem, BrokerIntelResponse } from "../types";
 import { fetchRealStockData } from "./marketDataService";
 
 /**
  * High-conviction universe focusing on liquid Nifty 50 and Next 50 leaders.
- * These are the stocks most frequently featured in professional analyst "Ideas".
  */
 const INSTITUTIONAL_CORE = [
   'RELIANCE.NS', 'TCS.NS', 'HDFCBANK.NS', 'ICICIBANK.NS', 'INFY.NS', 
@@ -16,20 +15,49 @@ const INSTITUTIONAL_CORE = [
   'DLF.NS', 'SIEMENS.NS', 'ABB.NS', 'BAJFINANCE.NS', 'WIPRO.NS', 'JIOFIN.NS'
 ];
 
-export interface BrokerIntelResponse {
-  data: StockRecommendation[];
-  error?: string;
+const RSS_FEED_URL = "https://www.moneycontrol.com/rss/stockadvices.xml";
+
+async function fetchRSSNews(): Promise<NewsItem[]> {
+  const proxies = [
+    `https://api.allorigins.win/raw?url=${encodeURIComponent(RSS_FEED_URL)}`,
+    `https://corsproxy.io/?${encodeURIComponent(RSS_FEED_URL)}`
+  ];
+
+  for (const proxy of proxies) {
+    try {
+      const res = await fetch(proxy);
+      if (!res.ok) continue;
+      const xmlText = await res.text();
+      const parser = new DOMParser();
+      const xmlDoc = parser.parseFromString(xmlText, "text/xml");
+      const items = xmlDoc.querySelectorAll("item");
+      
+      const news: NewsItem[] = [];
+      items.forEach((item, idx) => {
+        if (idx > 10) return; // Limit to 10 latest news
+        news.push({
+          title: item.querySelector("title")?.textContent || "",
+          link: item.querySelector("link")?.textContent || "",
+          pubDate: item.querySelector("pubDate")?.textContent || "",
+          description: item.querySelector("description")?.textContent || "",
+          source: "Moneycontrol Advice"
+        });
+      });
+      return news;
+    } catch (e) {
+      console.warn("RSS Proxy failed", proxy, e);
+    }
+  }
+  return [];
 }
 
 /**
- * Broker Intel Service (Quantitative Consensus Engine)
- * This engine identifies the "Latest Calls" by scanning the high-conviction universe
- * for professional-grade breakout and momentum signals.
+ * Broker Intel Service (Unified News & Technical Engine)
  */
 export const fetchBrokerIntel = async (settings: AppSettings): Promise<BrokerIntelResponse> => {
   try {
-    // Process the institutional core list in parallel
-    const enriched = await Promise.all(INSTITUTIONAL_CORE.map(async (ticker) => {
+    // 1. Fetch Technical Calls
+    const technicalResults = await Promise.all(INSTITUTIONAL_CORE.map(async (ticker) => {
       try {
         const data = await fetchRealStockData(ticker, settings, "15m", "2d");
         if (!data) return null;
@@ -38,10 +66,8 @@ export const fetchBrokerIntel = async (settings: AppSettings): Promise<BrokerInt
         const price = data.price;
         const symbol = ticker.split('.')[0];
 
-        // Only include stocks with strong technical conviction
         if (tech.score < 65) return null;
 
-        // Construct professional-grade commentary based on specific technical triggers
         let signalContext = "";
         if (tech.activeSignals.includes("BB Breakout")) signalContext = "Price breakout from volatility squeeze.";
         else if (tech.activeSignals.includes("EMA Bull Stack")) signalContext = "Strong multi-day momentum trend confirmed.";
@@ -62,7 +88,6 @@ export const fetchBrokerIntel = async (settings: AppSettings): Promise<BrokerInt
           score: tech.score,
           lotSize: 1,
           isTopPick: tech.score > 75,
-          // Removed timeframe (BTST/Weekly/Monthly) as requested
           sourceUrl: `https://www.moneycontrol.com/india/stockpricequote/${symbol.toLowerCase()}`
         } as StockRecommendation;
       } catch (err) {
@@ -70,15 +95,20 @@ export const fetchBrokerIntel = async (settings: AppSettings): Promise<BrokerInt
       }
     }));
 
-    // Filter, sort by score, and limit to Top 5 for "Latest Calls" feel
-    const validData = enriched
+    // 2. Fetch Latest News Feed
+    const newsFeed = await fetchRSSNews();
+
+    const validData = technicalResults
       .filter((r): r is StockRecommendation => r !== null)
       .sort((a, b) => (b.score || 0) - (a.score || 0))
       .slice(0, 10);
 
-    return { data: validData };
+    return { 
+      data: validData,
+      news: newsFeed
+    };
   } catch (error: any) {
     console.error("Institutional Engine Failure:", error);
-    return { data: [], error: 'DATA_UNAVAILABLE' };
+    return { data: [], news: [], error: 'DATA_UNAVAILABLE' };
   }
 };

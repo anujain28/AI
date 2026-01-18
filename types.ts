@@ -26,6 +26,14 @@ export interface StrategyRules {
   maxTradesPerDay: number;
 }
 
+export interface NewsItem {
+  title: string;
+  link: string;
+  pubDate: string;
+  description: string;
+  source: string;
+}
+
 export interface CustomScanParameters {
   minRsi?: number;
   maxRsi?: number;
@@ -198,6 +206,12 @@ export interface AppSettings {
 export interface PortfolioHistoryPoint {
   time: string;
   value: number;
+}
+
+export interface BrokerIntelResponse {
+  data: StockRecommendation[];
+  news: NewsItem[];
+  error?: string;
 }
 
 declare global {
