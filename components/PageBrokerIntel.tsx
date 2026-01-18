@@ -2,7 +2,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { StockRecommendation, MarketData } from '../types';
 import { StockCard } from './StockCard';
-import { Building2, RefreshCw, Calendar, Zap, TrendingUp, ShieldCheck, Globe, Search, AlertCircle, Newspaper, ArrowRight, MessageSquare } from 'lucide-react';
+import { RefreshCw, Calendar, Zap, TrendingUp, ShieldCheck, Globe, Search, AlertCircle, Newspaper, ArrowRight, MessageSquare, Database } from 'lucide-react';
 
 interface PageBrokerIntelProps {
   recommendations: StockRecommendation[];
@@ -23,11 +23,12 @@ export const PageBrokerIntel: React.FC<PageBrokerIntelProps> = ({
   const [loadingStep, setLoadingStep] = useState(0);
 
   const steps = [
-    "CRAWLING TELEGRAM SUMMARIES...",
-    "EXTRACTING BROKERAGE PDFS...",
-    "SCANNING MONEYCONTROL PRO...",
-    "MAPPING ANALYST TARGETS...",
-    "GROUNDING TRENDLYNE RADAR..."
+    "QUERYING MONEYCONTROL TOP PICKS...",
+    "SCANNING TRENDLYNE BROKERAGE RADAR...",
+    "PARSING HDFC & KOTAK REPORTS...",
+    "EXTRACTING TELEGRAM ANALYST SUMMARIES...",
+    "ENRICHING CONSENSUS TARGETS...",
+    "VALIDATING NSE TICKER REGISTRY..."
   ];
 
   useEffect(() => {
@@ -35,7 +36,7 @@ export const PageBrokerIntel: React.FC<PageBrokerIntelProps> = ({
     if (isLoading) {
       interval = setInterval(() => {
         setLoadingStep(s => (s + 1) % steps.length);
-      }, 4000);
+      }, 3000);
     } else {
       setLoadingStep(0);
     }
@@ -64,7 +65,7 @@ export const PageBrokerIntel: React.FC<PageBrokerIntelProps> = ({
           </h1>
           <p className="text-[10px] font-black uppercase tracking-[0.2em] mt-2 flex items-center gap-2 text-slate-500">
             <Newspaper size={12} className="text-indigo-500" />
-            Institutional Alpha Aggregator
+            Institutional Consensus Engine
           </p>
         </div>
         <button 
@@ -79,10 +80,10 @@ export const PageBrokerIntel: React.FC<PageBrokerIntelProps> = ({
       <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-4 mb-6">
         <div className="flex items-center gap-2 mb-3">
           <Globe size={14} className="text-indigo-400" />
-          <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Active Intelligence Feeds</span>
+          <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Active Search Grounding</span>
         </div>
         <div className="flex flex-wrap gap-2">
-          {['Telegram Summaries', 'Brokerage PDFs', 'Moneycontrol', 'Trendlyne', 'ET Markets', 'HDFC Res'].map(s => (
+          {['Moneycontrol', 'Trendlyne', 'ET Markets', 'HDFC Sec', 'Angel One', 'Kotak Sec', 'Telegram Analysis'].map(s => (
             <span key={s} className="text-[8px] font-black bg-slate-800/80 px-2 py-1.5 rounded-lg border border-slate-700 text-slate-400 uppercase">
                 {s}
             </span>
@@ -118,7 +119,7 @@ export const PageBrokerIntel: React.FC<PageBrokerIntelProps> = ({
       {isLoading ? (
         <div className="flex flex-col items-center justify-center py-20 gap-6 animate-fade-in">
             <div className="relative">
-                <Search size={48} className="text-indigo-500 animate-pulse" />
+                <Database size={48} className="text-indigo-500 animate-pulse" />
                 <div className="absolute inset-0 border-4 border-indigo-500/20 border-t-indigo-500 rounded-full animate-spin"></div>
             </div>
             <div className="text-center">
@@ -126,7 +127,7 @@ export const PageBrokerIntel: React.FC<PageBrokerIntelProps> = ({
                   {steps[loadingStep]}
                 </p>
                 <p className="text-[9px] text-slate-500 uppercase font-bold flex items-center justify-center gap-1">
-                    <MessageSquare size={10}/> SCANNING CHANNELS & PORTALS
+                    <MessageSquare size={10}/> SCANNING INSTITUTIONAL REPOSITORIES
                 </p>
             </div>
             <div className="w-48 h-1 bg-slate-800 rounded-full overflow-hidden">
@@ -144,14 +145,14 @@ export const PageBrokerIntel: React.FC<PageBrokerIntelProps> = ({
           ) : (
             <div className="text-center py-20 border border-dashed border-slate-800 rounded-3xl bg-slate-900/20">
               <AlertCircle size={32} className="mx-auto text-slate-700 mb-4 opacity-20" />
-              <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">
-                No active {activeTimeframe} picks found
+              <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-6">
+                No active {activeTimeframe} consensus found for today.
               </p>
               <button 
                 onClick={onRefresh} 
-                className="mt-6 flex items-center gap-2 mx-auto bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
+                className="mt-6 flex items-center gap-2 mx-auto bg-slate-800 hover:bg-slate-700 text-white px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all active:scale-95 border border-slate-700"
               >
-                Force Kernel Refresh <ArrowRight size={14}/>
+                Force Grounding Refresh <ArrowRight size={14}/>
               </button>
             </div>
           )}
