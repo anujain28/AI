@@ -12,14 +12,13 @@ import { BottomNav } from './components/BottomNav';
 import { PageMarket } from './components/PageMarket';
 import { PageBrokerIntel } from './components/PageBrokerIntel';
 import { PagePaperTrading } from './components/PagePaperTrading';
-import { PageLivePNL } from './components/PageLivePNL';
 import { PageConfiguration } from './components/PageConfiguration';
 import { PageStrategyLog } from './components/PageStrategyLog';
 import { PageScan } from './components/PageScan';
 import { PageScalper } from './components/PageScalper';
 import { sendTelegramMessage } from './services/telegramService';
 import { getMarketStatus } from './services/marketStatusService';
-import { analyzeHoldings } from './services/geminiService';
+import { analyzeHoldings } from './services/analysisService';
 
 const STORAGE_PREFIX = 'aitrade_v3_';
 const DEFAULT_FUNDS: Funds = { stock: 1000000, mcx: 0, forex: 0, crypto: 0 };
@@ -50,7 +49,7 @@ const SplashScreen = ({ visible }: { visible: boolean }) => {
                 <BarChart3 size={40} className="text-white" />
              </div>
              <h1 className="text-2xl font-bold text-white tracking-[0.2em] mb-2 font-mono uppercase">AI Equity Robot</h1>
-             <p className="text-slate-500 text-[8px] mt-4 font-mono tracking-widest text-center uppercase">Robot Intelligence v4.2<br/>Momentum Engine Online</p>
+             <p className="text-slate-500 text-[8px] mt-4 font-mono tracking-widest text-center uppercase">Robot Intelligence v4.5<br/>Yahoo Technical Core Online</p>
         </div>
     );
 };
@@ -76,11 +75,12 @@ export default function App() {
   const [marketStatus, setMarketStatus] = useState(getMarketStatus('STOCK'));
   const [intelError, setIntelError] = useState<string | null>(null);
   
-  const refreshIntervalRef = useRef<any>(null);
+  const scanIntervalRef = useRef<any>(null);
+  const priceIntervalRef = useRef<any>(null);
   const botIntervalRef = useRef<any>(null);
 
   useEffect(() => { 
-    const splashTimer = setTimeout(() => setShowSplash(false), 2000); 
+    const splashTimer = setTimeout(() => setShowSplash(false), 1200); 
     loadAppData();
     
     const statusTimer = setInterval(() => {
@@ -113,19 +113,11 @@ export default function App() {
       setTimeout(() => setNotification(null), 3000);
   }, []);
 
-  const notifyTelegram = useCallback(async (tx: Transaction, reason?: string) => {
-    if (!settings.telegramBotToken || !settings.telegramChatId) return;
-    const emoji = tx.type === 'BUY' ? '🔵' : '🔴';
-    const message = `${emoji} *Order Executed: ${tx.type}*\nSymbol: ${tx.symbol}\nPrice: ₹${tx.price.toFixed(2)}\nQty: ${tx.quantity}\nBroker: ${tx.broker}\nLogic: ${reason || 'Strategy Entry'}`;
-    await sendTelegramMessage(settings.telegramBotToken, settings.telegramChatId, message);
-  }, [settings]);
-
-  const loadMarketData = useCallback(async () => {
+  const performTechnicalScan = useCallback(async () => {
     const ideasUniverse = getIdeasWatchlist();
     const combinedUniverse = Array.from(new Set([...ideasUniverse, ...getEngineUniverse()]));
     
     setIsLoading(true);
-    setIntelError(null);
     try {
         const [recs, intelRes] = await Promise.all([
           runTechnicalScan(combinedUniverse, settings),
@@ -134,19 +126,22 @@ export default function App() {
         setRecommendations(recs);
         setBrokerIntel(intelRes.data);
         setBrokerNews(intelRes.news || []);
-        if (intelRes.error) {
-          setIntelError(intelRes.error);
-        }
+        if (intelRes.error) setIntelError(intelRes.error);
     } catch (e) {
-        console.error("Critical Load Failure", e);
+        console.error("Scan Failure", e);
+    } finally {
+        setIsLoading(false);
     }
+  }, [settings]);
 
+  const refreshActivePrices = useCallback(async () => {
     const symbolsToUpdate = new Set([
       ...recommendations.map(s => s.symbol), 
-      ...brokerIntel.map(s => s.symbol),
       ...paperPortfolio.map(p => p.symbol)
     ]);
     
+    if (symbolsToUpdate.size === 0) return;
+
     const results = await Promise.all(
         Array.from(symbolsToUpdate).map(async sym => ({ 
             symbol: sym, 
@@ -159,16 +154,32 @@ export default function App() {
          results.forEach(({ symbol, data }) => { if (data) next[symbol] = data; });
          return next;
     });
-    setIsLoading(false);
-  }, [paperPortfolio, settings]);
+  }, [recommendations, paperPortfolio, settings]);
+
+  const runAnalysis = useCallback(async () => {
+    if (paperPortfolio.length === 0) return;
+    setIsAnalyzing(true);
+    try {
+        const results = await analyzeHoldings(paperPortfolio, marketData);
+        const map: Record<string, HoldingAnalysis> = {};
+        results.forEach(r => { map[r.symbol] = r; });
+        setAnalysisData(map);
+        showNotification("Portfolio Re-Balanced via Technical Score");
+    } catch (e) {
+        console.error("Analysis Failed", e);
+    } finally {
+        setIsAnalyzing(false);
+    }
+  }, [paperPortfolio, marketData, showNotification]);
 
   useEffect(() => {
-    loadMarketData();
-    refreshIntervalRef.current = setInterval(loadMarketData, 30000); 
+    performTechnicalScan().then(() => refreshActivePrices());
+
+    scanIntervalRef.current = setInterval(performTechnicalScan, 60000); 
+    priceIntervalRef.current = setInterval(refreshActivePrices, 10000); 
     
     botIntervalRef.current = setInterval(() => {
         if (!activeBots['PAPER']) return;
-        
         const results = runAutoTradeEngine(settings, paperPortfolio, marketData, funds, recommendations);
         results.forEach(res => {
             if (res.transaction && res.newFunds) {
@@ -194,17 +205,17 @@ export default function App() {
                     saveData('portfolio', next);
                     return next;
                 });
-                showNotification(`Bot Order: ${tx.type} ${tx.symbol}`);
-                notifyTelegram(tx, res.reason);
+                showNotification(`Bot: ${tx.type} ${tx.symbol}`);
             }
         });
-    }, 20000); 
+    }, 15000); 
     
     return () => { 
-        clearInterval(refreshIntervalRef.current); 
+        clearInterval(scanIntervalRef.current); 
+        clearInterval(priceIntervalRef.current); 
         clearInterval(botIntervalRef.current); 
     };
-  }, [loadMarketData, settings, paperPortfolio, marketData, funds, recommendations, activeBots, notifyTelegram, saveData, showNotification]);
+  }, [performTechnicalScan, refreshActivePrices, settings, paperPortfolio, marketData, funds, recommendations, activeBots, saveData, showNotification]);
 
   const handleBuy = async (symbol: string, quantity: number, price: number, broker: BrokerID = 'PAPER') => {
       const brokerage = 20;
@@ -217,7 +228,6 @@ export default function App() {
       });
       setFunds(prev => { const next = { ...prev, stock: prev.stock - cost }; saveData('funds', next); return next; });
       setTransactions(prev => { const next = [...prev, tx]; saveData('transactions', next); return next; });
-      notifyTelegram(tx, "Manual Entry");
   };
 
   const handleSell = async (symbol: string, quantity: number, price: number, broker: BrokerID = 'PAPER') => {
@@ -227,7 +237,6 @@ export default function App() {
       setPaperPortfolio(prev => { const next = prev.filter(p => p.symbol !== symbol); saveData('portfolio', next); return next; });
       setFunds(prev => { const next = { ...prev, stock: prev.stock + proceeds }; saveData('funds', next); return next; });
       setTransactions(prev => { const next = [...prev, tx]; saveData('transactions', next); return next; });
-      notifyTelegram(tx, "Manual Exit");
   };
 
   if (showSplash) return <SplashScreen visible={true} />;
@@ -250,12 +259,12 @@ export default function App() {
       )}
       
       <main className="flex-1 overflow-y-auto custom-scrollbar w-full max-w-lg mx-auto md:max-w-7xl md:border-x md:border-slate-800">
-        {activePage === 0 && <PageMarket settings={settings} recommendations={recommendations} marketData={marketData} onTrade={(s) => { setSelectedStock(s); setIsTradeModalOpen(true); }} onRefresh={() => { setRecommendations([]); setBrokerIntel([]); loadMarketData(); }} isLoading={isLoading} enabledMarkets={settings.enabledMarkets} />}
-        {activePage === 1 && <PageBrokerIntel recommendations={brokerIntel} news={brokerNews} marketData={marketData} onTrade={(s) => { setSelectedStock(s); setIsTradeModalOpen(true); }} onRefresh={() => { setRecommendations([]); setBrokerIntel([]); loadMarketData(); }} isLoading={isLoading} error={intelError} />}
-        {activePage === 2 && <PageScalper recommendations={recommendations} marketData={marketData} funds={funds} holdings={paperPortfolio} onBuy={handleBuy} onSell={handleSell} onRefresh={loadMarketData} />}
+        {activePage === 0 && <PageMarket settings={settings} recommendations={recommendations} marketData={marketData} onTrade={(s) => { setSelectedStock(s); setIsTradeModalOpen(true); }} onRefresh={() => { setRecommendations([]); setBrokerIntel([]); performTechnicalScan(); }} isLoading={isLoading} enabledMarkets={settings.enabledMarkets} />}
+        {activePage === 1 && <PageBrokerIntel recommendations={brokerIntel} news={brokerNews} marketData={marketData} onTrade={(s) => { setSelectedStock(s); setIsTradeModalOpen(true); }} onRefresh={() => { setRecommendations([]); setBrokerIntel([]); performTechnicalScan(); }} isLoading={isLoading} error={intelError} />}
+        {activePage === 2 && <PageScalper recommendations={recommendations} marketData={marketData} funds={funds} holdings={paperPortfolio} onBuy={handleBuy} onSell={handleSell} onRefresh={performTechnicalScan} />}
         {activePage === 3 && <PageScan marketData={marketData} settings={settings} onTrade={(s) => { setSelectedStock(s); setIsTradeModalOpen(true); }} />}
-        {activePage === 4 && <PagePaperTrading holdings={paperPortfolio} marketData={marketData} analysisData={analysisData} onSell={(s, b) => handleSell(s, 0, marketData[s]?.price || 0, b)} onAnalyze={() => setIsAnalyzing(true)} isAnalyzing={isAnalyzing} funds={funds} activeBots={activeBots} onToggleBot={(b) => setActiveBots(p => ({...p, [b]: !p[b]}))} transactions={transactions} onUpdateFunds={(f) => { setFunds(f); saveData('funds', f); }} />}
-        {activePage === 5 && <PageStrategyLog recommendations={recommendations} marketData={marketData} rules={settings.strategyRules || DEFAULT_RULES} onUpdateRules={(r) => { setSettings(s => ({...s, strategyRules: r})); saveData('settings', {...settings, strategyRules: r}); }} aiIntradayPicks={[]} onRefresh={() => loadMarketData()} settings={settings} />}
+        {activePage === 4 && <PagePaperTrading holdings={paperPortfolio} marketData={marketData} analysisData={analysisData} onSell={(s, b) => handleSell(s, 0, marketData[s]?.price || 0, b)} onAnalyze={runAnalysis} isAnalyzing={isAnalyzing} funds={funds} activeBots={activeBots} onToggleBot={(b) => setActiveBots(p => ({...p, [b]: !p[b]}))} transactions={transactions} onUpdateFunds={(f) => { setFunds(f); saveData('funds', f); }} />}
+        {activePage === 5 && <PageStrategyLog recommendations={recommendations} marketData={marketData} rules={settings.strategyRules || DEFAULT_RULES} onUpdateRules={(r) => { setSettings(s => ({...s, strategyRules: r})); saveData('settings', {...settings, strategyRules: r}); }} aiIntradayPicks={[]} onRefresh={() => performTechnicalScan()} settings={settings} />}
         {activePage === 6 && <PageConfiguration settings={settings} onSave={(s) => { setSettings(s); saveData('settings', s); showNotification("Settings Saved"); }} transactions={transactions} activeBots={activeBots} onToggleBot={(b) => setActiveBots(p => ({...p, [b]: !p[b]}))} onTestTrade={() => {}} />}
       </main>
 

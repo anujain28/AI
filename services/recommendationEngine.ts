@@ -27,8 +27,8 @@ async function promisePool<T, R>(
 }
 
 /**
- * Technical Recommendation Engine (Non-AI Version)
- * Performs a deep technical scan on the full NSE universe using local logic.
+ * Technical Recommendation Engine
+ * Optimized with higher concurrency (batch size 35) for faster initial results.
  */
 export const runTechnicalScan = async (
     stockUniverse: string[], 
@@ -39,12 +39,12 @@ export const runTechnicalScan = async (
   const isWeekend = !marketStatus.isOpen && marketStatus.message.includes('Weekend');
   const isAfterHours = !marketStatus.isOpen && marketStatus.message.includes('After Hours');
 
-  // PHASE: Deep Technical Scan on Real Data
-  const fullUniverse = getFullUniverse();
   // Focus scan on top 100 liquid symbols for better performance
+  const fullUniverse = getFullUniverse();
   const scanTargets = Array.from(new Set([...fullUniverse.slice(0, 100)]));
 
-  const rawTechnicalResults = await promisePool(scanTargets, 15, async (symbol) => {
+  // Concurrency bumped to 35 for faster results
+  const rawTechnicalResults = await promisePool(scanTargets, 35, async (symbol) => {
       try {
           const interval = (isWeekend || isAfterHours) ? "1d" : "15m";
           const range = (isWeekend || isAfterHours) ? "1mo" : "2d";
@@ -85,6 +85,5 @@ export const runTechnicalScan = async (
       };
   });
 
-  // Sort by score and return Top 20
   return recommendations.sort((a, b) => (b.score || 0) - (a.score || 0)).slice(0, 20);
 };
