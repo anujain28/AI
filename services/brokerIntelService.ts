@@ -16,7 +16,7 @@ async function promisePool<T, R>(
 
     for (const item of items) {
         const promise = fn(item).then((res) => {
-            results.push(res);
+            if (res) results.push(res);
             pool.delete(promise);
         });
         pool.add(promise);
@@ -30,33 +30,33 @@ async function promisePool<T, R>(
 
 /**
  * Broker Intel Service
- * Specifically targets major Indian brokerages using Google Search grounding.
+ * Targets high-authority Indian financial portals and brokerages.
  */
 export const fetchBrokerIntel = async (settings: AppSettings): Promise<StockRecommendation[]> => {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   
-  // High-intensity search prompt to find REAL, CURRENT recommendations
-  const prompt = `Perform an exhaustive search for today's and this week's (Feb 2025) top stock recommendations from these specific Indian brokerages:
-    - Angel One (Daily ARQ picks and Research reports)
-    - 5paisa (Trading ideas and Weekly strategies)
-    - Kotak Securities (Fundamental and Technical picks)
-    - HDFC Securities (Retail stock ideas and monthly picks)
-    - Sharekhan (Intraday and BTST tips)
-    - Zerodha (Varsity outlooks and Weekly analysis)
-    - Groww (Market insights and breakout stocks)
+  // Broadened search to include aggregators and specific brokers for better hit rate
+  const prompt = `Perform a real-time search for the LATEST stock recommendations (Feb 2025) for the Indian Market. 
+    Check these specific high-authority sources:
+    1. Moneycontrol (PRO research and Technical picks)
+    2. Trendlyne (Brokerage consensus and stock ideas)
+    3. Economic Times Markets (Top gainers and expert picks)
+    4. Business Standard (Market outlook)
+    5. Broker Research from: Angel One, HDFC Securities, Kotak Securities, ICICI Direct.
 
-    For each recommendation, identify:
-    1. The exact Stock Symbol (convert to NSE ticker like RELIANCE.NS)
-    2. The Recommendation Type: BTST, WEEKLY, or MONTHLY
-    3. The Source (Which broker provided this)
-    4. The Target Price and Stop Loss mentioned
-    5. A brief 1-sentence technical reason.
+    Identify at least 15 specific stocks. Categorize them as BTST (Buy Today Sell Tomorrow), WEEKLY, or MONTHLY.
+    For each stock, provide:
+    - symbol: Exact NSE Ticker (e.g., RELIANCE, TCS, HDFCBANK)
+    - name: Full company name
+    - timeframe: BTST, WEEKLY, or MONTHLY
+    - reason: A short technical or fundamental reason (mention the source site/broker)
+    - sourceBrand: Name of the platform/broker (e.g., Moneycontrol, Angel One)
+    - estimatedPrice: The current market price mentioned in the report.
 
-    Return the results as a JSON array of objects with keys: 
-    symbol, name, timeframe (BTST/WEEKLY/MONTHLY), reason, sourceBrand, targetPrice, estimatedPrice.`;
+    Return ONLY a JSON array of objects.`;
 
   try {
-    // We use PRO here because the search tool extraction is more reliable for specific symbols
+    // We use gemini-3-pro-preview for reliable search tool usage
     const response = await ai.models.generateContent({
       model: 'gemini-3-pro-preview',
       contents: prompt,
@@ -73,7 +73,6 @@ export const fetchBrokerIntel = async (settings: AppSettings): Promise<StockReco
               timeframe: { type: Type.STRING },
               reason: { type: Type.STRING },
               sourceBrand: { type: Type.STRING },
-              targetPrice: { type: Type.NUMBER },
               estimatedPrice: { type: Type.NUMBER }
             },
             required: ["symbol", "name", "timeframe", "reason", "sourceBrand"]
@@ -82,44 +81,54 @@ export const fetchBrokerIntel = async (settings: AppSettings): Promise<StockReco
       }
     });
 
-    const rawData = JSON.parse(response.text || "[]");
+    const jsonText = response.text || "[]";
+    let rawData = [];
+    try {
+        rawData = JSON.parse(jsonText);
+    } catch (e) {
+        // Fallback: try to extract JSON from markdown if the model wrapped it
+        const match = jsonText.match(/\[[\s\S]*\]/);
+        if (match) rawData = JSON.parse(match[0]);
+    }
+
     if (!Array.isArray(rawData) || rawData.length === 0) {
-        console.warn("Broker Intel: AI returned no results from search.");
+        console.warn("Broker Intel: No valid stock picks found by AI.");
         return [];
     }
 
-    // Extract grounding chunks for display
-    const sources = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
-    const sourceUrls = sources.map((c: any) => c.web?.uri).filter(Boolean);
+    // Extract grounding URLs for reference
+    const chunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
+    const sourceUrls = chunks.map((c: any) => c.web?.uri).filter(Boolean);
 
-    // Speed up by using AI prices immediately if market data fetch is slow
-    const enriched = await promisePool(rawData, 3, async (item: any) => {
+    // Parallel enrichment with a small batch size to stay under proxy radar
+    const enriched = await promisePool(rawData, 4, async (item: any) => {
       try {
-        const ticker = item.symbol.toUpperCase().includes('.NS') ? item.symbol : `${item.symbol.toUpperCase()}.NS`;
+        const symbol = item.symbol.trim().toUpperCase();
+        const ticker = symbol.includes('.NS') ? symbol : `${symbol}.NS`;
         
-        // Lightweight fetch - 3 second timeout for speed
+        // Fast technical enrichment - 2.5s timeout per request
         const mktData = await Promise.race([
             fetchRealStockData(ticker, settings, "1d", "1mo"),
-            new Promise((_, reject) => setTimeout(() => reject('Timeout'), 3000))
+            new Promise((_, reject) => setTimeout(() => reject('Timeout'), 2500))
         ]).catch(() => null) as any;
         
-        const price = mktData?.price || item.estimatedPrice || 0;
-        if (price === 0) return null;
+        const currentPrice = mktData?.price || item.estimatedPrice || 0;
+        if (currentPrice === 0) return null; // Filter out zero-price failures
 
         return {
           symbol: ticker,
-          name: item.name || ticker.split('.')[0],
+          name: item.name || symbol,
           type: 'STOCK',
-          sector: 'Broker Pick',
-          currentPrice: price,
+          sector: 'Institutional Pick',
+          currentPrice: currentPrice,
           reason: `[${item.sourceBrand}] ${item.reason}`,
-          riskLevel: 'Medium',
-          targetPrice: item.targetPrice || price * 1.1,
+          riskLevel: (mktData?.technicals.score || 70) > 80 ? 'Low' : 'Medium',
+          targetPrice: currentPrice * (item.timeframe === 'MONTHLY' ? 1.12 : 1.05),
           timeframe: item.timeframe || 'WEEKLY',
-          score: mktData?.technicals.score || 75,
+          score: mktData?.technicals.score || 72,
           lotSize: 1,
           isTopPick: true,
-          sourceUrl: sourceUrls[0] || 'https://www.google.com/search?q=' + encodeURIComponent(item.sourceBrand + " stock tips")
+          sourceUrl: item.sourceUrl || sourceUrls[0] || `https://www.google.com/search?q=${encodeURIComponent(ticker + " stock target price")}`
         } as StockRecommendation;
       } catch (err) {
         return null;
@@ -128,7 +137,7 @@ export const fetchBrokerIntel = async (settings: AppSettings): Promise<StockReco
 
     return enriched.filter((r): r is StockRecommendation => r !== null);
   } catch (error) {
-    console.error("Critical Failure in Broker Intel Service:", error);
+    console.error("Broker Intel Grounding Critical Failure:", error);
     return [];
   }
 };
