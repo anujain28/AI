@@ -33,12 +33,7 @@ export const StockCard: React.FC<StockCardProps> = React.memo(({ stock, marketDa
       badgeBg: 'bg-slate-700'
   };
 
-  const timeframeColors: Record<string, string> = {
-    'INTRADAY': 'bg-blue-500/20 text-blue-400 border-blue-500/30',
-    'BTST': 'bg-green-500/20 text-green-400 border-green-500/30',
-    'WEEKLY': 'bg-purple-500/20 text-purple-400 border-purple-500/30',
-    'MONTHLY': 'bg-orange-500/20 text-orange-400 border-orange-500/30'
-  };
+  // Timeframe tags removed as requested by user
 
   return (
     <div className={`rounded-2xl p-4 border ${theme.border} bg-gradient-to-br ${theme.bgGradient} transition-all duration-300 shadow-xl group relative overflow-hidden ${theme.glow} hover:scale-[1.01]`}>
@@ -53,11 +48,6 @@ export const StockCard: React.FC<StockCardProps> = React.memo(({ stock, marketDa
             <ShieldCheck size={12} className={stock.isTopPick ? 'text-indigo-400' : 'text-blue-400'} />
             <span className="text-white">{score.toFixed(0)}</span>
          </div>
-         {stock.timeframe && (
-             <div className={`px-2 py-0.5 rounded-lg text-[8px] font-black border uppercase tracking-widest ${timeframeColors[stock.timeframe] || 'bg-slate-800 text-slate-400'}`}>
-                 {stock.timeframe}
-             </div>
-         )}
       </div>
 
       <div className="flex justify-between items-start mb-4 pr-16 relative z-10">
