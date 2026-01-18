@@ -79,7 +79,7 @@ export const runTechnicalScan = async (
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
       const response = await ai.models.generateContent({
           model: 'gemini-3-flash-preview',
-          contents: `Review these technical stock candidates and select exactly 5 "Alpha Picks" that have the best probability of immediate breakout or strong trend continuation. 
+          contents: `Review these technical stock candidates and select exactly 5 "AI Robot High-Conviction Picks" that have the best probability of immediate breakout or strong trend continuation for paper trading. 
           Respond with ONLY a JSON array of symbols.
           Data: ${JSON.stringify(topCandidates)}`,
           config: {
@@ -106,7 +106,7 @@ export const runTechnicalScan = async (
           type: 'STOCK',
           sector: 'Equity',
           currentPrice: item.currentPrice,
-          reason: isTopPick ? "AI High-Conviction Alpha Signal" : (item.signals[0] || "Trend Alignment"),
+          reason: isTopPick ? "AI Robot Alpha Signal - High Conviction" : (item.signals[0] || "Trend Alignment"),
           riskLevel: item.score > 80 ? 'Low' : item.score > 50 ? 'Medium' : 'High',
           targetPrice: item.currentPrice * (1 + (item.atr / item.currentPrice) * 3),
           timeframe: isWeekend ? 'WEEKLY' : 'BTST',
