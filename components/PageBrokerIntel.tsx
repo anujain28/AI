@@ -2,7 +2,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { StockRecommendation, MarketData } from '../types';
 import { StockCard } from './StockCard';
-import { Building2, RefreshCw, Calendar, Zap, TrendingUp, Info, ExternalLink, ShieldCheck, Globe, Search, AlertCircle, Newspaper } from 'lucide-react';
+import { Building2, RefreshCw, Calendar, Zap, TrendingUp, ShieldCheck, Globe, Search, AlertCircle, Newspaper, ArrowRight } from 'lucide-react';
 
 interface PageBrokerIntelProps {
   recommendations: StockRecommendation[];
@@ -23,10 +23,11 @@ export const PageBrokerIntel: React.FC<PageBrokerIntelProps> = ({
   const [loadingStep, setLoadingStep] = useState(0);
 
   const steps = [
-    "Grounding search on Moneycontrol & Trendlyne...",
-    "Extracting consensus from Angel & HDFC reports...",
-    "Validating NSE tickers and target prices...",
-    "Enriching with real-time technical momentum..."
+    "Searching Moneycontrol research...",
+    "Crawling Trendlyne brokerage radar...",
+    "Scanning HDFC & Kotak analyst reports...",
+    "Parsing institutional target prices...",
+    "Synthesizing market alpha consensus..."
   ];
 
   useEffect(() => {
@@ -34,7 +35,7 @@ export const PageBrokerIntel: React.FC<PageBrokerIntelProps> = ({
     if (isLoading) {
       interval = setInterval(() => {
         setLoadingStep(s => (s + 1) % steps.length);
-      }, 4000);
+      }, 3500);
     } else {
       setLoadingStep(0);
     }
@@ -63,7 +64,7 @@ export const PageBrokerIntel: React.FC<PageBrokerIntelProps> = ({
           </h1>
           <p className="text-[10px] font-black uppercase tracking-[0.2em] mt-2 flex items-center gap-2 text-slate-500">
             <Newspaper size={12} className="text-indigo-500" />
-            Institutional Alpha Aggregator
+            Institutional Intelligence Core
           </p>
         </div>
         <button 
@@ -78,10 +79,10 @@ export const PageBrokerIntel: React.FC<PageBrokerIntelProps> = ({
       <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-4 mb-6">
         <div className="flex items-center gap-2 mb-3">
           <Globe size={14} className="text-indigo-400" />
-          <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Monitored Platforms</span>
+          <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Aggregated Signal Sources</span>
         </div>
         <div className="flex flex-wrap gap-2">
-          {['Moneycontrol', 'Trendlyne', 'ET Markets', 'Angel One', 'HDFC Sec', 'Kotak'].map(s => (
+          {['Moneycontrol', 'Trendlyne', 'ET Markets', 'Angel One', 'HDFC Securities', 'Kotak'].map(s => (
             <span key={s} className="text-[8px] font-black bg-slate-800/80 px-2 py-1.5 rounded-lg border border-slate-700 text-slate-400 uppercase">
                 {s}
             </span>
@@ -121,10 +122,10 @@ export const PageBrokerIntel: React.FC<PageBrokerIntelProps> = ({
                 <div className="absolute inset-0 border-4 border-indigo-500/20 border-t-indigo-500 rounded-full animate-spin"></div>
             </div>
             <div className="text-center">
-                <p className="text-xs font-black text-white uppercase tracking-widest mb-1 min-h-[1.5em] transition-all">
+                <p className="text-xs font-black text-white uppercase tracking-widest mb-1 min-h-[1.5em] transition-all duration-500">
                   {steps[loadingStep]}
                 </p>
-                <p className="text-[9px] text-slate-500 uppercase font-bold">Scanning Institutional Repositories...</p>
+                <p className="text-[9px] text-slate-500 uppercase font-bold">Checking Official Research Repositories...</p>
             </div>
             <div className="w-48 h-1 bg-slate-800 rounded-full overflow-hidden">
                 <div className="h-full bg-indigo-500 animate-[loading_2s_infinite]"></div>
@@ -142,10 +143,13 @@ export const PageBrokerIntel: React.FC<PageBrokerIntelProps> = ({
             <div className="text-center py-20 border border-dashed border-slate-800 rounded-3xl bg-slate-900/20">
               <AlertCircle size={32} className="mx-auto text-slate-700 mb-4 opacity-20" />
               <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">
-                No active {activeTimeframe} consensus found
+                No active {activeTimeframe} picks found
               </p>
-              <button onClick={onRefresh} className="mt-4 text-[9px] font-black text-indigo-400 hover:underline uppercase tracking-widest">
-                Force Kernel Refresh
+              <button 
+                onClick={onRefresh} 
+                className="mt-6 flex items-center gap-2 mx-auto bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
+              >
+                Force Kernel Refresh <ArrowRight size={14}/>
               </button>
             </div>
           )}
