@@ -18,9 +18,6 @@ export const runBacktest = async (
     const trades: BacktestTrade[] = [];
     const equityCurve: { time: string; value: number }[] = [];
     
-    // Track equity per step. Since symbols might have different counts, we'll sync by time roughly.
-    // For simplicity in this engine, we process symbols sequentially and aggregate results.
-    
     let processed = 0;
     for (const symbol of symbols) {
         const data = await fetchRealStockData(symbol, settings, interval, range);
@@ -31,15 +28,12 @@ export const runBacktest = async (
 
         const candles = data.history;
         let position: { entryPrice: number; entryTime: number; quantity: number } | null = null;
-        let currentSymbolCapital = INITIAL_CAPITAL / symbols.length;
 
-        // Iterate through candles starting from index 30 to have enough data for technicals
         for (let i = 30; i < candles.length; i++) {
             const historySlice = candles.slice(0, i + 1);
             const currentCandle = candles[i];
             const tech = analyzeStockTechnical(historySlice);
             
-            // Exit logic if in position
             if (position) {
                 const pnlPercent = ((currentCandle.close - position.entryPrice) / position.entryPrice) * 100;
                 const atr = tech.atr || (currentCandle.close * 0.02);
@@ -47,8 +41,8 @@ export const runBacktest = async (
                 let shouldExit = false;
                 let exitReason = "";
 
-                const multiplier = pnlPercent > 3.0 ? rules.atrStopMult * 0.7 : rules.atrStopMult;
-                const stopPrice = position.entryPrice - (atr * multiplier);
+                // ATR-Based Trailing stop
+                const stopPrice = position.entryPrice - (atr * rules.atrStopMult);
                 const targetPrice = position.entryPrice + (atr * rules.atrTargetMult);
 
                 if (currentCandle.close < stopPrice) {
@@ -82,14 +76,17 @@ export const runBacktest = async (
                     position = null;
                 }
             } 
-            // Entry logic
             else {
-                // Simplified entry condition based on Strategy Log dashboard logic
-                const isStrong = tech.score >= 70;
-                const hasTrend = tech.adx > rules.rsiBuyZone; // Reusing rsiBuyZone as ADX threshold for backtest simplicity
+                // Entry logic matching the Idea Engine (Score > 40, ADX > Threshold)
+                const isStrong = tech.score >= 40;
+                const hasTrend = tech.adx > rules.rsiBuyZone;
                 
-                if (isStrong && hasTrend) {
-                    const budget = currentCapital * 0.1; // Allocate 10% per trade
+                // Aligning with the 1% hurdle logic implicitly via ATR check
+                const atr = tech.atr || (currentCandle.close * 0.012);
+                const projectedROI = (atr * 3.5) / currentCandle.close * 100;
+
+                if (isStrong && hasTrend && projectedROI >= 1.0) {
+                    const budget = currentCapital * 0.1;
                     const qty = Math.floor(budget / currentCandle.close);
                     
                     if (qty > 0) {
@@ -102,7 +99,6 @@ export const runBacktest = async (
                 }
             }
 
-            // Record equity point (simplified - every 10 candles or end)
             if (i % 20 === 0 || i === candles.length - 1) {
                 equityCurve.push({
                     time: new Date(currentCandle.time).toLocaleDateString(),
@@ -118,12 +114,11 @@ export const runBacktest = async (
     const wins = trades.filter(t => t.pnl > 0).length;
     const totalTrades = trades.length;
     
-    // Calculate Drawdown
     let peak = INITIAL_CAPITAL;
     let maxDD = 0;
     equityCurve.forEach(p => {
         if (p.value > peak) peak = p.value;
-        const dd = (peak - p.value) / peak;
+        const dd = peak > 0 ? (peak - p.value) / peak : 0;
         if (dd > maxDD) maxDD = dd;
     });
 
