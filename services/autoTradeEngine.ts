@@ -1,5 +1,6 @@
 
 import { AppSettings, MarketData, PortfolioItem, StockRecommendation, Transaction, Funds } from "../types";
+import { getMarketStatus } from "./marketStatusService";
 
 export interface TradeResult {
     executed: boolean;
@@ -9,14 +10,8 @@ export interface TradeResult {
     reason?: string;
 }
 
-const MAX_GLOBAL_POSITIONS = 8; 
+const MAX_GLOBAL_POSITIONS = 5; 
 const FLAT_BROKERAGE = 20; 
-
-const getISTTime = () => {
-    const now = new Date();
-    const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
-    return new Date(utc + (5.5 * 60 * 60 * 1000));
-};
 
 export const runAutoTradeEngine = (
     settings: AppSettings, 
@@ -26,61 +21,46 @@ export const runAutoTradeEngine = (
     recommendations: StockRecommendation[]
 ): TradeResult[] => {
     
+    const marketStatus = getMarketStatus('STOCK');
+    
+    // AUTO-BOT SAFETY GATE: Only trade during NSE market hours
+    if (!marketStatus.isOpen) {
+        return [];
+    }
+
     if (!settings.activeBrokers.includes('PAPER')) return [];
 
     const results: TradeResult[] = [];
     let currentFunds = { ...funds };
     const paperPortfolio = portfolio.filter(p => p.broker === 'PAPER');
     
-    const ist = getISTTime();
-    const day = ist.getDay();
-    const currentMinutes = ist.getHours() * 60 + ist.getMinutes();
-    
-    if (day === 0 || day === 6) return []; 
+    // Slicing logic is handled by brokerService, so here we just trigger the intent.
 
-    const marketOpen = 9 * 60 + 15;
-    const marketClose = 15 * 60 + 30;
-    const squareOffTime = 15 * 60 + 20;
-    const entryDeadline = 15 * 60 + 0;
-
-    const isMarketOpen = currentMinutes >= marketOpen && currentMinutes < marketClose;
-    const isSquareOff = currentMinutes >= squareOffTime;
-
-    // 1. SMART EXIT SYSTEM
+    // 1. EXIT STRATEGY (Risk Management)
     paperPortfolio.forEach(item => {
         const data = marketData[item.symbol];
-        if (!data || !isMarketOpen) return;
+        if (!data) return;
 
-        const currentPnlPercent = ((data.price - item.avgCost) / item.avgCost) * 100;
+        const pnlPercent = ((data.price - item.avgCost) / item.avgCost) * 100;
         const atr = data.technicals.atr || (data.price * 0.02);
         
         let shouldExit = false;
         let exitReason = "";
 
-        // Strategy A: Chandelier Exit (ATR Trailing)
-        // If price drops 1.5x ATR from entry, exit. 
-        // If in profit > 3%, trail with 1.0x ATR.
-        const multiplier = currentPnlPercent > 3.0 ? 1.0 : 1.5;
-        const stopPrice = item.avgCost - (atr * multiplier);
-        
-        if (data.price < stopPrice) {
+        // Trailing Stop Loss (1.5x ATR)
+        if (data.price < item.avgCost - (atr * 1.5)) {
             shouldExit = true;
-            exitReason = `Volatility Stop (${multiplier}x ATR)`;
+            exitReason = "SL Hit (ATR Volatility)";
         }
-        // Strategy B: Time-Based Decay
-        else if (currentPnlPercent < 0 && data.technicals.score < 30) {
+        // Take Profit (Target Price or 5% gain)
+        else if (pnlPercent >= 5.0) {
             shouldExit = true;
-            exitReason = "Weakening Momentum Exit";
+            exitReason = "TP Target Achieved";
         }
-        // Strategy C: Hard Target Scaling
-        else if (currentPnlPercent >= 12.0) {
+        // End of Day Square Off (15:20 IST)
+        else if (marketStatus.message.includes('15:') && parseInt(marketStatus.message.split(':')[1]) >= 20) {
             shouldExit = true;
-            exitReason = "Elite Take-Profit Target";
-        }
-        // Strategy D: Intraday Close
-        else if (item.timeframe === 'INTRADAY' && isSquareOff) {
-            shouldExit = true;
-            exitReason = "System Square-Off";
+            exitReason = "EOD Square-Off System";
         }
 
         if (shouldExit) {
@@ -89,10 +69,10 @@ export const runAutoTradeEngine = (
             results.push({
                 executed: true,
                 transaction: {
-                    id: `bot-sell-${Date.now()}-${item.symbol}`,
+                    id: `bot-sell-${Date.now()}`,
                     type: 'SELL', symbol: item.symbol, assetType: 'STOCK',
                     quantity: item.quantity, price: data.price, timestamp: Date.now(), 
-                    broker: 'PAPER', brokerage: FLAT_BROKERAGE, timeframe: item.timeframe
+                    broker: 'PAPER', brokerage: FLAT_BROKERAGE, timeframe: 'INTRADAY'
                 },
                 newFunds: { ...currentFunds }, 
                 reason: exitReason
@@ -100,38 +80,18 @@ export const runAutoTradeEngine = (
         }
     });
 
-    // 2. HIGH-ALPHA ENTRY SYSTEM
-    if (!isMarketOpen || currentMinutes >= entryDeadline) return results;
+    // 2. ENTRY STRATEGY (Momentum Alpha)
     if (paperPortfolio.length >= MAX_GLOBAL_POSITIONS) return results;
 
-    const topCandidates = recommendations
-        .filter(r => {
-            const data = marketData[r.symbol];
-            if (!data) return false;
-            
-            const isAlreadyHeld = paperPortfolio.some(p => p.symbol === r.symbol);
-            const signals = data.technicals.activeSignals;
-            
-            // WORLD CLASS CRITERIA:
-            // 1. Must be Strong Trend (ADX > 25)
-            // 2. Must have Volume Pulse (RVOL > 1.5)
-            // 3. Must be above EMA 9
-            const isStrong = data.technicals.score >= 70;
-            const hasVolume = signals.some(s => s.includes("RVOL"));
-            const hasTrend = signals.some(s => s.includes("Trend"));
+    const topCandidate = recommendations.find(r => {
+        const data = marketData[r.symbol];
+        return data && data.technicals.score >= 85 && !paperPortfolio.some(p => p.symbol === r.symbol);
+    });
 
-            return isStrong && hasVolume && hasTrend && !isAlreadyHeld;
-        })
-        .sort((a, b) => (marketData[b.symbol]?.technicals.score || 0) - (marketData[a.symbol]?.technicals.score || 0));
-
-    for (const rec of topCandidates) {
-        if (results.some(r => r.transaction?.type === 'BUY')) break;
-
-        const data = marketData[rec.symbol]!;
-        const allocation = (settings.autoTradeConfig?.value || 5) / 100;
-        const budget = currentFunds.stock * allocation;
+    if (topCandidate) {
+        const data = marketData[topCandidate.symbol]!;
+        const budget = currentFunds.stock * 0.1; // 10% exposure per trade
         const qty = Math.floor(budget / data.price);
-
         const cost = (qty * data.price) + FLAT_BROKERAGE;
 
         if (qty > 0 && currentFunds.stock >= cost) {
@@ -139,15 +99,14 @@ export const runAutoTradeEngine = (
             results.push({
                 executed: true,
                 transaction: {
-                    id: `bot-buy-${Date.now()}-${rec.symbol}`,
-                    type: 'BUY', symbol: rec.symbol, assetType: 'STOCK',
+                    id: `bot-buy-${Date.now()}`,
+                    type: 'BUY', symbol: topCandidate.symbol, assetType: 'STOCK',
                     quantity: qty, price: data.price, timestamp: Date.now(), 
-                    broker: 'PAPER', brokerage: FLAT_BROKERAGE, timeframe: rec.timeframe || 'INTRADAY'
+                    broker: 'PAPER', brokerage: FLAT_BROKERAGE, timeframe: 'INTRADAY'
                 },
                 newFunds: { ...currentFunds }, 
-                reason: `Alpha Entry: ${data.technicals.activeSignals.join(' + ')}`
+                reason: `Alpha Pulse Entry: ${data.technicals.activeSignals[0]}`
             });
-            break; 
         }
     }
 
