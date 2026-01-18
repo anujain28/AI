@@ -1,5 +1,4 @@
-
-import { StockRecommendation, AppSettings, StockData, AssetType } from "../types";
+import { StockRecommendation, AppSettings, StockData } from "../types";
 import { fetchRealStockData } from "./marketDataService";
 import { getGroupedUniverse } from "./stockListService";
 import { getMarketStatus } from "./marketStatusService";
@@ -28,8 +27,8 @@ async function promisePool<T, R>(
 }
 
 /**
- * runTechnicalScan now detects market status.
- * On weekends, it performs an "Industry Scan" to show a broader perspective.
+ * AI Robot Recommendation Engine.
+ * Scans the market and uses Gemini to select the 'Best 5' high-conviction picks.
  */
 export const runTechnicalScan = async (
     stockUniverse: string[], 
@@ -39,100 +38,98 @@ export const runTechnicalScan = async (
   const marketStatus = getMarketStatus('STOCK');
   const isWeekend = !marketStatus.isOpen && marketStatus.message.includes('Weekend');
 
-  // On weekends, we scan at least 2 stocks from every industry to populate the explorer
-  const scanTargets: string[] = [];
-  
-  if (isWeekend) {
-      const groups = getGroupedUniverse();
-      Object.values(groups).forEach(industryStocks => {
-          scanTargets.push(...industryStocks.slice(0, 3));
-      });
-  } else {
-      const prioritizedSymbols = stockUniverse.filter(s => s.startsWith('BSE') || s.includes('BANK') || s === 'RELIANCE.NS');
-      const others = stockUniverse.filter(s => !prioritizedSymbols.includes(s));
-      scanTargets.push(...prioritizedSymbols.slice(0, 20), ...others.sort(() => 0.5 - Math.random()).slice(0, 30));
-  }
+  // Filter to a liquid subset of the universe for the technical scan
+  const scanTargets = stockUniverse.filter(s => 
+    s.startsWith('BSE') || 
+    ['RELIANCE.NS', 'HDFCBANK.NS', 'ICICIBANK.NS', 'TCS.NS', 'INFY.NS', 'SBIN.NS', 'AXISBANK.NS', 'BHARTIARTL.NS', 'TRENT.NS', 'ZOMATO.NS', 'TATASTEEL.NS', 'MARUTI.NS'].includes(s)
+  ).slice(0, 50);
 
-  const batchResults = await promisePool(scanTargets, 10, async (symbol) => {
-      const recommendations: StockRecommendation[] = [];
-      const pureSym = symbol.split('.')[0];
-      
+  const rawTechnicalResults = await promisePool(scanTargets, 10, async (symbol) => {
       try {
-          // Fetch data (On weekends, we look at daily charts for "Profile" analysis)
           const interval = isWeekend ? "1d" : "15m";
           const range = isWeekend ? "1mo" : "2d";
-          
           const marketData = await fetchRealStockData(symbol, settings, interval, range);
 
           if (marketData) {
               const tech = marketData.technicals;
-              const isHighConviction = tech.score >= 70;
-              
-              // On weekends, we include stocks even if they aren't >70 score to show industry breadth
-              if (isHighConviction || isWeekend) {
-                  recommendations.push({
-                      symbol,
-                      name: pureSym,
-                      type: 'STOCK',
-                      sector: 'Equity', 
-                      currentPrice: marketData.price,
-                      reason: tech.activeSignals[0] || "Neutral Range",
-                      riskLevel: tech.score > 80 ? 'Low' : tech.score > 50 ? 'Medium' : 'High',
-                      targetPrice: marketData.price * (1 + (tech.atr / marketData.price) * 3),
-                      timeframe: isWeekend ? 'WEEKLY' : 'BTST',
-                      score: tech.score,
-                      lotSize: 1,
-                      isTopPick: tech.score >= 85
-                  });
-              }
+              return {
+                  symbol,
+                  name: symbol.split('.')[0],
+                  currentPrice: marketData.price,
+                  score: tech.score,
+                  rsi: tech.rsi,
+                  adx: tech.adx,
+                  atr: tech.atr,
+                  signals: tech.activeSignals
+              };
           }
       } catch (e) { }
-      return recommendations;
+      return null;
   });
 
-  const flatResults = batchResults.flat();
-  return flatResults.sort((a, b) => (b.score || 0) - (a.score || 0));
+  const validData = rawTechnicalResults.filter(r => r !== null) as any[];
+  
+  // High-momentum candidates for AI Review
+  const topCandidates = validData.sort((a, b) => b.score - a.score).slice(0, 15);
+
+  let best5Symbols: string[] = topCandidates.slice(0, 5).map(t => t.symbol);
+
+  // Use Gemini to act as the "Robot" picking the absolute best 5
+  try {
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const response = await ai.models.generateContent({
+          model: 'gemini-3-flash-preview',
+          contents: `Review these technical stock candidates and select exactly 5 "Alpha Picks" that have the best probability of immediate breakout or strong trend continuation. 
+          Respond with ONLY a JSON array of symbols.
+          Data: ${JSON.stringify(topCandidates)}`,
+          config: {
+              responseMimeType: 'application/json',
+              responseSchema: {
+                  type: Type.ARRAY,
+                  items: { type: Type.STRING }
+              }
+          }
+      });
+      const parsed = JSON.parse(response.text || "[]");
+      if (Array.isArray(parsed) && parsed.length >= 3) {
+          best5Symbols = parsed.slice(0, 5);
+      }
+  } catch (err) {
+      console.warn("AI Picking failed, falling back to technical sort", err);
+  }
+
+  const finalRecommendations: StockRecommendation[] = validData.map(item => {
+      const isTopPick = best5Symbols.includes(item.symbol);
+      return {
+          symbol: item.symbol,
+          name: item.name,
+          type: 'STOCK',
+          sector: 'Equity',
+          currentPrice: item.currentPrice,
+          reason: isTopPick ? "AI High-Conviction Alpha Signal" : (item.signals[0] || "Trend Alignment"),
+          riskLevel: item.score > 80 ? 'Low' : item.score > 50 ? 'Medium' : 'High',
+          targetPrice: item.currentPrice * (1 + (item.atr / item.currentPrice) * 3),
+          timeframe: isWeekend ? 'WEEKLY' : 'BTST',
+          score: item.score,
+          lotSize: 1,
+          isTopPick: isTopPick,
+          sourceUrl: "https://airobots.streamlit.app/"
+      };
+  });
+
+  return finalRecommendations.sort((a, b) => {
+      if (a.isTopPick && !b.isTopPick) return -1;
+      if (!a.isTopPick && b.isTopPick) return 1;
+      return (b.score || 0) - (a.score || 0);
+  });
 };
 
 export const runIntradayAiAnalysis = async (
     recommendations: StockRecommendation[],
     marketData: Record<string, StockData>
 ): Promise<string[]> => {
-    const snapshot = recommendations
-        .filter(r => marketData[r.symbol])
-        .slice(0, 20)
-        .map(r => {
-            const d = marketData[r.symbol];
-            return {
-                symbol: r.symbol,
-                price: d.price,
-                score: d.technicals.score,
-                signals: d.technicals.activeSignals.join(', ')
-            };
-        });
-
-    if (snapshot.length < 3) return [];
-
-    try {
-        const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-        const response = await ai.models.generateContent({
-            model: 'gemini-3-pro-preview',
-            contents: `Analyze these top momentum stocks from the real-time NSE scan. Pick exactly 5 for aggressive day trading continuation. Snapshot: ${JSON.stringify(snapshot)}`,
-            config: {
-                responseMimeType: "application/json",
-                responseSchema: {
-                    type: Type.OBJECT,
-                    properties: {
-                        top5Symbols: { type: Type.ARRAY, items: { type: Type.STRING } }
-                    },
-                    required: ["top5Symbols"]
-                }
-            }
-        });
-
-        const data = JSON.parse(response.text || '{"top5Symbols": []}');
-        return data.top5Symbols || [];
-    } catch (e) {
-        return recommendations.slice(0, 5).map(r => r.symbol);
-    }
+    return recommendations
+        .filter(r => r.isTopPick)
+        .slice(0, 5)
+        .map(r => r.symbol);
 };

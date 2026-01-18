@@ -16,6 +16,7 @@ import { PageStrategyLog } from './components/PageStrategyLog';
 import { PageScan } from './components/PageScan';
 import { sendTelegramMessage, generatePNLReport } from './services/telegramService';
 import { getMarketStatus } from './services/marketStatusService';
+import { analyzeHoldings } from './services/geminiService';
 
 const STORAGE_PREFIX = 'aitrade_v3_';
 const DEFAULT_FUNDS: Funds = { stock: 1000000, mcx: 0, forex: 0, crypto: 0 };
@@ -84,7 +85,6 @@ export default function App() {
     };
     window.addEventListener('sw-update-available', handleUpdate);
 
-    // Update market status every 30 seconds
     const statusTimer = setInterval(() => {
         setMarketStatus(getMarketStatus('STOCK'));
     }, 30000);
@@ -126,6 +126,31 @@ export default function App() {
     const message = `${emoji} *Trade Notification: ${tx.type}*\nSymbol: ${tx.symbol}\nPrice: ₹${tx.price.toFixed(2)}\nQuantity: ${tx.quantity}\nReason: ${reason || 'AI Strategy'}\nBroker: ${tx.broker}`;
     await sendTelegramMessage(settings.telegramBotToken, settings.telegramChatId, message);
   }, [settings]);
+
+  // Fixed: Added Effect to trigger Gemini Portfolio Analysis when 'isAnalyzing' state is requested.
+  useEffect(() => {
+    if (isAnalyzing && paperPortfolio.length > 0) {
+      const runAiAnalysis = async () => {
+        try {
+          const results = await analyzeHoldings(paperPortfolio, marketData);
+          const dataMap: Record<string, HoldingAnalysis> = {};
+          results.forEach(item => {
+              dataMap[item.symbol] = item;
+          });
+          setAnalysisData(dataMap);
+          showNotification("AI Portfolio Insight Generated");
+        } catch (error) {
+          console.error("AI Analysis failed", error);
+          showNotification("Analysis failed. Check your network.");
+        } finally {
+          setIsAnalyzing(false);
+        }
+      };
+      runAiAnalysis();
+    } else if (isAnalyzing) {
+        setIsAnalyzing(false);
+    }
+  }, [isAnalyzing, paperPortfolio, marketData, showNotification]);
 
   const handleTestTrade = async () => {
     const testSymbol = 'RELIANCE.NS';
@@ -205,7 +230,6 @@ export default function App() {
     botIntervalRef.current = setInterval(() => {
         if (!activeBots['PAPER']) return;
         
-        // Guard: Disable auto-trading if market is closed
         const currentStatus = getMarketStatus('STOCK');
         if (!currentStatus.isOpen) return;
 
@@ -289,7 +313,6 @@ export default function App() {
 
   return (
     <div className="h-full flex flex-col bg-background text-slate-100 overflow-hidden relative">
-      {/* Global Market Status Indicator */}
       <div className="fixed top-4 right-4 z-[70] pointer-events-none">
           <div className="bg-slate-950/90 border border-slate-800 px-3 py-1.5 rounded-full flex items-center gap-2 shadow-2xl backdrop-blur-md">
               <div className={`w-1.5 h-1.5 rounded-full ${marketStatus.isOpen ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></div>
@@ -315,7 +338,7 @@ export default function App() {
         </div>
       )}
       <main className="flex-1 overflow-y-auto custom-scrollbar w-full max-w-lg mx-auto md:max-w-7xl md:border-x md:border-slate-800">
-        {activePage === 0 && <PageMarket recommendations={recommendations} marketData={marketData} onTrade={onTradeRequest} onRefresh={() => { setRecommendations([]); loadMarketData(); }} isLoading={isLoading} enabledMarkets={settings.enabledMarkets} />}
+        {activePage === 0 && <PageMarket settings={settings} recommendations={recommendations} marketData={marketData} onTrade={onTradeRequest} onRefresh={() => { setRecommendations([]); loadMarketData(); }} isLoading={isLoading} enabledMarkets={settings.enabledMarkets} />}
         {activePage === 1 && <PageStrategyLog recommendations={recommendations} marketData={marketData} rules={settings.strategyRules || DEFAULT_RULES} onUpdateRules={(r) => { setSettings(s => ({...s, strategyRules: r})); saveData('settings', {...settings, strategyRules: r}); }} aiIntradayPicks={aiIntradayPicks} onRefresh={() => loadMarketData()} settings={settings} />}
         {activePage === 2 && <PageScan marketData={marketData} settings={settings} onTrade={onTradeRequest} />}
         {activePage === 3 && <PagePaperTrading holdings={paperPortfolio} marketData={marketData} analysisData={analysisData} onSell={handleInitiateSell} onAnalyze={() => setIsAnalyzing(true)} isAnalyzing={isAnalyzing} funds={funds} activeBots={activeBots} onToggleBot={(b) => setActiveBots(p => ({...p, [b]: !p[b]}))} transactions={transactions} onUpdateFunds={(f) => { setFunds(f); saveData('funds', f); }} />}

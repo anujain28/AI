@@ -1,8 +1,10 @@
+
 import React, { useState } from 'react';
 import { PortfolioItem, MarketData, Funds, HoldingAnalysis, Transaction } from '../types';
 import { PortfolioTable } from './PortfolioTable';
 import { ActivityFeed } from './ActivityFeed';
-import { Wallet, PieChart, Sparkles, RefreshCw, Power, BarChart2, TrendingUp, Coins } from 'lucide-react';
+import { Wallet, PieChart, Sparkles, RefreshCw, Power, BarChart2, TrendingUp, Coins, AlertCircle, Clock } from 'lucide-react';
+import { getMarketStatus } from '../services/marketStatusService';
 
 interface PagePaperTradingProps {
   holdings: PortfolioItem[];
@@ -27,6 +29,7 @@ export const PagePaperTrading: React.FC<PagePaperTradingProps> = ({
   const [editMode, setEditMode] = useState(false);
   const [tempFunds, setTempFunds] = useState<Funds>(funds);
 
+  const marketStatus = getMarketStatus('STOCK');
   const paperHoldings = holdings.filter(h => h.broker === 'PAPER');
   
   const currentVal = paperHoldings.reduce((acc, h) => acc + ((marketData[h.symbol]?.price || h.avgCost) * h.quantity), 0);
@@ -42,7 +45,7 @@ export const PagePaperTrading: React.FC<PagePaperTradingProps> = ({
   };
 
   return (
-    <div className="p-4 pb-20 animate-fade-in flex flex-col h-full">
+    <div className="p-4 pb-24 animate-fade-in flex flex-col h-full">
        <div className="flex items-center justify-between mb-4">
            <div className="flex items-center gap-3">
               <div className="p-3 bg-gradient-to-br from-indigo-500/20 to-purple-500/20 rounded-xl text-indigo-400 border border-indigo-500/30"><Wallet size={24} /></div>
@@ -57,6 +60,17 @@ export const PagePaperTrading: React.FC<PagePaperTradingProps> = ({
                <button onClick={() => setActiveTab('AUTO_BOT')} className={`px-3 py-1.5 rounded-md text-[10px] md:text-xs font-bold transition-all ${activeTab === 'AUTO_BOT' ? 'bg-purple-600 text-white shadow-lg shadow-purple-500/20' : 'text-slate-400 hover:text-white'}`}>Auto-Bot</button>
            </div>
        </div>
+
+       {/* Market Closed Warning Overlay for Auto-Bot */}
+       {activeTab === 'AUTO_BOT' && !marketStatus.isOpen && (
+           <div className="mb-4 bg-amber-500/10 border border-amber-500/30 rounded-xl p-3 flex items-center gap-3 animate-fade-in">
+                <Clock className="text-amber-500 shrink-0" size={18} />
+                <div className="flex-1">
+                    <p className="text-[10px] font-black text-amber-500 uppercase tracking-widest leading-none">Market Currently Closed</p>
+                    <p className="text-[9px] text-amber-500/70 font-bold mt-1 uppercase">Auto-Trading is paused until 09:15 IST.</p>
+                </div>
+           </div>
+       )}
 
        <div className="bg-gradient-to-br from-indigo-900 via-slate-900 to-black rounded-2xl border border-indigo-500/30 p-5 md:p-6 shadow-2xl relative overflow-hidden mb-6 group">
             <div className="absolute -top-10 -right-10 opacity-10 rotate-12 group-hover:rotate-45 transition-transform duration-700 text-indigo-400"><PieChart size={180} /></div>
@@ -127,6 +141,12 @@ export const PagePaperTrading: React.FC<PagePaperTradingProps> = ({
                               <Power size={22} />
                             </button>
                         </div>
+                        {isActive && !marketStatus.isOpen && (
+                            <div className="mt-3 flex items-center gap-2 text-amber-500/80 animate-pulse">
+                                <AlertCircle size={14} />
+                                <span className="text-[10px] font-black uppercase tracking-widest">Bot Active but On Standby (Market Closed)</span>
+                            </div>
+                        )}
                     </div>
                   ))}
                </div>

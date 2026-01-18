@@ -1,3 +1,4 @@
+
 import React, { Component, ErrorInfo, ReactNode } from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
@@ -9,58 +10,51 @@ interface ErrorBoundaryProps {
 interface ErrorBoundaryState {
   hasError: boolean;
   error: Error | null;
-  errorInfo: ErrorInfo | null;
 }
 
-/**
- * ErrorBoundary class component to catch rendering errors.
- * Fixed: Using React.Component explicitly to resolve TypeScript errors where setState and props were not found.
- */
+// Fixed: Explicitly using React.Component to ensure that 'state' and 'props' properties are correctly inherited and recognized by TypeScript.
 class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  // Explicitly declaring state to ensure it is recognized by TypeScript
-  public state: ErrorBoundaryState = {
-    hasError: false,
-    error: null,
-    errorInfo: null
-  };
-
   constructor(props: ErrorBoundaryProps) {
     super(props);
-    // State is already initialized above, but super(props) ensures this.props is correctly initialized.
+    // Fixed: Initializing state. Using React.Component generic parameters ensures 'this.state' is typed correctly.
+    this.state = {
+      hasError: false,
+      error: null
+    };
   }
 
-  static getDerivedStateFromError(error: Error): Partial<ErrorBoundaryState> {
+  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
     return { hasError: true, error };
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.error("App Crash Details:", error, errorInfo);
-    // Fixed: setState is inherited from React.Component.
-    this.setState({ errorInfo });
+    console.error("Critical Engine Failure:", error, errorInfo);
   }
 
   render() {
-    // Accessing state and props inherited from Component
+    // Fixed: Accessed 'this.state' which is now inherited from React.Component.
     if (this.state.hasError) {
       return (
-        <div className="flex flex-col items-center justify-center min-h-screen bg-[#0f172a] text-white p-6 font-mono text-center">
-          <div className="bg-red-900/20 p-4 rounded-full mb-4 border border-red-500/50">
-            <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" cy="8" x2="12" y2="12"></line><line x1="12" cy="16" x2="12.01" y2="16"></line></svg>
+        <div className="flex flex-col items-center justify-center min-h-screen bg-[#0f172a] text-white p-6 text-center font-sans">
+          <div className="bg-red-500/10 p-4 rounded-full mb-6 border border-red-500/20">
+            <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
           </div>
-          <h1 className="text-xl font-bold mb-2">Application Crash</h1>
-          <p className="text-slate-400 text-sm mb-4">A critical error occurred. Please try reloading.</p>
-          <div className="w-full max-w-lg bg-black/50 p-4 rounded-lg border border-slate-800 text-left overflow-auto max-h-64 mb-6">
-            <p className="text-red-400 text-xs font-bold mb-1">{this.state.error?.toString()}</p>
-            <pre className="text-[10px] text-slate-500">{this.state.error?.stack}</pre>
+          <h1 className="text-2xl font-bold mb-2 uppercase tracking-tighter italic">Engine Error</h1>
+          <p className="text-slate-400 text-sm mb-6 max-w-xs mx-auto">The application encountered a critical runtime failure.</p>
+          <div className="bg-black/40 p-4 rounded-xl border border-slate-800 text-left mb-8 max-w-md w-full overflow-hidden">
+             {/* Fixed: Accessed 'this.state.error' safely. */}
+             <code className="text-red-400 text-xs break-all">{this.state.error?.message}</code>
           </div>
-          <button onClick={() => window.location.reload()} className="px-6 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-sm font-bold transition-colors">
-            Reload Application
+          <button 
+            onClick={() => window.location.reload()} 
+            className="px-8 py-3 bg-blue-600 hover:bg-blue-500 rounded-xl font-black text-xs uppercase tracking-widest transition-all shadow-lg shadow-blue-500/20"
+          >
+            Restart Interface
           </button>
         </div>
       );
     }
-
-    // Fixed: Returning children from this.props which is inherited from React.Component.
+    // Fixed: Accessed 'this.props' which is now inherited from React.Component.
     return this.props.children;
   }
 }
