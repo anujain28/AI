@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { StockRecommendation, MarketData } from '../types';
 import { StockCard } from './StockCard';
-import { RefreshCw, Globe, Search, AlertCircle, Newspaper, ArrowRight, ExternalLink, BarChart2, Info } from 'lucide-react';
+import { RefreshCw, Globe, Search, AlertCircle, Newspaper, ArrowRight, ExternalLink, BarChart2, Info, Zap } from 'lucide-react';
 
 interface PageBrokerIntelProps {
   recommendations: StockRecommendation[];
@@ -25,8 +25,8 @@ export const PageBrokerIntel: React.FC<PageBrokerIntelProps> = ({
 
   const steps = [
     "SYNCING WITH NSE TICKER CORE...",
-    "CALCULATING TECHNICAL CONVICTION...",
-    "VALIDATING MOMENTUM SIGNALS...",
+    "EXTRACTING MOMENTUM SIGNALS...",
+    "CALCULATING ALPHA TARGETS...",
     "FETCHING MONEYCONTROL CONTEXT..."
   ];
 
@@ -64,7 +64,7 @@ export const PageBrokerIntel: React.FC<PageBrokerIntelProps> = ({
         </button>
       </div>
 
-      {/* Live Web Section - "Show it as it is" */}
+      {/* Live Web Section - Show it as it is */}
       <div className="mb-8 space-y-4">
         <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-2xl">
           <div className="p-3 bg-slate-800/50 border-b border-slate-700 flex justify-between items-center">
@@ -82,8 +82,7 @@ export const PageBrokerIntel: React.FC<PageBrokerIntelProps> = ({
             </a>
           </div>
           
-          {/* Iframe View - Some browsers/sites may block this via X-Frame-Options */}
-          <div className="relative aspect-[16/10] md:aspect-[21/9] bg-slate-950">
+          <div className="relative aspect-[16/12] md:aspect-[21/7] bg-slate-950">
             <iframe 
               src="https://www.moneycontrol.com/markets/stock-ideas/" 
               className="w-full h-full border-0"
@@ -91,19 +90,24 @@ export const PageBrokerIntel: React.FC<PageBrokerIntelProps> = ({
               loading="lazy"
             />
             {/* Fallback Overlay for blocked frames */}
-            <div className="absolute inset-0 pointer-events-none flex flex-col items-center justify-center p-6 text-center bg-slate-950/60 backdrop-blur-[1px]">
-               <Info size={24} className="text-slate-600 mb-2" />
-               <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest max-w-[200px]">
-                 Note: Web view may be limited by external site policies. Use trading cards below for execution.
-               </p>
+            <div className="absolute inset-0 pointer-events-none flex flex-col items-end justify-start p-4">
+               <div className="bg-slate-900/90 border border-slate-700 p-2 rounded-lg backdrop-blur-sm">
+                  <p className="text-[8px] font-bold text-slate-500 uppercase tracking-widest">
+                    Live Feed Overlay Active
+                  </p>
+               </div>
             </div>
           </div>
         </div>
       </div>
 
-      <div className="flex items-center gap-2 mb-4 px-1">
-          <BarChart2 size={16} className="text-blue-500" />
-          <h3 className="text-lg font-black text-white uppercase italic tracking-tight">Active Trading Ideas</h3>
+      {/* Latest Calls Section */}
+      <div className="flex items-center justify-between mb-4 px-1">
+          <div className="flex items-center gap-2">
+            <Zap size={20} className="text-yellow-400 fill-yellow-400" />
+            <h3 className="text-xl font-black text-white uppercase italic tracking-tight leading-none">Latest Stock Calls</h3>
+          </div>
+          <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Consensus Intelligence</span>
       </div>
 
       {isLoading ? (
@@ -117,7 +121,7 @@ export const PageBrokerIntel: React.FC<PageBrokerIntelProps> = ({
                   {steps[loadingStep]}
                 </p>
                 <p className="text-[9px] text-slate-500 uppercase font-bold">
-                    SYNCING INSTITUTIONAL DATA
+                    EXTRACTING IDEAS FROM UNIVERSE
                 </p>
             </div>
         </div>
@@ -133,7 +137,7 @@ export const PageBrokerIntel: React.FC<PageBrokerIntelProps> = ({
             <div className="text-center py-20 border border-dashed border-slate-800 rounded-3xl bg-slate-900/20 px-6">
               <AlertCircle size={32} className="mx-auto text-slate-700 mb-4 opacity-20" />
               <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest leading-relaxed">
-                No active ideas found.<br/>
+                No active momentum calls identified.<br/>
                 Try refreshing for latest market consensus.
               </p>
               <button 
