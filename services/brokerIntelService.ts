@@ -6,18 +6,18 @@ const STOCK_IDEAS_URL = "https://www.moneycontrol.com/markets/stock-ideas/";
 const NEWS_FALLBACK_URL = "https://www.moneycontrol.com/news/tags/recommendations.html";
 
 /**
- * Frontend Implementation of the user-provided Puppeteer/Cheerio logic.
- * Uses CORS proxies and DOMParser to replicate the scraping behavior.
+ * Frontend Implementation of the user-provided Puppeteer/Cheerio script.
+ * Replicates the table tr iteration and fallback news title extraction.
  */
-async function getLatestCalls(): Promise<string[]> {
+async function scrapeLatestCalls(): Promise<Partial<NewsItem>[]> {
   const proxies = [
     `https://api.allorigins.win/raw?url=${encodeURIComponent(STOCK_IDEAS_URL)}`,
     `https://corsproxy.io/?${encodeURIComponent(STOCK_IDEAS_URL)}`
   ];
 
-  let calls: string[] = [];
+  let calls: Partial<NewsItem>[] = [];
 
-  // 1. Primary Scrape: Stock Ideas Page
+  // 1. Primary Scrape: table tr logic
   for (const proxy of proxies) {
     try {
       const res = await fetch(proxy);
@@ -26,33 +26,33 @@ async function getLatestCalls(): Promise<string[]> {
       const parser = new DOMParser();
       const doc = parser.parseFromString(html, "text/html");
       
-      // Selectors from user script: table.MC_table tr, .MC_RECO_WRAP .grey10pt, .b_12bl
-      const selectors = ['table.MC_table tr', '.MC_RECO_WRAP .grey10pt', '.b_12bl'];
-      
-      selectors.forEach(selector => {
-        doc.querySelectorAll(selector).forEach(el => {
-          const text = el.textContent?.trim();
-          if (text && (
-            text.includes('Buy') || 
-            text.includes('Sell') || 
-            text.includes('Target')
-          )) {
-            // Basic cleaning to remove excess whitespace and formatting
-            const cleanText = text.replace(/\s+/g, ' ').trim();
-            if (cleanText.length > 15 && !calls.includes(cleanText)) {
-              calls.push(cleanText);
-            }
+      const rows = doc.querySelectorAll('table tr');
+      rows.forEach(row => {
+        const tds = row.querySelectorAll('td');
+        if (tds.length >= 3) {
+          const stock = tds[0].textContent?.trim() || '';
+          const reco = tds[1].textContent?.trim() || '';
+          const target = tds[2].textContent?.trim() || '';
+
+          if (stock && (reco.toLowerCase().includes('buy') || reco.toLowerCase().includes('sell'))) {
+            calls.push({ 
+              stock, 
+              reco, 
+              target,
+              title: `${stock}: ${reco} (Tgt: ${target})`,
+              source: "Moneycontrol Table"
+            });
           }
-        });
+        }
       });
 
       if (calls.length > 0) break;
     } catch (e) {
-      console.warn("Primary scrape failed", e);
+      console.warn("Table scrape failed", e);
     }
   }
 
-  // 2. Fallback Scrape: News Tags if no table data found
+  // 2. Fallback: news tags recommendations
   if (calls.length === 0) {
     const newsProxies = [
       `https://api.allorigins.win/raw?url=${encodeURIComponent(NEWS_FALLBACK_URL)}`,
@@ -67,65 +67,70 @@ async function getLatestCalls(): Promise<string[]> {
         const parser = new DOMParser();
         const doc = parser.parseFromString(html, "text/html");
         
-        // Selectors from user script: .article_title a, h2 a
-        const newsItems = doc.querySelectorAll('.article_title a, h2 a');
-        Array.from(newsItems).slice(0, 5).forEach(el => {
-          const text = el.textContent?.trim();
-          if (text) calls.push(text);
+        // Selectors: .article_title a, h2 a
+        const newsLinks = doc.querySelectorAll('.article_title a, h2 a');
+        Array.from(newsLinks).slice(0, 10).forEach(el => {
+          const title = el.textContent?.trim();
+          if (title) {
+            calls.push({ 
+              title, 
+              reco: title, 
+              stock: '', 
+              target: '',
+              source: "News Recommendations"
+            });
+          }
         });
 
         if (calls.length > 0) break;
       } catch (e) {
-        console.warn("Fallback scrape failed", e);
+        console.warn("News fallback failed", e);
       }
     }
   }
 
-  return calls.length ? calls.slice(0, 10) : ['No latest calls available right now.'];
+  return calls;
 }
 
 /**
  * Broker Intel Service
- * Finalized to use the user-provided scraping logic for "Latest Calls".
+ * Integrates the new structured scraper into the app's data flow.
  */
 export const fetchBrokerIntel = async (settings: AppSettings): Promise<BrokerIntelResponse> => {
   try {
-    // Execute the user-provided scraping logic
-    const scrapedCalls = await getLatestCalls();
+    const rawResults = await scrapeLatestCalls();
     
-    // Map strings to NewsItems for the UI
-    const news: NewsItem[] = scrapedCalls.map(call => ({
-      title: call,
-      link: call.includes('available right now') ? '#' : STOCK_IDEAS_URL,
+    const news: NewsItem[] = rawResults.map(item => ({
+      title: item.title || "Latest Call",
+      link: STOCK_IDEAS_URL,
       pubDate: new Date().toISOString(),
-      description: "Extracted via Moneycontrol Stock Ideas Scraper.",
-      source: "Scraped Data"
+      description: item.reco || "",
+      source: item.source || "Scraper",
+      stock: item.stock,
+      reco: item.reco,
+      target: item.target
     }));
 
-    // Generate Best 5 recommendations based on technical conviction
+    // Generate Best 5 picks based on technical scoring of core tickers
     const CORE_UNIVERSE = ['RELIANCE.NS', 'TCS.NS', 'HDFCBANK.NS', 'ICICIBANK.NS', 'INFY.NS', 'SBIN.NS', 'AXISBANK.NS', 'BHARTIARTL.NS'];
     
     const enriched = await Promise.all(CORE_UNIVERSE.map(async (ticker) => {
       try {
         const data = await fetchRealStockData(ticker, settings, "15m", "2d");
         if (!data) return null;
-
-        const tech = data.technicals;
-        const price = data.price;
-        const symbol = ticker.split('.')[0];
-
+        
         return {
           symbol: ticker,
-          name: symbol,
+          name: ticker.split('.')[0],
           type: 'STOCK',
-          sector: 'Top Quant Pick',
-          currentPrice: price,
-          reason: `Institutional Pulse: ${tech.activeSignals[0] || 'Bullish Pattern'} confirmed on 15m core.`,
-          riskLevel: tech.score > 75 ? 'Low' : 'Medium',
-          targetPrice: price * (1 + (tech.atr / price) * 3),
-          score: tech.score,
+          sector: 'Top Pick',
+          currentPrice: data.price,
+          reason: `Technical Pulse: ${data.technicals.activeSignals[0] || 'Bullish Momentum'} confirmed.`,
+          riskLevel: data.technicals.score > 75 ? 'Low' : 'Medium',
+          targetPrice: data.price * (1 + (data.technicals.atr / data.price) * 3),
+          score: data.technicals.score,
           lotSize: 1,
-          isTopPick: tech.score > 70,
+          isTopPick: data.technicals.score > 70,
           sourceUrl: STOCK_IDEAS_URL
         } as StockRecommendation;
       } catch { return null; }
@@ -141,7 +146,7 @@ export const fetchBrokerIntel = async (settings: AppSettings): Promise<BrokerInt
       news: news
     };
   } catch (error: any) {
-    console.error("Broker Scraper Failure:", error);
-    return { data: [], news: [], error: 'SCRAPER_FAILURE' };
+    console.error("Scraper Failure:", error);
+    return { data: [], news: [], error: 'SCRAPER_ERROR' };
   }
 };

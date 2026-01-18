@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { StockRecommendation, MarketData, NewsItem } from '../types';
 import { StockCard } from './StockCard';
-import { RefreshCw, Globe, Search, AlertCircle, Newspaper, ExternalLink, BarChart2, Info, Zap, MessageSquareQuote, TrendingUp, ChevronRight, Terminal } from 'lucide-react';
+import { RefreshCw, Globe, Search, AlertCircle, Newspaper, ExternalLink, BarChart2, Info, Zap, MessageSquareQuote, TrendingUp, ChevronRight, Terminal, Table } from 'lucide-react';
 
 const STOCK_IDEAS_URL = "https://www.moneycontrol.com/markets/stock-ideas/";
 
@@ -28,10 +28,10 @@ export const PageBrokerIntel: React.FC<PageBrokerIntelProps> = ({
   const [loadingStep, setLoadingStep] = useState(0);
 
   const steps = [
-    "INITIALIZING SCRAPER ENGINE...",
-    "PARSING MONEYCONTROL TABLES...",
-    "FALLING BACK TO NEWS ADVICE...",
-    "CALCULATING BEST 5 TARGETS..."
+    "BOOTING PUPPETEER LOGIC...",
+    "PARSING table tr SELECTORS...",
+    "CHECKING reco KEYWORDS...",
+    "EXTRACTING TARGET PRICES..."
   ];
 
   useEffect(() => {
@@ -46,6 +46,9 @@ export const PageBrokerIntel: React.FC<PageBrokerIntelProps> = ({
     return () => clearInterval(interval);
   }, [isLoading]);
 
+  // Check if we have structured table data
+  const hasStructuredData = news.some(item => item.stock && item.reco);
+
   return (
     <div className="p-4 pb-24 animate-fade-in max-w-lg mx-auto md:max-w-none flex flex-col h-full">
       {/* Header */}
@@ -57,7 +60,7 @@ export const PageBrokerIntel: React.FC<PageBrokerIntelProps> = ({
           </h1>
           <p className="text-[10px] font-black uppercase tracking-[0.2em] mt-2 flex items-center gap-2 text-slate-500">
             <Globe size={12} className="text-blue-500" />
-            Live Scraper Core v2.0
+            Live Scraper Core v2.1
           </p>
         </div>
         <button 
@@ -80,9 +83,9 @@ export const PageBrokerIntel: React.FC<PageBrokerIntelProps> = ({
             <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Moneycontrol Scrape</span>
           </div>
 
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-4 shadow-2xl relative overflow-hidden">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden shadow-2xl relative">
              {isLoading ? (
-               <div className="space-y-3 py-6">
+               <div className="p-6 space-y-3">
                   {[1,2,3].map(i => (
                     <div key={i} className="h-14 bg-slate-800/50 rounded-2xl animate-pulse"></div>
                   ))}
@@ -93,32 +96,38 @@ export const PageBrokerIntel: React.FC<PageBrokerIntelProps> = ({
                   </div>
                </div>
              ) : news.length > 0 ? (
-               <div className="space-y-3 max-h-[400px] overflow-y-auto custom-scrollbar pr-2">
-                 {news.map((item, idx) => (
-                    <div 
-                      key={idx} 
-                      className="p-4 bg-slate-800/30 rounded-2xl border border-slate-700/30 hover:bg-slate-800 transition-all flex items-start gap-3 group"
-                    >
-                      <div className="mt-1 p-1 bg-slate-900 rounded shadow-inner text-yellow-400 shrink-0">
-                        <ChevronRight size={14} />
-                      </div>
-                      <div className="flex-1">
-                         <p className="text-xs font-bold text-slate-100 leading-relaxed group-hover:text-white">
-                           {item.title}
-                         </p>
-                         <div className="flex items-center justify-between mt-2">
-                            <span className="text-[8px] font-black text-slate-600 uppercase tracking-widest">
-                               Source: Moneycontrol
-                            </span>
-                            {item.link !== '#' && (
-                              <a href={item.link} target="_blank" rel="noreferrer" className="text-[8px] font-black text-blue-500 uppercase tracking-widest flex items-center gap-1 hover:text-blue-400">
-                                View Source <ExternalLink size={8}/>
-                              </a>
-                            )}
-                         </div>
-                      </div>
-                    </div>
-                 ))}
+               <div className="overflow-x-auto">
+                 {hasStructuredData ? (
+                   <table className="w-full text-left border-collapse">
+                      <thead className="bg-slate-800/50 border-b border-slate-700">
+                        <tr className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                          <th className="p-4">Stock</th>
+                          <th className="p-4">Recommendation</th>
+                          <th className="p-4 text-right">Target</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-800/50">
+                        {news.map((item, idx) => (
+                          <tr key={idx} className="hover:bg-blue-600/5 transition-colors">
+                            <td className="p-4 text-xs font-black text-white">{item.stock}</td>
+                            <td className={`p-4 text-xs font-bold ${item.reco?.toLowerCase().includes('buy') ? 'text-green-400' : 'text-red-400'}`}>
+                               {item.reco}
+                            </td>
+                            <td className="p-4 text-xs font-mono font-bold text-slate-400 text-right">{item.target}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                   </table>
+                 ) : (
+                   <div className="p-2 space-y-2">
+                      {news.map((item, idx) => (
+                        <div key={idx} className="p-4 bg-slate-800/30 rounded-2xl border border-slate-700/30 flex items-start gap-3 group">
+                           <ChevronRight size={14} className="text-yellow-400 shrink-0 mt-1" />
+                           <p className="text-xs font-bold text-slate-100 leading-relaxed">{item.title}</p>
+                        </div>
+                      ))}
+                   </div>
+                 )}
                </div>
              ) : (
                <div className="py-20 text-center text-slate-700">

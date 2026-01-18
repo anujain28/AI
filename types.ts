@@ -32,6 +32,9 @@ export interface NewsItem {
   pubDate: string;
   description: string;
   source: string;
+  stock?: string;
+  reco?: string;
+  target?: string;
 }
 
 export interface CustomScanParameters {
