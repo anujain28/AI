@@ -7,22 +7,22 @@ const marketCache: Record<string, { data: StockData, timestamp: number }> = {};
 const pendingRequests = new Map<string, Promise<StockData | null>>();
 
 const getCacheTTL = (interval: string): number => {
-  if (interval.includes('m')) return 30 * 1000; 
+  if (interval.includes('m')) return 45 * 1000; 
   return 15 * 60 * 1000;
 };
 
 async function fetchWithProxy(targetUrl: string): Promise<any> {
     const proxies = [
-        `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`,
         `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`,
-        `https://thingproxy.freeboard.io/fetch/${targetUrl}`,
-        `https://cors-anywhere.herokuapp.com/${targetUrl}` 
+        `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`,
+        `https://cors-anywhere.herokuapp.com/${targetUrl}`,
+        `https://thingproxy.freeboard.io/fetch/${targetUrl}`
     ];
 
     for (const url of proxies) {
         try {
             const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 4000); 
+            const timeoutId = setTimeout(() => controller.abort(), 5000); 
             const res = await fetch(url, { signal: controller.signal });
             clearTimeout(timeoutId);
             
@@ -58,7 +58,7 @@ async function parseYahooResponse(data: any): Promise<StockData | null> {
         }
     }
 
-    if (candles.length < 10) return null;
+    if (candles.length < 5) return null;
 
     const lastCandle = candles[candles.length - 1];
     const technicals = analyzeStockTechnical(candles);

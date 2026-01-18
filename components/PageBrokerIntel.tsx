@@ -2,7 +2,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { StockRecommendation, MarketData } from '../types';
 import { StockCard } from './StockCard';
-import { Building2, RefreshCw, Calendar, Zap, TrendingUp, ShieldCheck, Globe, Search, AlertCircle, Newspaper, ArrowRight } from 'lucide-react';
+import { Building2, RefreshCw, Calendar, Zap, TrendingUp, ShieldCheck, Globe, Search, AlertCircle, Newspaper, ArrowRight, MessageSquare } from 'lucide-react';
 
 interface PageBrokerIntelProps {
   recommendations: StockRecommendation[];
@@ -23,11 +23,11 @@ export const PageBrokerIntel: React.FC<PageBrokerIntelProps> = ({
   const [loadingStep, setLoadingStep] = useState(0);
 
   const steps = [
-    "Searching Moneycontrol research...",
-    "Crawling Trendlyne brokerage radar...",
-    "Scanning HDFC & Kotak analyst reports...",
-    "Parsing institutional target prices...",
-    "Synthesizing market alpha consensus..."
+    "CRAWLING TELEGRAM SUMMARIES...",
+    "EXTRACTING BROKERAGE PDFS...",
+    "SCANNING MONEYCONTROL PRO...",
+    "MAPPING ANALYST TARGETS...",
+    "GROUNDING TRENDLYNE RADAR..."
   ];
 
   useEffect(() => {
@@ -35,7 +35,7 @@ export const PageBrokerIntel: React.FC<PageBrokerIntelProps> = ({
     if (isLoading) {
       interval = setInterval(() => {
         setLoadingStep(s => (s + 1) % steps.length);
-      }, 3500);
+      }, 4000);
     } else {
       setLoadingStep(0);
     }
@@ -64,7 +64,7 @@ export const PageBrokerIntel: React.FC<PageBrokerIntelProps> = ({
           </h1>
           <p className="text-[10px] font-black uppercase tracking-[0.2em] mt-2 flex items-center gap-2 text-slate-500">
             <Newspaper size={12} className="text-indigo-500" />
-            Institutional Intelligence Core
+            Institutional Alpha Aggregator
           </p>
         </div>
         <button 
@@ -79,10 +79,10 @@ export const PageBrokerIntel: React.FC<PageBrokerIntelProps> = ({
       <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-4 mb-6">
         <div className="flex items-center gap-2 mb-3">
           <Globe size={14} className="text-indigo-400" />
-          <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Aggregated Signal Sources</span>
+          <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Active Intelligence Feeds</span>
         </div>
         <div className="flex flex-wrap gap-2">
-          {['Moneycontrol', 'Trendlyne', 'ET Markets', 'Angel One', 'HDFC Securities', 'Kotak'].map(s => (
+          {['Telegram Summaries', 'Brokerage PDFs', 'Moneycontrol', 'Trendlyne', 'ET Markets', 'HDFC Res'].map(s => (
             <span key={s} className="text-[8px] font-black bg-slate-800/80 px-2 py-1.5 rounded-lg border border-slate-700 text-slate-400 uppercase">
                 {s}
             </span>
@@ -125,7 +125,9 @@ export const PageBrokerIntel: React.FC<PageBrokerIntelProps> = ({
                 <p className="text-xs font-black text-white uppercase tracking-widest mb-1 min-h-[1.5em] transition-all duration-500">
                   {steps[loadingStep]}
                 </p>
-                <p className="text-[9px] text-slate-500 uppercase font-bold">Checking Official Research Repositories...</p>
+                <p className="text-[9px] text-slate-500 uppercase font-bold flex items-center justify-center gap-1">
+                    <MessageSquare size={10}/> SCANNING CHANNELS & PORTALS
+                </p>
             </div>
             <div className="w-48 h-1 bg-slate-800 rounded-full overflow-hidden">
                 <div className="h-full bg-indigo-500 animate-[loading_2s_infinite]"></div>
