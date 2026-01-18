@@ -75,7 +75,7 @@
     "react-dom": "https://esm.sh/react-dom@18.2.0",
     "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
     "lucide-react": "https://esm.sh/lucide-react@0.460.0?external=react,react-dom",
-    "@google/genai": "https://esm.sh/@google/genai@0.21.0",
+    "@google/genai": "https://esm.sh/@google/genai@latest",
     "recharts": "https://esm.sh/recharts@2.12.0?external=react,react-dom",
     "vite": "https://esm.sh/vite@^5.1.4",
     "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^4.2.1",
@@ -87,12 +87,12 @@
   <body>
     <div id="root"></div>
     <script>
-      // Fix: Robust Service Worker registration for diverse environments
-      if ('serviceWorker' in navigator && window.location.protocol === 'https:') {
+      // Service Worker registration with cache-busting and error handling
+      if ('serviceWorker' in navigator && (window.location.protocol === 'https:' || window.location.hostname === 'localhost')) {
         window.addEventListener('load', () => {
-          // Use relative path to avoid origin mismatch issues in proxied previews
-          navigator.serviceWorker.register('sw.js?v=' + Date.now())
+          navigator.serviceWorker.register('./sw.js?v=' + Date.now())
             .then(registration => {
+              console.log('SW registered successfully');
               registration.onupdatefound = () => {
                 const installingWorker = registration.installing;
                 if (installingWorker) {
@@ -105,7 +105,7 @@
               };
             })
             .catch(err => {
-              console.debug('ServiceWorker registration skipped (likely dev/frame environment):', err.message);
+              console.debug('ServiceWorker registration skipped:', err.message);
             });
         });
       }
