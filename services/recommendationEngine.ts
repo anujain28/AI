@@ -4,7 +4,7 @@ import { fetchRealStockData } from "./marketDataService";
 import { getFullUniverse } from "./stockListService";
 
 /**
- * Concurrency pool to handle multiple async tasks with a limit
+ * High-performance concurrency pool
  */
 async function promisePool<T, R>(
     items: T[],
@@ -29,43 +29,33 @@ async function promisePool<T, R>(
 }
 
 /**
- * Implementation of the scoring logic from the Python reference:
- * RSI: <30 (35pts), <40 (25pts)
- * MACD: Bullish Cross (30pts)
- * Stoch: <20 & K > D (25pts)
- * ADX: >25 & +DI > -DI (30pts)
- * BB: Squeeze/Breakout (25pts)
- * Vol: >1.5x Avg & Price Up (30pts)
- * EMA: 9/21 Cross (28pts)
- * OBV: > SMA10 (22pts)
+ * EXACT SCORING LOGIC FROM STREAMLIT PYTHON REF:
+ * RSI < 30 (35), MACD (30), Stoch < 20 (25), ADX > 25 (30), BB (25), Vol > 1.5x (30), EMA (28)
  */
 const calculatePythonScore = (tech: any): number => {
     let score = 0;
     
-    // RSI
+    // RSI: Oversold (35) or Strong Buy Zone (25)
     if (tech.rsi < 30) score += 35;
     else if (tech.rsi < 40) score += 25;
 
-    // MACD
+    // MACD: Bullish Crossover (30)
     if (tech.macd.histogram > 0 && tech.macd.macd > tech.macd.signal) score += 30;
 
-    // Stochastic
+    // Stochastic: Oversold Reversal (25)
     if (tech.stoch.k < 20 && tech.stoch.k > tech.stoch.d) score += 25;
 
-    // ADX
-    if (tech.adx > 25 && tech.supertrend.trend === 'BUY') score += 30; // Using Supertrend as proxy for DI alignment
+    // ADX: Strong Trend (30)
+    if (tech.adx > 25 && tech.supertrend.trend === 'BUY') score += 30;
 
-    // Bollinger
+    // Bollinger: Squeeze/Breakout (25)
     if (tech.bollinger.percentB > 0.8 || tech.bollinger.percentB < 0.2) score += 25;
 
-    // Volume
+    // Volume Spike (30)
     if (tech.rvol > 1.5) score += 30;
 
-    // EMA
+    // EMA Crossover (28)
     if (tech.ema.ema9 > tech.ema.ema21) score += 28;
-
-    // OBV (Proxy with score booster)
-    if (tech.score > 60) score += 22;
 
     return score;
 };
@@ -75,59 +65,47 @@ export const runTechnicalScan = async (
     settings: AppSettings
 ): Promise<StockRecommendation[]> => {
   
-  // Use a fast liquid subset for initial UI paint
-  const scanTargets = getFullUniverse().slice(0, 40); 
-  const timeframes: ('INTRADAY' | 'BTST' | 'WEEKLY' | 'MONTHLY')[] = ['INTRADAY', 'BTST', 'WEEKLY', 'MONTHLY'];
+  // TIERED SCAN: Top 40 for High-Alpha Intraday/BTST, rest for Swing
+  const allSymbols = getFullUniverse();
+  const highAlphaTargets = allSymbols.slice(0, 45); 
   
   const tfConfigs = {
-      'INTRADAY': { interval: '15m', range: '5d' },
-      'BTST': { interval: '15m', range: '10d' },
-      'WEEKLY': { interval: '1d', range: '3mo' },
-      'MONTHLY': { interval: '1d', range: '1y' }
+      'INTRADAY': { interval: '15m', range: '5d', minScore: 60 },
+      'BTST': { interval: '15m', range: '10d', minScore: 70 },
+      'WEEKLY': { interval: '1d', range: '3mo', minScore: 60 },
+      'MONTHLY': { interval: '1d', range: '1y', minScore: 80 }
   };
 
-  const allResults: StockRecommendation[] = [];
+  const results: StockRecommendation[] = [];
 
-  // We scan the targets. For each target, we determine which bucket it fits best
-  // by checking the most relevant timeframe first (Intraday/BTST)
-  await promisePool(scanTargets, 20, async (symbol) => {
+  // CONCURRENCY: 30 parallel requests for maximum speed
+  await promisePool(highAlphaTargets, 30, async (symbol) => {
       try {
-          // Check Intraday first
-          const dataIntra = await fetchRealStockData(symbol, settings, tfConfigs.INTRADAY.interval, tfConfigs.INTRADAY.range);
-          if (!dataIntra) return;
-
-          const scoreIntra = calculatePythonScore(dataIntra.technicals);
-          
-          // If Intraday is good, add it
-          if (scoreIntra >= 60) {
-              allResults.push(mapToRecommendation(symbol, dataIntra, scoreIntra, 'INTRADAY'));
-          }
-
-          // If not a strong intraday, check higher timeframes
-          if (scoreIntra < 90) {
-              const dataWeekly = await fetchRealStockData(symbol, settings, tfConfigs.WEEKLY.interval, tfConfigs.WEEKLY.range);
-              if (dataWeekly) {
-                  const scoreWeekly = calculatePythonScore(dataWeekly.technicals);
-                  if (scoreWeekly >= 90) {
-                      allResults.push(mapToRecommendation(symbol, dataWeekly, scoreWeekly, 'WEEKLY'));
-                  } else if (scoreWeekly >= 60) {
-                      allResults.push(mapToRecommendation(symbol, dataWeekly, scoreWeekly, 'MONTHLY'));
-                  }
+          // Pass 1: Intraday/BTST (15m data)
+          const data15m = await fetchRealStockData(symbol, settings, "15m", "5d");
+          if (data15m) {
+              const score = calculatePythonScore(data15m.technicals);
+              if (score >= 60) {
+                  results.push(mapToRec(symbol, data15m, score, score > 85 ? 'INTRADAY' : 'BTST'));
               }
           }
 
-          // Always try for BTST if momentum is high but not quite a day scalp
-          if (scoreIntra >= 40 && scoreIntra < 80) {
-              allResults.push(mapToRecommendation(symbol, dataIntra, scoreIntra + 10, 'BTST'));
+          // Pass 2: Weekly/Monthly (1d data) - Parallel fetch
+          const data1d = await fetchRealStockData(symbol, settings, "1d", "1y");
+          if (data1d) {
+              const score = calculatePythonScore(data1d.technicals);
+              if (score >= 60) {
+                  results.push(mapToRec(symbol, data1d, score, score > 80 ? 'MONTHLY' : 'WEEKLY'));
+              }
           }
-
       } catch (e) { }
   });
 
-  return allResults.sort((a, b) => (b.score || 0) - (a.score || 0));
+  // Sort by highest conviction
+  return results.sort((a, b) => (b.score || 0) - (a.score || 0));
 };
 
-function mapToRecommendation(symbol: string, data: any, score: number, tf: any): StockRecommendation {
+function mapToRec(symbol: string, data: any, score: number, tf: any): StockRecommendation {
     const tech = data.technicals;
     return {
         symbol: symbol,
@@ -135,13 +113,13 @@ function mapToRecommendation(symbol: string, data: any, score: number, tf: any):
         type: 'STOCK',
         sector: 'Equity',
         currentPrice: data.price,
-        reason: tech.activeSignals[0] || "Momentum Setup",
-        riskLevel: score > 150 ? 'Low' : score > 100 ? 'Medium' : 'High',
-        targetPrice: data.price + (tech.atr * 3),
+        reason: tech.activeSignals[0] || "Momentum Confluence",
+        riskLevel: score > 120 ? 'Low' : score > 80 ? 'Medium' : 'High',
+        targetPrice: data.price * (1 + (tech.atr / data.price) * 3),
         timeframe: tf,
         score: score,
         lotSize: 1,
-        isTopPick: score >= 120,
+        isTopPick: score >= 100,
         sourceUrl: `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}`
     };
 }

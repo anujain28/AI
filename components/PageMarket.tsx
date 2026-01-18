@@ -2,7 +2,7 @@
 import { useMemo, useEffect, useState } from 'react';
 import { StockRecommendation, MarketData, MarketSettings } from '../types';
 import { StockCard } from './StockCard';
-import { RefreshCw, Zap, Sparkles, Search, Clock, TrendingUp, Calendar, Repeat } from 'lucide-react';
+import { RefreshCw, Zap, Sparkles, Search, Clock, TrendingUp, Calendar, Repeat, Target } from 'lucide-react';
 
 interface PageMarketProps {
   recommendations: StockRecommendation[];
@@ -26,7 +26,7 @@ export const PageMarket: React.FC<PageMarketProps> = ({
   useEffect(() => {
     if (isLoading) {
       const interval = setInterval(() => {
-        setScanProgress(p => (p < 95 ? p + 2 : p));
+        setScanProgress(p => (p < 95 ? p + 4 : p));
       }, 100); 
       return () => clearInterval(interval);
     } else {
@@ -34,35 +34,36 @@ export const PageMarket: React.FC<PageMarketProps> = ({
     }
   }, [isLoading]);
 
-  // Specific Categorization based on TF
-  const intradayPicks = useMemo(() => recommendations.filter(r => r.timeframe === 'INTRADAY').slice(0, 4), [recommendations]);
-  const btstPicks = useMemo(() => recommendations.filter(r => r.timeframe === 'BTST').slice(0, 4), [recommendations]);
-  const weeklyPicks = useMemo(() => recommendations.filter(r => r.timeframe === 'WEEKLY').slice(0, 4), [recommendations]);
-  const monthlyPicks = useMemo(() => recommendations.filter(r => r.timeframe === 'MONTHLY').slice(0, 4), [recommendations]);
+  // Conviction-based categorization
+  const intraday = useMemo(() => recommendations.filter(r => r.timeframe === 'INTRADAY').slice(0, 5), [recommendations]);
+  const btst = useMemo(() => recommendations.filter(r => r.timeframe === 'BTST').slice(0, 5), [recommendations]);
+  const weekly = useMemo(() => recommendations.filter(r => r.timeframe === 'WEEKLY').slice(0, 5), [recommendations]);
+  const monthly = useMemo(() => recommendations.filter(r => r.timeframe === 'MONTHLY').slice(0, 5), [recommendations]);
 
-  const SectionHeader = ({ icon: Icon, title, sub, color }: any) => (
-    <div className="flex items-center gap-2 mb-4 px-1 mt-6 first:mt-0">
-        <div className={`p-2 ${color} bg-opacity-10 rounded-xl border ${color.replace('text-', 'border-').replace('bg-', 'border-')}`}>
+  const SectionTitle = ({ icon: Icon, title, sub, color }: any) => (
+    <div className="flex items-center gap-3 mb-4 px-1 mt-6 first:mt-0">
+        <div className={`p-2.5 ${color} bg-opacity-10 rounded-xl border border-current shadow-sm`}>
             <Icon size={20} className={color} />
         </div>
         <div>
-            <h2 className="text-xl font-black text-white uppercase tracking-tight italic">{title}</h2>
-            <p className={`text-[9px] font-bold uppercase tracking-widest ${color}`}>{sub}</p>
+            <h2 className="text-xl font-black text-white uppercase tracking-tight italic leading-none">{title}</h2>
+            <p className={`text-[9px] font-bold uppercase tracking-widest mt-1 opacity-80 ${color}`}>{sub}</p>
         </div>
     </div>
   );
 
   return (
     <div className="p-4 pb-24 animate-fade-in max-w-lg mx-auto md:max-w-none">
+      {/* Header */}
       <div className="flex justify-between items-start mb-6">
          <div>
              <h1 className="text-3xl font-black text-white italic leading-none uppercase tracking-tighter flex items-center gap-2">
-                 Engine Ideas
-                 <Sparkles size={22} className="text-blue-400 animate-pulse" />
+                 AI Ideas
+                 <Sparkles size={22} className="text-blue-400" />
              </h1>
              <p className="text-[10px] font-black uppercase tracking-[0.2em] mt-2 flex items-center gap-2 text-slate-500">
                  <Zap size={12} className="text-yellow-500" />
-                 Hybrid Yahoo/Shoonya Quant
+                 Shoonya & Yahoo Turbo Feed
              </p>
          </div>
          <button 
@@ -75,15 +76,16 @@ export const PageMarket: React.FC<PageMarketProps> = ({
       </div>
 
       {isLoading && (
-          <div className="mb-8 animate-fade-in">
+          <div className="mb-8 animate-fade-in bg-slate-900/50 p-4 rounded-2xl border border-slate-800">
               <div className="flex justify-between items-end mb-2">
-                  <span className="text-[9px] font-black uppercase tracking-widest text-blue-400">
-                      Syncing Quant Universes...
+                  <span className="text-[9px] font-black uppercase tracking-widest text-blue-400 flex items-center gap-2">
+                      <Target size={12} className="animate-pulse" />
+                      Mapping Alpha Universes...
                   </span>
                   <span className="text-[9px] font-mono text-slate-500">{scanProgress}%</span>
               </div>
               <div className="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden">
-                  <div className="h-full bg-blue-600 transition-all duration-300 shadow-[0_0_10px_#2563eb]" style={{ width: `${scanProgress}%` }}></div>
+                  <div className="h-full bg-blue-600 transition-all duration-300 shadow-[0_0_12px_#2563eb]" style={{ width: `${scanProgress}%` }}></div>
               </div>
           </div>
       )}
@@ -92,45 +94,45 @@ export const PageMarket: React.FC<PageMarketProps> = ({
           <div className="text-center py-20 border border-dashed border-slate-800 rounded-3xl">
               <Search size={32} className="mx-auto text-slate-700 mb-4 opacity-20" />
               <p className="text-[10px] font-black text-slate-600 uppercase tracking-widest">
-                  Scanning for high-alpha setups...
+                  No convergence detected.
               </p>
           </div>
       )}
 
       {!isLoading && (
           <div className="space-y-4">
-              {intradayPicks.length > 0 && (
+              {intraday.length > 0 && (
                   <section className="animate-slide-up">
-                      <SectionHeader icon={Clock} title="Intraday" sub="Scalp & Exit Today" color="text-red-500" />
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          {intradayPicks.map(item => <StockCard key={item.symbol} stock={item} marketData={marketData} onTrade={onTrade} />)}
+                      <SectionTitle icon={Clock} title="Intraday" sub="High Conviction Scalps" color="text-red-500" />
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                          {intraday.map(item => <StockCard key={item.symbol} stock={item} marketData={marketData} onTrade={onTrade} />)}
                       </div>
                   </section>
               )}
 
-              {btstPicks.length > 0 && (
+              {btst.length > 0 && (
                   <section className="animate-slide-up">
-                      <SectionHeader icon={Repeat} title="BTST" sub="Buy Today Sell Tomorrow" color="text-orange-500" />
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          {btstPicks.map(item => <StockCard key={item.symbol} stock={item} marketData={marketData} onTrade={onTrade} />)}
+                      <SectionTitle icon={Repeat} title="BTST" sub="Buy Today Sell Tomorrow" color="text-orange-500" />
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                          {btst.map(item => <StockCard key={item.symbol} stock={item} marketData={marketData} onTrade={onTrade} />)}
                       </div>
                   </section>
               )}
 
-              {weeklyPicks.length > 0 && (
+              {weekly.length > 0 && (
                   <section className="animate-slide-up">
-                      <SectionHeader icon={TrendingUp} title="Weekly" sub="Swing for 1-2 Weeks" color="text-blue-500" />
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          {weeklyPicks.map(item => <StockCard key={item.symbol} stock={item} marketData={marketData} onTrade={onTrade} />)}
+                      <SectionTitle icon={TrendingUp} title="Weekly" sub="Swing Opportunities" color="text-blue-500" />
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                          {weekly.map(item => <StockCard key={item.symbol} stock={item} marketData={marketData} onTrade={onTrade} />)}
                       </div>
                   </section>
               )}
 
-              {monthlyPicks.length > 0 && (
+              {monthly.length > 0 && (
                   <section className="animate-slide-up">
-                      <SectionHeader icon={Calendar} title="Monthly" sub="Core Position Trades" color="text-purple-500" />
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          {monthlyPicks.map(item => <StockCard key={item.symbol} stock={item} marketData={marketData} onTrade={onTrade} />)}
+                      <SectionTitle icon={Calendar} title="Monthly" sub="Position Trades" color="text-purple-500" />
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                          {monthly.map(item => <StockCard key={item.symbol} stock={item} marketData={marketData} onTrade={onTrade} />)}
                       </div>
                   </section>
               )}

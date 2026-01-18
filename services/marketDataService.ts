@@ -6,58 +6,55 @@ const YAHOO_CHART_BASE = "https://query1.finance.yahoo.com/v8/finance/chart/";
 const marketCache: Record<string, { data: StockData, timestamp: number }> = {};
 const pendingRequests = new Map<string, Promise<StockData | null>>();
 
-// Dynamic TTL: Intraday data refreshes faster
-const getCacheTTL = (interval: string): number => {
-  if (interval.includes('m')) return 5 * 1000; // 5 seconds for intraday
-  return 60 * 1000;
-};
-
 /**
- * Optimized Shoonya/Yahoo Hybrid Fetcher
+ * Turbo Proxy Racer - Races 3 proxies with a 2.5s hard timeout
  */
 async function fetchWithProxy(targetUrl: string, settings: AppSettings): Promise<any> {
-    // If Shoonya is active, we could theoretically hit their high-speed API here.
-    // Since this is a browser-only environment, we use highly optimized proxy racing.
-    
-    const primaryProxies = [
+    const proxies = [
         `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`,
-        `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`
+        `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`,
+        `https://proxy.cors.sh/${targetUrl}`
     ];
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 3500); // Aggressive 3.5s timeout
+    const timeoutId = setTimeout(() => controller.abort(), 2800);
 
     try {
-        const fastestResponse = await new Promise((resolve, reject) => {
+        // Fixed: Replaced Promise.any with custom racing logic to avoid compatibility errors in environments below ES2021.
+        // This logic resolves with the first successful (fulfilled) response.
+        const responseText = await new Promise<any>((resolve, reject) => {
             let settledCount = 0;
             let resolved = false;
-            primaryProxies.forEach(url => {
-                fetch(url, { signal: controller.signal })
-                    .then(async res => {
-                        if (!res.ok) throw new Error("Proxy failed");
-                        const json = await res.json();
-                        if (!json?.chart?.result) throw new Error("Invalid payload");
-                        if (!resolved) {
-                            resolved = true;
-                            resolve(json);
-                        }
-                    })
-                    .catch(err => {
-                        settledCount++;
-                        if (settledCount === primaryProxies.length && !resolved) {
-                            reject(err);
-                        }
-                    });
+            
+            proxies.forEach(url => {
+                fetch(url, { 
+                    signal: controller.signal,
+                    headers: url.includes('cors.sh') ? { 'x-cors-gratis': 'true' } : {}
+                }).then(async res => {
+                    if (!res.ok) throw new Error("Fetch failed");
+                    const json = await res.json();
+                    if (!json?.chart?.result) throw new Error("Invalid response structure");
+                    
+                    if (!resolved) {
+                        resolved = true;
+                        resolve(json);
+                    }
+                }).catch(() => {
+                    settledCount++;
+                    if (settledCount === proxies.length && !resolved) {
+                        reject(new Error("All proxies failed"));
+                    }
+                });
             });
         });
+
         clearTimeout(timeoutId);
-        return fastestResponse;
+        return responseText;
     } catch (e) {
-        console.warn("Market Data Sync Timeout. Checking connection...");
+        return null;
     } finally {
         clearTimeout(timeoutId);
     }
-    return null;
 }
 
 async function parseYahooResponse(data: any): Promise<StockData | null> {
@@ -105,18 +102,21 @@ export const fetchRealStockData = async (
 ): Promise<StockData | null> => {
     const cacheKey = `${symbol}_${interval}_${range}`;
     
-    if (pendingRequests.has(cacheKey)) return pendingRequests.get(cacheKey)!;
-    
+    // Memory Cache Check
     const cached = marketCache[cacheKey];
-    if (cached && (Date.now() - cached.timestamp < getCacheTTL(interval))) {
+    if (cached && (Date.now() - cached.timestamp < 10000)) {
         return cached.data;
     }
+
+    if (pendingRequests.has(cacheKey)) return pendingRequests.get(cacheKey)!;
 
     const requestPromise = (async () => {
         const ticker = symbol.includes('.') ? symbol : `${symbol}.NS`;
         try {
             const targetUrl = `${YAHOO_CHART_BASE}${ticker}?interval=${interval}&range=${range}`;
             const raw = await fetchWithProxy(targetUrl, settings);
+            if (!raw) return null;
+            
             const parsed = await parseYahooResponse(raw);
             if (parsed) {
                 marketCache[cacheKey] = { data: parsed, timestamp: Date.now() };
