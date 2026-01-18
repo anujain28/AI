@@ -24,10 +24,10 @@ export const PageMarket: React.FC<PageMarketProps> = ({
   scanProgress
 }) => {
   // Conviction-based categorization
-  const intraday = useMemo(() => recommendations.filter(r => r.timeframe === 'INTRADAY').slice(0, 5), [recommendations]);
-  const btst = useMemo(() => recommendations.filter(r => r.timeframe === 'BTST').slice(0, 5), [recommendations]);
-  const weekly = useMemo(() => recommendations.filter(r => r.timeframe === 'WEEKLY').slice(0, 5), [recommendations]);
-  const monthly = useMemo(() => recommendations.filter(r => r.timeframe === 'MONTHLY').slice(0, 5), [recommendations]);
+  const intraday = useMemo(() => recommendations.filter(r => r.timeframe === 'INTRADAY').slice(0, 10), [recommendations]);
+  const btst = useMemo(() => recommendations.filter(r => r.timeframe === 'BTST').slice(0, 10), [recommendations]);
+  const weekly = useMemo(() => recommendations.filter(r => r.timeframe === 'WEEKLY').slice(0, 10), [recommendations]);
+  const monthly = useMemo(() => recommendations.filter(r => r.timeframe === 'MONTHLY').slice(0, 10), [recommendations]);
 
   const SectionTitle = ({ icon: Icon, title, sub, color }: any) => (
     <div className="flex items-center gap-3 mb-4 px-1 mt-6 first:mt-0">
@@ -47,12 +47,12 @@ export const PageMarket: React.FC<PageMarketProps> = ({
       <div className="flex justify-between items-start mb-6">
          <div>
              <h1 className="text-3xl font-black text-white italic leading-none uppercase tracking-tighter flex items-center gap-2">
-                 AI Ideas
+                 Robot Ideas
                  <Sparkles size={22} className="text-blue-400" />
              </h1>
              <p className="text-[10px] font-black uppercase tracking-[0.2em] mt-2 flex items-center gap-2 text-slate-500">
                  <Zap size={12} className="text-yellow-500" />
-                 Multi-Source Signal Convergence
+                 2% ROI Filter Active
              </p>
          </div>
          <button 
@@ -69,7 +69,7 @@ export const PageMarket: React.FC<PageMarketProps> = ({
               <div className="flex justify-between items-end mb-2">
                   <span className="text-[9px] font-black uppercase tracking-widest text-blue-400 flex items-center gap-2">
                       <Target size={12} className="animate-pulse" />
-                      Scanning Market Alpha...
+                      Deep Scanning 150 Symbols...
                   </span>
                   <span className="text-[10px] font-mono text-white font-bold">{scanProgress}%</span>
               </div>
@@ -85,16 +85,17 @@ export const PageMarket: React.FC<PageMarketProps> = ({
       {!isLoading && recommendations.length === 0 && (
           <div className="text-center py-20 border border-dashed border-slate-800 rounded-3xl bg-slate-900/20 px-6">
               <Search size={32} className="mx-auto text-slate-700 mb-4 opacity-20" />
-              <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest">No Alpha Detected</h3>
+              <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest">Scanning For 2% Alpha</h3>
               <p className="text-[9px] text-slate-600 uppercase font-bold mt-2 leading-relaxed">
-                  Market technicals are currently neutral. Try refreshing or adjust your engine universe in Config.
+                  The Robot did not find stocks with &gt;2% projected profit in the current 150-symbol scan. 
+                  Try again during active market hours (09:15 - 15:30).
               </p>
               <button 
                 onClick={onRefresh}
                 className="mt-6 px-6 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2 mx-auto border border-slate-700"
               >
                 <Radar size={14} className="text-blue-400" />
-                Trigger Deep Scan
+                Rerun Quantitative Scan
               </button>
           </div>
       )}
@@ -103,7 +104,7 @@ export const PageMarket: React.FC<PageMarketProps> = ({
           <div className="space-y-4">
               {intraday.length > 0 && (
                   <section className="animate-slide-up">
-                      <SectionTitle icon={Clock} title="Intraday" sub="Fast Momentum Scalps" color="text-red-500" />
+                      <SectionTitle icon={Clock} title="High Conviction" sub="High Velocity Signals" color="text-red-500" />
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
                           {intraday.map(item => <StockCard key={item.symbol} stock={item} marketData={marketData} onTrade={onTrade} />)}
                       </div>
@@ -112,7 +113,7 @@ export const PageMarket: React.FC<PageMarketProps> = ({
 
               {btst.length > 0 && (
                   <section className="animate-slide-up">
-                      <SectionTitle icon={Repeat} title="BTST" sub="Buy Today Sell Tomorrow" color="text-orange-500" />
+                      <SectionTitle icon={Repeat} title="BTST Alpha" sub="Overnight Momentum" color="text-orange-500" />
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
                           {btst.map(item => <StockCard key={item.symbol} stock={item} marketData={marketData} onTrade={onTrade} />)}
                       </div>
@@ -121,7 +122,7 @@ export const PageMarket: React.FC<PageMarketProps> = ({
 
               {weekly.length > 0 && (
                   <section className="animate-slide-up">
-                      <SectionTitle icon={TrendingUp} title="Weekly" sub="Swing Opportunities" color="text-blue-500" />
+                      <SectionTitle icon={TrendingUp} title="Swing Ideas" sub="3-5 Day Timeframe" color="text-blue-500" />
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
                           {weekly.map(item => <StockCard key={item.symbol} stock={item} marketData={marketData} onTrade={onTrade} />)}
                       </div>
@@ -130,7 +131,7 @@ export const PageMarket: React.FC<PageMarketProps> = ({
 
               {monthly.length > 0 && (
                   <section className="animate-slide-up">
-                      <SectionTitle icon={Calendar} title="Monthly" sub="Value Position Trades" color="text-purple-500" />
+                      <SectionTitle icon={Calendar} title="Position Trades" sub="Weekly/Monthly Horizons" color="text-purple-500" />
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
                           {monthly.map(item => <StockCard key={item.symbol} stock={item} marketData={marketData} onTrade={onTrade} />)}
                       </div>
