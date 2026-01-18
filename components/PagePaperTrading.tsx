@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { PortfolioItem, MarketData, Funds, HoldingAnalysis, Transaction } from '../types';
 import { PortfolioTable } from './PortfolioTable';
 import { ActivityFeed } from './ActivityFeed';
-import { Wallet, PieChart, Sparkles, RefreshCw, Power, BarChart2, TrendingUp, Coins, AlertCircle, Clock } from 'lucide-react';
+import { Wallet, PieChart, Sparkles, RefreshCw, Power, BarChart2, TrendingUp, Coins, AlertCircle, Clock, Zap } from 'lucide-react';
 import { getMarketStatus } from '../services/marketStatusService';
 
 interface PagePaperTradingProps {
@@ -35,6 +35,7 @@ export const PagePaperTrading: React.FC<PagePaperTradingProps> = ({
   const currentVal = paperHoldings.reduce((acc, h) => acc + ((marketData[h.symbol]?.price || h.avgCost) * h.quantity), 0);
   const totalCost = paperHoldings.reduce((acc, h) => acc + h.totalCost, 0);
   const totalPnl = currentVal - totalCost;
+  const pnlPercent = totalCost > 0 ? (totalPnl / totalCost) * 100 : 0;
   
   const availableCash = funds.stock;
   const totalAccountValue = availableCash + currentVal;
@@ -51,7 +52,7 @@ export const PagePaperTrading: React.FC<PagePaperTradingProps> = ({
               <div className="p-3 bg-gradient-to-br from-indigo-500/20 to-purple-500/20 rounded-xl text-indigo-400 border border-indigo-500/30"><Wallet size={24} /></div>
               <div>
                 <h1 className="text-xl md:text-2xl font-bold text-white tracking-tight">Paper Trading</h1>
-                <p className="text-[10px] md:text-xs text-slate-400 font-medium">Virtual Portfolio & Bots</p>
+                <p className="text-[10px] md:text-xs text-slate-400 font-medium">Virtual Portfolio & Real-time P&L</p>
               </div>
            </div>
            
@@ -72,37 +73,51 @@ export const PagePaperTrading: React.FC<PagePaperTradingProps> = ({
            </div>
        )}
 
-       <div className="bg-gradient-to-br from-indigo-900 via-slate-900 to-black rounded-2xl border border-indigo-500/30 p-5 md:p-6 shadow-2xl relative overflow-hidden mb-6 group">
+       <div className={`bg-gradient-to-br from-indigo-950 via-slate-900 to-black rounded-2xl border ${totalPnl >= 0 ? 'border-green-500/30' : 'border-red-500/30'} p-5 md:p-6 shadow-2xl relative overflow-hidden mb-6 group transition-colors duration-500`}>
             <div className="absolute -top-10 -right-10 opacity-10 rotate-12 group-hover:rotate-45 transition-transform duration-700 text-indigo-400"><PieChart size={180} /></div>
-            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500"></div>
+            <div className={`absolute top-0 left-0 w-full h-1 bg-gradient-to-r ${totalPnl >= 0 ? 'from-green-500 via-emerald-500 to-blue-500' : 'from-red-500 via-orange-500 to-pink-500'}`}></div>
             
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 relative z-10 mb-4">
                 <div>
-                    <p className="text-indigo-300 text-[10px] md:text-xs font-bold uppercase tracking-wider mb-1 flex items-center gap-1"><TrendingUp size={12}/> Total P&L</p>
-                    <div className={`text-2xl md:text-3xl font-mono font-bold tracking-tight break-words ${totalPnl >= 0 ? 'text-green-400 drop-shadow-[0_0_8px_rgba(74,222,128,0.3)]' : 'text-red-400 drop-shadow-[0_0_8px_rgba(248,113,113,0.3)]'}`}>
-                        {totalPnl >= 0 ? '+' : ''}₹{totalPnl.toLocaleString(undefined, {maximumFractionDigits: 0})}
+                    <div className="flex items-center gap-2 mb-1">
+                        <p className="text-indigo-300 text-[10px] md:text-xs font-bold uppercase tracking-wider flex items-center gap-1">
+                            <TrendingUp size={12}/> Total Real-Time P&L
+                        </p>
+                        <div className={`w-1.5 h-1.5 rounded-full animate-pulse ${totalPnl >= 0 ? 'bg-green-500' : 'bg-red-500'}`}></div>
+                    </div>
+                    <div className={`text-2xl md:text-4xl font-mono font-black tracking-tight break-words ${totalPnl >= 0 ? 'text-green-400 drop-shadow-[0_0_10px_rgba(74,222,128,0.4)]' : 'text-red-400 drop-shadow-[0_0_10px_rgba(248,113,113,0.4)]'}`}>
+                        {totalPnl >= 0 ? '+' : ''}₹{totalPnl.toLocaleString(undefined, {maximumFractionDigits: 2})}
+                    </div>
+                    <div className={`text-xs md:text-sm font-bold mt-2 px-2 py-0.5 rounded-full w-fit ${totalPnl >= 0 ? 'bg-green-500/20 text-green-300' : 'bg-red-500/20 text-red-300'}`}>
+                        {pnlPercent.toFixed(2)}% ROI
                     </div>
                 </div>
-                <div className="text-left sm:text-right">
-                    <p className="text-indigo-300 text-[10px] md:text-xs font-bold uppercase tracking-wider mb-1">Account Value</p>
-                    <div className="text-lg md:text-2xl font-mono font-bold text-white break-words">₹{totalAccountValue.toLocaleString(undefined, {maximumFractionDigits: 0})}</div>
+                <div className="text-left sm:text-right flex flex-col justify-end">
+                    <p className="text-indigo-300 text-[10px] md:text-xs font-bold uppercase tracking-wider mb-1">Total Account Equity</p>
+                    <div className="text-xl md:text-2xl font-mono font-black text-white break-words">₹{totalAccountValue.toLocaleString(undefined, {maximumFractionDigits: 2})}</div>
+                    <div className="mt-2 text-[10px] text-slate-500 flex items-center gap-1 justify-start sm:justify-end">
+                        <Zap size={10} className="text-yellow-500" />
+                        Live calculation active
+                    </div>
                 </div>
             </div>
 
-            <div className="bg-black/30 backdrop-blur-md p-3 rounded-xl border border-white/10 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
-                 <div className="flex items-center gap-2 text-indigo-200 text-[10px] md:text-xs font-bold"><Wallet size={14} className="text-indigo-400"/> Cash Balance</div>
+            <div className="bg-black/40 backdrop-blur-md p-3 rounded-xl border border-white/10 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                 <div className="flex items-center gap-2 text-indigo-200 text-[10px] md:text-xs font-bold"><Wallet size={14} className="text-indigo-400"/> Cash Liquidity</div>
                  <div className="font-mono font-bold text-white text-base md:text-lg break-all">₹{availableCash.toLocaleString()}</div>
             </div>
        </div>
 
        {activeTab === 'PORTFOLIO' ? (
-           <div className="space-y-6 animate-slide-up">
-                <div>
-                    <div className="flex justify-between items-center mb-3">
-                        <h3 className="text-sm md:text-lg font-bold text-white flex items-center gap-2"><Sparkles size={16} className="text-yellow-400"/> Open Positions</h3>
-                        <button onClick={onAnalyze} disabled={isAnalyzing} className="px-3 py-1.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded-lg text-xs font-bold flex items-center gap-2 shadow-lg shadow-blue-500/20">{isAnalyzing ? <RefreshCw className="animate-spin" size={14}/> : <Sparkles size={14}/>} AI Analyze</button>
+           <div className="space-y-6 animate-slide-up flex-1 flex flex-col min-h-0">
+                <div className="flex-1 flex flex-col min-h-0">
+                    <div className="flex justify-between items-center mb-3 shrink-0">
+                        <h3 className="text-sm md:text-lg font-bold text-white flex items-center gap-2"><Sparkles size={16} className="text-yellow-400"/> Active Holdings</h3>
+                        <button onClick={onAnalyze} disabled={isAnalyzing} className="px-3 py-1.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded-lg text-xs font-bold flex items-center gap-2 shadow-lg shadow-blue-500/20">{isAnalyzing ? <RefreshCw className="animate-spin" size={14}/> : <Sparkles size={14}/>} AI Insights</button>
                     </div>
-                    <PortfolioTable portfolio={paperHoldings} marketData={marketData} analysisData={analysisData} onSell={onSell} showAiInsights={false} hideBroker={true} />
+                    <div className="flex-1 overflow-hidden flex flex-col">
+                        <PortfolioTable portfolio={paperHoldings} marketData={marketData} analysisData={analysisData} onSell={onSell} showAiInsights={false} hideBroker={true} />
+                    </div>
                 </div>
            </div>
        ) : (
