@@ -7,9 +7,6 @@ const YAHOO_CHART_BASE = "https://query1.finance.yahoo.com/v8/finance/chart/";
 const marketCache: Record<string, { data: StockData, timestamp: number }> = {};
 const pendingRequests = new Map<string, Promise<StockData | null>>();
 
-/**
- * Turbo Proxy Racer
- */
 async function fetchWithProxy(targetUrl: string): Promise<any> {
     const proxies = [
         `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`,
@@ -113,7 +110,6 @@ export const fetchRealStockData = async (
     const cacheKey = `${ticker}_${interval}_${range}`;
     
     const cached = marketCache[cacheKey];
-    // Changed TTL from 20000 to 8000 to support 10-second UI refreshes
     if (cached && (Date.now() - cached.timestamp < 8000)) {
         return cached.data;
     }
@@ -123,7 +119,7 @@ export const fetchRealStockData = async (
     const requestPromise = (async () => {
         try {
             // BACKEND LOGIC: Prioritize Shoonya for Price, Yahoo for History
-            let livePrice = await fetchShoonyaQuote(ticker);
+            let livePrice = await fetchShoonyaQuote(ticker, settings);
 
             const targetUrl = `${YAHOO_CHART_BASE}${ticker}?interval=${interval}&range=${range}`;
             const raw = await fetchWithProxy(targetUrl);

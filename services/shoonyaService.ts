@@ -1,22 +1,9 @@
 
-import { StockData, AppSettings } from "../types";
+import { AppSettings } from "../types";
 
 const SHOONYA_API_BASE = "https://api.shoonya.com/NorenWS/";
-
-// These would ideally be in process.env, but integrated here as requested for the engine
-const SHOONYA_CONFIG = {
-  userId: 'FA357399_U',
-  apiKey: 'a0e3d441de41aebf4cb2ad7898e02fdd',
-  vendorCode: 'FA357399_U',
-  imei: 'abc1234'
-};
-
 let sessionToken: string | null = null;
 
-/**
- * Generates the SHA256 hash required for Shoonya Login
- * In a real production environment, this should happen on a backend.
- */
 async function generateHash(input: string): Promise<string> {
   const msgUint8 = new TextEncoder().encode(input);
   const hashBuffer = await crypto.subtle.digest('SHA-256', msgUint8);
@@ -24,24 +11,36 @@ async function generateHash(input: string): Promise<string> {
   return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
-export const loginToShoonya = async (): Promise<boolean> => {
+export const loginToShoonya = async (settings: AppSettings): Promise<boolean> => {
   if (sessionToken) return true;
+  
+  const userId = settings.shoonyaUserId;
+  const password = settings.shoonyaPassword;
+  const apiKey = settings.shoonyaApiKey;
+  const vendorCode = settings.shoonyaVendorCode;
+
+  if (!userId || !password || !apiKey) {
+    console.debug("Shoonya credentials missing in Config tab.");
+    return false;
+  }
 
   try {
-    const appKey = await generateHash(`${SHOONYA_CONFIG.apiKey}${SHOONYA_CONFIG.userId}`);
+    // Shoonya requires SHA256(password) and SHA256(apiKey + userId)
+    const hashedPassword = await generateHash(password);
+    const appKey = await generateHash(`${apiKey}${userId}`);
+    
     const payload = {
       apkversion: "1.0.0",
-      uid: SHOONYA_CONFIG.userId,
-      pwd: appKey, // Shoonya uses hashed API key as password for API login
-      vc: SHOONYA_CONFIG.vendorCode,
+      uid: userId,
+      pwd: hashedPassword,
+      vc: vendorCode || userId,
       appkey: appKey,
-      imei: SHOONYA_CONFIG.imei,
+      imei: 'abc1234',
       source: "API"
     };
 
-    // Note: This requires a proxy in local dev to avoid CORS. 
-    // The marketDataService fetchWithProxy logic is used here.
-    const res = await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(SHOONYA_API_BASE + 'QuickAuthenticate')}`, {
+    // Use CORS proxy to bypass browser restrictions
+    const res = await fetch(`https://corsproxy.io/?${encodeURIComponent(SHOONYA_API_BASE + 'QuickAuthenticate')}`, {
       method: 'POST',
       body: `jData=${JSON.stringify(payload)}`
     });
@@ -49,28 +48,37 @@ export const loginToShoonya = async (): Promise<boolean> => {
     const data = await res.json();
     if (data.stat === "Ok") {
       sessionToken = data.susertoken;
+      console.info("Shoonya: Session established successfully.");
       return true;
     }
+    console.warn("Shoonya Login Failed:", data.emsg || "Invalid Credentials");
     return false;
   } catch (e) {
-    console.warn("Shoonya Login Failed", e);
+    console.error("Shoonya Connection Error:", e);
     return false;
   }
 };
 
-export const fetchShoonyaQuote = async (symbol: string): Promise<number | null> => {
-  if (!sessionToken) await loginToShoonya();
-  if (!sessionToken) return null;
+export const fetchShoonyaQuote = async (symbol: string, settings: AppSettings): Promise<number | null> => {
+  if (!sessionToken) {
+    const success = await loginToShoonya(settings);
+    if (!success) return null;
+  }
 
   try {
+    const pureSym = symbol.includes('.') ? symbol.split('.')[0] : symbol;
+    const isIndex = symbol.startsWith('^');
+    
     const payload = {
-      uid: SHOONYA_CONFIG.userId,
-      actid: SHOONYA_CONFIG.userId,
-      exch: "NSE",
-      tsym: symbol.split('.')[0] + "-EQ"
+      uid: settings.shoonyaUserId,
+      actid: settings.shoonyaUserId,
+      exch: "NSE", 
+      tsym: isIndex 
+        ? (pureSym === '^NSEI' ? 'Nifty 50' : 'Nifty Bank') 
+        : `${pureSym}-EQ`
     };
 
-    const res = await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(SHOONYA_API_BASE + 'GetQuotes')}`, {
+    const res = await fetch(`https://corsproxy.io/?${encodeURIComponent(SHOONYA_API_BASE + 'GetQuotes')}`, {
       method: 'POST',
       body: `jData=${JSON.stringify(payload)}&jKey=${sessionToken}`
     });
