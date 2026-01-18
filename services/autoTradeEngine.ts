@@ -15,7 +15,8 @@ const FLAT_BROKERAGE = 20;
 
 /**
  * Automates portfolio management.
- * Adheres to market hours (09:15-15:30 IST) and uses slicing for institutional feel.
+ * In Weekend Explorer mode, the bot focuses on research and EOD reporting.
+ * During market hours, it uses institutional slicing for entries/exits.
  */
 export const runAutoTradeEngine = (
     settings: AppSettings, 
@@ -27,7 +28,7 @@ export const runAutoTradeEngine = (
     
     const marketStatus = getMarketStatus('STOCK');
     
-    // Only trade during active NSE session
+    // AUTO-BOT SAFETY GATE: No real trading during weekends or after hours
     if (!marketStatus.isOpen) {
         return [];
     }
@@ -38,7 +39,7 @@ export const runAutoTradeEngine = (
     let currentFunds = { ...funds };
     const paperPortfolio = portfolio.filter(p => p.broker === 'PAPER');
 
-    // 1. EXIT LOGIC (Trailing SL & TP)
+    // 1. EXIT STRATEGY (Risk Management)
     paperPortfolio.forEach(item => {
         const data = marketData[item.symbol];
         if (!data) return;
@@ -49,20 +50,20 @@ export const runAutoTradeEngine = (
         let shouldExit = false;
         let exitReason = "";
 
-        // Intelligent Trailing Stop (1.5x ATR)
+        // Trailing Stop Loss (1.5x ATR)
         if (data.price < item.avgCost - (atr * 1.5)) {
             shouldExit = true;
-            exitReason = "SL Hit: ATR Volatility Guard";
+            exitReason = "SL Hit: ATR Dynamic Support Breached";
         }
-        // Strategic Take Profit
-        else if (pnlPercent >= 5.5) {
+        // Take Profit (Target Price or 6% spike)
+        else if (pnlPercent >= 6.0) {
             shouldExit = true;
-            exitReason = "TP Target: Multi-day High reached";
+            exitReason = "TP Hit: Profit Target Optimized";
         }
-        // EOD Square-off (15:20 IST)
+        // End of Day Square Off (15:20 IST)
         else if (marketStatus.message.includes('15:') && parseInt(marketStatus.message.split(':')[1]) >= 20) {
             shouldExit = true;
-            exitReason = "EOD Square-Off Auto-Robot";
+            exitReason = "EOD Logic: Automated Closing";
         }
 
         if (shouldExit) {
@@ -71,21 +72,22 @@ export const runAutoTradeEngine = (
             results.push({
                 executed: true,
                 transaction: {
-                    id: `bot-exit-${Date.now()}-${item.symbol}`,
+                    id: `bot-sell-${Date.now()}-${item.symbol}`,
                     type: 'SELL', symbol: item.symbol, assetType: 'STOCK',
                     quantity: item.quantity, price: data.price, timestamp: Date.now(), 
                     broker: 'PAPER', brokerage: FLAT_BROKERAGE, timeframe: 'INTRADAY'
                 },
                 newFunds: { ...currentFunds }, 
                 reason: exitReason,
-                isSliced: item.quantity > 50
+                isSliced: item.quantity > 50 // Trigger slicing for larger blocks
             });
         }
     });
 
-    // 2. ENTRY LOGIC (High-Conviction Robot Picks)
+    // 2. ENTRY STRATEGY (Momentum Robot Picks)
     if (paperPortfolio.length >= MAX_GLOBAL_POSITIONS) return results;
 
+    // Use isTopPick to follow "AI Robot" high-conviction ideas
     const topCandidate = recommendations.find(r => {
         const data = marketData[r.symbol];
         return r.isTopPick && data && data.technicals.score >= 80 && !paperPortfolio.some(p => p.symbol === r.symbol);
@@ -102,14 +104,14 @@ export const runAutoTradeEngine = (
             results.push({
                 executed: true,
                 transaction: {
-                    id: `bot-entry-${Date.now()}-${topCandidate.symbol}`,
+                    id: `bot-buy-${Date.now()}-${topCandidate.symbol}`,
                     type: 'BUY', symbol: topCandidate.symbol, assetType: 'STOCK',
                     quantity: qty, price: data.price, timestamp: Date.now(), 
                     broker: 'PAPER', brokerage: FLAT_BROKERAGE, timeframe: 'INTRADAY'
                 },
                 newFunds: { ...currentFunds }, 
-                reason: `AI Robot Signal: ${data.technicals.activeSignals[0] || 'Alpha Breakout'}`,
-                isSliced: qty > 50
+                reason: `AI Robot Alpha: ${data.technicals.activeSignals[0] || 'High Score Entry'}`,
+                isSliced: qty > 50 // Institutional slicing for bigger bets
             });
         }
     }
