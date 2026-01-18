@@ -34,7 +34,7 @@ async function promisePool<T, R>(
  * AI Robot Intelligence Layer
  * Signals are additive. Target conviction scores: 100+
  */
-const performRobotAnalysis = (tech: TechnicalSignals, price: number) => {
+export const performRobotAnalysis = (tech: TechnicalSignals, price: number) => {
     let score = 0;
     const logicFlags: string[] = [];
 

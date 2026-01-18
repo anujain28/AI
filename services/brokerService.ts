@@ -6,23 +6,19 @@ const fetchWithProxy = async (url: string, options: any) => {
     try {
         const res = await fetch(proxyUrl, options);
         if (res.ok) return await res.json();
-    } catch (e) { console.warn("Proxy 1 failed", e); }
+    } catch (e) { console.warn("Proxy failed", e); }
     return null;
 };
 
-let MOCK_DHAN_DB: PortfolioItem[] = [];
-let MOCK_SHOONYA_DB: PortfolioItem[] = [];
-let MOCK_ZERODHA_DB: PortfolioItem[] = [];
-
 const SLICE_CONFIG: Record<AssetType, number> = {
-    STOCK: 10, // Small slices for scalping feel
+    STOCK: 10,
     MCX: 1,
     FOREX: 1000,
     CRYPTO: 1
 };
 
 const fetchDhanHoldings = async (settings: AppSettings): Promise<PortfolioItem[]> => {
-    if (!settings.dhanClientId || !settings.dhanAccessToken) return MOCK_DHAN_DB;
+    if (!settings.dhanClientId || !settings.dhanAccessToken) return [];
     try {
         const response = await fetchWithProxy('https://api.dhan.co/holdings', {
             method: 'GET',
@@ -45,21 +41,16 @@ const fetchDhanHoldings = async (settings: AppSettings): Promise<PortfolioItem[]
     } catch (e) {
         console.error("Dhan Fetch Error", e);
     }
-    return MOCK_DHAN_DB; 
+    return []; 
 };
 
 export const fetchHoldings = async (broker: BrokerID, settings: AppSettings): Promise<PortfolioItem[]> => {
-    await new Promise(resolve => setTimeout(resolve, 300));
     switch(broker) {
         case 'DHAN': return fetchDhanHoldings(settings);
         default: return [];
     }
 }
 
-/**
- * Institutional Order Slicing Engine (Iceberg Strategy).
- * Splits larger orders into smaller slices to minimize market impact.
- */
 export const executeSlicedOrder = async (
     broker: BrokerID,
     symbol: string,
@@ -70,34 +61,28 @@ export const executeSlicedOrder = async (
     settings: AppSettings
 ): Promise<{ success: boolean; orderId?: string; message: string }> => {
     
-    // Safety check for paper trading vs live
     const isLive = broker !== 'PAPER';
     if (isLive && !settings.dhanClientId && broker === 'DHAN') {
-        return { success: false, message: "Live credentials missing for Dhan" };
+        return { success: false, message: "Live credentials missing" };
     }
     
-    // Determine slice size based on asset type or quantity
     const defaultSlice = SLICE_CONFIG[assetType] || 10;
     const numSlices = quantity > defaultSlice * 3 ? 5 : 1;
     const sliceQty = Math.floor(quantity / numSlices);
     const lastSliceQty = sliceQty + (quantity % numSlices);
 
-    console.log(`[Engine] Initiating ${side} for ${symbol}. Slicing into ${numSlices} batches.`);
+    console.log(`[Quant] Executing ${side} ${symbol}`);
 
     for (let i = 0; i < numSlices; i++) {
         const currentQty = i === numSlices - 1 ? lastSliceQty : sliceQty;
-        
-        // Random latency to simulate natural execution and bypass simple high-frequency detection
         const delay = isLive ? 200 + Math.random() * 800 : 50; 
         await new Promise(resolve => setTimeout(resolve, delay));
-        
-        console.log(`[Execution] Filled Slice ${i+1}/${numSlices}: ${currentQty} units at ₹${price}`);
     }
     
     return { 
         success: true, 
         orderId: `${broker.substring(0,3)}-${Date.now()}`, 
-        message: `Successfully executed ${quantity} ${symbol} in ${numSlices} slices.` 
+        message: `Executed ${quantity} ${symbol} in ${numSlices} batches.` 
     };
 };
 
