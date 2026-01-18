@@ -38,21 +38,21 @@ export interface NewsItem {
 }
 
 export interface CustomScanParameters {
-  minRsi?: number;
-  maxRsi?: number;
-  minAdx?: number;
-  minRvol?: number;
-  priceAboveEma9?: boolean;
-  priceAboveEma21?: boolean;
-  emaCrossover?: boolean;
-  bbSqueeze?: boolean;
-  bbBreakout?: boolean;
-  priceAboveSupertrend?: boolean;
-  macdPositive?: boolean;
-  volumeSpike?: boolean;
-  stochOversold?: boolean;
-  stochOverbought?: boolean;
-  adxStrongTrend?: boolean;
+  minRsi: number;
+  maxRsi: number;
+  minAdx: number;
+  minRvol: number;
+  priceAboveEma9: boolean;
+  priceAboveEma21: boolean;
+  emaCrossover: boolean;
+  bbSqueeze: boolean;
+  bbBreakout: boolean;
+  priceAboveSupertrend: boolean;
+  macdPositive: boolean;
+  volumeSpike: boolean;
+  stochOversold: boolean;
+  stochOverbought: boolean;
+  adxStrongTrend: boolean;
 }
 
 export interface StockRecommendation {
@@ -64,6 +64,8 @@ export interface StockRecommendation {
   reason: string;
   riskLevel: 'Low' | 'Medium' | 'High';
   targetPrice: number;
+  profitValue?: number;
+  profitPercent?: number;
   lotSize: number;
   timeframe?: 'INTRADAY' | 'BTST' | 'WEEKLY' | 'MONTHLY';
   chartPattern?: string; 
@@ -112,11 +114,6 @@ export interface PortfolioItem {
   totalCost: number;
   broker: BrokerID;
   timeframe?: 'INTRADAY' | 'BTST' | 'WEEKLY' | 'MONTHLY';
-  targets?: {
-      t1: number; 
-      t2: number; 
-      t3: number; 
-  };
 }
 
 export interface Transaction {
@@ -148,14 +145,13 @@ export interface TechnicalSignals {
   adx: number;
   atr: number; 
   bollinger: { upper: number; middle: number; lower: number; percentB: number };
-  bitValue?: number;
   ema: { ema9: number; ema21: number };
   supertrend: { value: number; trend: 'BUY' | 'SELL' };
-  obv: number;
   score: number;
   activeSignals: string[];
   signalStrength: 'STRONG BUY' | 'BUY' | 'HOLD' | 'SELL';
   rvol: number;
+  obv: number;
 }
 
 export interface StockData {
@@ -177,14 +173,9 @@ export interface MarketSettings {
   crypto?: boolean;
 }
 
-export interface AutoTradeConfig {
-  mode: 'PERCENTAGE' | 'FIXED';
-  value: number;
-}
-
 export interface AppSettings {
   initialFunds: Funds;
-  autoTradeConfig: AutoTradeConfig;
+  autoTradeConfig: { mode: 'PERCENTAGE' | 'FIXED'; value: number };
   telegramBotToken: string;
   telegramChatId: string;
   activeBrokers: BrokerID[];
@@ -213,12 +204,6 @@ export interface PortfolioHistoryPoint {
 
 export interface BrokerIntelResponse {
   data: StockRecommendation[];
-  news: NewsItem[];
+  news: any[];
   error?: string;
-}
-
-declare global {
-    interface Window {
-        adsbygoogle: any[];
-    }
 }

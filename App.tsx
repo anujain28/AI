@@ -73,7 +73,6 @@ export default function App() {
   const [selectedStock, setSelectedStock] = useState<StockRecommendation | null>(null);
   const [marketStatus, setMarketStatus] = useState(getMarketStatus('STOCK'));
   
-  // Ref-based timers to prevent the infinite refresh loop
   const scanTimerRef = useRef<any>(null);
   const priceTimerRef = useRef<any>(null);
 
@@ -86,31 +85,22 @@ export default function App() {
       setTimeout(() => setNotification(null), 3000);
   }, []);
 
-  /**
-   * Main Market Scanning Routine
-   */
   const performTechnicalScan = useCallback(async () => {
-    if (isLoading && scanProgress > 0) return; // Prevent double-scanning
-    
     setIsLoading(true);
     setScanProgress(0);
     
-    const universe = getIdeasWatchlist();
-    
     try {
+        const universe = getIdeasWatchlist();
         const results = await runTechnicalScan(universe, settings, (p) => setScanProgress(p));
         setRecommendations(results);
     } catch (e) {
-        console.error("Critical Scanner Error", e);
+        console.error("Scanner Error", e);
     } finally {
         setIsLoading(false);
         setScanProgress(0);
     }
-  }, [settings, isLoading, scanProgress]);
+  }, [settings]);
 
-  /**
-   * Price Refresh Routine (Throttled)
-   */
   const refreshActivePrices = useCallback(async () => {
     const symbols = Array.from(new Set([
         ...recommendations.map(r => r.symbol),
@@ -119,7 +109,6 @@ export default function App() {
 
     if (symbols.length === 0) return;
 
-    // Refresh in small chunks to avoid rate limits
     for (let i = 0; i < symbols.length; i += 5) {
         const batch = symbols.slice(i, i + 5);
         const updates = await Promise.all(batch.map(async s => ({ 
@@ -136,7 +125,6 @@ export default function App() {
     setMarketStatus(getMarketStatus('STOCK'));
   }, [recommendations, paperPortfolio, settings]);
 
-  // Initial Load & Lifecycle
   useEffect(() => { 
     const savedSettings = localStorage.getItem(`${STORAGE_PREFIX}settings`);
     if (savedSettings) setSettings({ ...DEFAULT_SETTINGS, ...JSON.parse(savedSettings) });
@@ -148,13 +136,10 @@ export default function App() {
     if (savedTx) setTransactions(JSON.parse(savedTx));
 
     const splashTimer = setTimeout(() => setShowSplash(false), 1200); 
-    
-    // Initial scan
     performTechnicalScan();
 
-    // Setup periodic updates
-    scanTimerRef.current = setInterval(performTechnicalScan, 180000); // Scan every 3 mins
-    priceTimerRef.current = setInterval(refreshActivePrices, 20000); // Refresh prices every 20s
+    scanTimerRef.current = setInterval(performTechnicalScan, 240000); // 4 min scan
+    priceTimerRef.current = setInterval(refreshActivePrices, 25000); // 25s price refresh
 
     return () => {
         clearTimeout(splashTimer);

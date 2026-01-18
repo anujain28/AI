@@ -7,8 +7,7 @@ const marketCache: Record<string, { data: StockData, timestamp: number }> = {};
 const pendingRequests = new Map<string, Promise<StockData | null>>();
 
 /**
- * High-performance Proxy Racing logic.
- * Tries 3 proxies simultaneously and resolves with the first valid response.
+ * Turbo Proxy Racer - Resolves with the first successful response
  */
 async function fetchWithProxy(targetUrl: string): Promise<any> {
     const proxies = [
@@ -18,7 +17,7 @@ async function fetchWithProxy(targetUrl: string): Promise<any> {
     ];
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 4000); // 4s timeout
+    const timeoutId = setTimeout(() => controller.abort(), 6000); 
 
     try {
         const responseText = await new Promise<any>((resolve, reject) => {
@@ -33,11 +32,9 @@ async function fetchWithProxy(targetUrl: string): Promise<any> {
                         
                         let json;
                         try {
-                            // Check if response is wrapped (like AllOrigins)
                             json = JSON.parse(raw);
                             if (json.contents) json = JSON.parse(json.contents);
                         } catch (e) {
-                            // If it's already a clean JSON or if the wrap parsing fails
                             json = JSON.parse(raw);
                         }
 
@@ -47,7 +44,7 @@ async function fetchWithProxy(targetUrl: string): Promise<any> {
                                 resolve(json);
                             }
                         } else {
-                            throw new Error("Invalid Chart Format");
+                            throw new Error("Invalid structure");
                         }
                     })
                     .catch(() => {
@@ -108,19 +105,17 @@ async function parseYahooResponse(data: any): Promise<StockData | null> {
 export const fetchRealStockData = async (
     symbol: string, 
     settings: AppSettings, 
-    interval: string = "5m", 
-    range: string = "1d"
+    interval: string = "15m", 
+    range: string = "5d"
 ): Promise<StockData | null> => {
     const ticker = symbol.includes('.') ? symbol : `${symbol}.NS`;
     const cacheKey = `${ticker}_${interval}_${range}`;
     
-    // Check Cache
     const cached = marketCache[cacheKey];
     if (cached && (Date.now() - cached.timestamp < 30000)) {
         return cached.data;
     }
 
-    // Coalesce pending requests
     if (pendingRequests.has(cacheKey)) return pendingRequests.get(cacheKey)!;
 
     const requestPromise = (async () => {

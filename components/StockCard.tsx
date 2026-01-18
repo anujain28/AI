@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { StockRecommendation, MarketData } from '../types';
-import { TrendingUp, TrendingDown, Zap, BarChart2, Target, Scan, Star, ExternalLink, ShieldCheck } from 'lucide-react';
+import { ShieldCheck, TrendingUp, TrendingDown, Target, Zap, ExternalLink, BrainCircuit } from 'lucide-react';
 import { getMarketStatus } from '../services/marketStatusService';
 
 interface StockCardProps {
@@ -19,91 +19,112 @@ export const StockCard: React.FC<StockCardProps> = React.memo(({ stock, marketDa
   const marketStatus = getMarketStatus(stock.type);
   const isMarketOpen = marketStatus.isOpen;
   
-  const tech = currentData?.technicals;
-  const score = tech?.score || stock.score || 0;
-
-  const upside = ((stock.targetPrice - price) / price) * 100;
-
-  let theme = {
-      border: stock.isTopPick ? 'border-indigo-500/50' : 'border-slate-700',
-      bgGradient: stock.isTopPick ? 'from-slate-900 via-indigo-900/10 to-slate-900' : 'from-slate-800 to-slate-900',
-      iconColor: stock.isTopPick ? 'text-indigo-400' : 'text-blue-400',
-      accent: 'text-slate-200',
-      glow: stock.isTopPick ? 'shadow-[0_0_20px_-5px_rgba(79,70,229,0.3)]' : 'shadow-none',
-      badgeBg: 'bg-slate-700'
-  };
-
-  // Timeframe tags removed as requested by user
+  const score = stock.score || 0;
+  const isHighConviction = score >= 100;
 
   return (
-    <div className={`rounded-2xl p-4 border ${theme.border} bg-gradient-to-br ${theme.bgGradient} transition-all duration-300 shadow-xl group relative overflow-hidden ${theme.glow} hover:scale-[1.01]`}>
-      {stock.isTopPick && (
-          <div className="absolute top-0 left-0 bg-indigo-600 text-white px-3 py-1 text-[9px] font-black uppercase tracking-tighter flex items-center gap-1.5 z-20 rounded-br-xl shadow-lg">
-              <Star size={10} fill="white" className="animate-pulse" /> AI ROBOT PICK
+    <div className={`rounded-2xl p-5 border ${isHighConviction ? 'border-blue-500/50 bg-slate-900/40 shadow-[0_0_25px_-10px_rgba(59,130,246,0.4)]' : 'border-slate-800 bg-slate-900/20'} transition-all duration-300 relative group overflow-hidden`}>
+      
+      {/* Robot Indicator Overlay */}
+      {isHighConviction && (
+          <div className="absolute top-0 right-0 p-3 opacity-10 pointer-events-none group-hover:scale-110 transition-transform">
+              <BrainCircuit size={80} className="text-blue-500" />
           </div>
       )}
 
-      <div className="absolute top-0 right-0 p-3 text-right z-10 flex flex-col items-end gap-2">
-         <div className={`bg-slate-900/80 backdrop-blur-md border ${stock.isTopPick ? 'border-indigo-500/50' : 'border-slate-700'} rounded-xl px-3 py-1.5 text-[11px] font-black font-mono flex items-center justify-end gap-1.5 shadow-sm`}>
-            <ShieldCheck size={12} className={stock.isTopPick ? 'text-indigo-400' : 'text-blue-400'} />
-            <span className="text-white">{score.toFixed(0)}</span>
-         </div>
-      </div>
-
-      <div className="flex justify-between items-start mb-4 pr-16 relative z-10">
-        <div>
-          <h3 className={`text-lg md:text-xl font-black flex items-center gap-2 tracking-tight ${theme.accent}`}>
-            {stock.symbol.split('.')[0]}
-          </h3>
-          <div className="flex gap-1.5 mt-1.5">
-              <span className={`text-[8px] px-2 py-0.5 rounded-md border border-slate-700 bg-slate-800/80 text-slate-400 font-black uppercase tracking-widest`}>
-                  NSE EQUITY
+      {/* Header Line */}
+      <div className="flex justify-between items-center mb-4 relative z-10">
+          <div className="flex items-center gap-2">
+              <h3 className="text-xl font-black text-white italic tracking-tighter uppercase">
+                  {stock.symbol.split('.')[0]}
+              </h3>
+              <span className="text-slate-500 font-bold px-1.5">•</span>
+              <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded ${score >= 90 ? 'bg-green-600 text-white' : 'bg-blue-600 text-white'}`}>
+                  {score >= 90 ? 'STRONG BUY' : 'BUY'} ⚡
               </span>
           </div>
-        </div>
-      </div>
-
-      <div className="flex justify-between items-end mb-4 relative z-10">
-          <div className="flex-1">
-            <div className="text-xl md:text-3xl font-mono font-black text-white tracking-tighter">
-                ₹{price.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
-            </div>
-            <div className={`text-[11px] flex items-center gap-1 font-black tracking-tight ${isPositive ? 'text-green-400' : 'text-red-400'}`}>
-                {isPositive ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
-                {change.toFixed(2)}%
-            </div>
-          </div>
-          <div className="text-right">
-             <div className="text-[9px] text-slate-500 font-black uppercase tracking-widest flex items-center justify-end gap-1 mb-1"><Target size={10}/> Target</div>
-             <div className="text-lg md:text-xl font-black text-green-400 font-mono flex flex-col items-end leading-none">
-                 ₹{stock.targetPrice.toFixed(2)}
-                 <span className="text-[9px] text-green-500/70 mt-1.5 font-bold">+{upside.toFixed(1)}% POTENTIAL</span>
-             </div>
+          <div className="flex items-center gap-2">
+              <div className="bg-slate-950/80 border border-slate-800 rounded-lg px-2 py-1 flex items-center gap-1.5">
+                  <ShieldCheck size={12} className="text-blue-400" />
+                  <span className="text-[10px] font-mono font-black text-white leading-none">⭐ Score: {score}</span>
+              </div>
           </div>
       </div>
 
-      <div className="flex items-center gap-2 mb-4 bg-slate-900/40 border border-slate-800/50 p-2.5 rounded-xl relative z-10 backdrop-blur-sm">
-          <Scan size={14} className={stock.isTopPick ? 'text-indigo-400' : 'text-blue-400'} />
-          <div className="text-[10px] md:text-[11px] leading-tight text-slate-300 italic line-clamp-2 font-medium">
-              {stock.reason}
+      {/* Price & Target Line */}
+      <div className="space-y-1 mb-4 relative z-10">
+          <div className="flex items-center gap-2">
+              <span className="text-sm">💰</span>
+              <span className="text-slate-400 text-[11px] font-black uppercase tracking-widest">CMP:</span>
+              <span className="text-lg font-mono font-black text-white italic tracking-tighter">₹{price.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+              <span className="text-slate-500 mx-1">|</span>
+              <span className="text-sm">🎯</span>
+              <span className="text-slate-400 text-[11px] font-black uppercase tracking-widest">Target:</span>
+              <span className="text-lg font-mono font-black text-green-400 italic tracking-tighter">₹{stock.targetPrice.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+          </div>
+
+          <div className="flex items-center gap-4 text-[11px] font-black tracking-widest uppercase">
+              <div className="flex items-center gap-1.5 text-slate-500">
+                  <span>⏱</span>
+                  <span>1–3 days (BTST)</span>
+              </div>
+              <div className="flex items-center gap-1.5 text-slate-500">
+                  <span>📊</span>
+                  <span className="text-blue-400">{stock.timeframe || 'BTST'}</span>
+              </div>
           </div>
       </div>
 
+      {/* ROI Stats */}
+      <div className="bg-slate-950/50 border border-slate-800/50 rounded-xl p-3 mb-4 relative z-10">
+          <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-blue-400/80 mb-1">
+              <span>📈</span>
+              <span>Profit Matrix</span>
+          </div>
+          <div className="flex justify-between items-center font-mono">
+              <div className="text-sm text-white font-bold">
+                  Target Profit: <span className="text-green-400">₹{stock.profitValue?.toFixed(2)}</span>
+              </div>
+              <div className="text-sm text-green-400 font-black italic">
+                  💹 Profit %: {stock.profitPercent?.toFixed(2)}%
+              </div>
+          </div>
+      </div>
+
+      {/* Robot Logic Breakdown */}
+      <div className="flex items-start gap-3 mb-5 relative z-10">
+          <div className="text-sm mt-0.5">🧠</div>
+          <div className="text-[10px] font-medium text-slate-400 leading-relaxed italic">
+              <span className="font-black text-slate-200 uppercase tracking-widest not-italic">Reason:</span> {stock.reason}
+          </div>
+      </div>
+
+      {/* Action Line */}
       <div className="flex gap-2 relative z-10">
         <button
             onClick={() => isMarketOpen && onTrade(stock)}
             disabled={!isMarketOpen}
-            className={`flex-1 py-3 rounded-xl font-black text-white transition-all text-xs tracking-widest shadow-lg ${
-                !isMarketOpen ? 'bg-slate-700 text-slate-500' : 'bg-blue-600 hover:bg-blue-500 active:scale-95 shadow-blue-500/20'
+            className={`flex-1 py-3.5 rounded-xl font-black text-white transition-all text-[11px] uppercase tracking-[0.2em] shadow-lg flex items-center justify-center gap-2 ${
+                !isMarketOpen ? 'bg-slate-800 text-slate-600 border border-slate-700' : 'bg-blue-600 hover:bg-blue-500 active:scale-95 shadow-blue-500/20'
             }`}
         >
-            {isMarketOpen ? 'EXECUTE TRADE' : 'MARKET CLOSED'}
+            {isMarketOpen ? <><Zap size={14}/> EXECUTE ROBOT TRADE</> : 'MARKET CLOSED'}
         </button>
         {stock.sourceUrl && (
-            <a href={stock.sourceUrl} target="_blank" rel="noreferrer" className="p-3 bg-slate-800 rounded-xl text-slate-500 hover:text-white transition-colors border border-slate-700 hover:border-blue-500/50">
-                <ExternalLink size={18}/>
+            <a 
+              href={stock.sourceUrl} 
+              target="_blank" 
+              rel="noreferrer" 
+              className="p-3.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-500 hover:text-white transition-colors hover:border-blue-500/50 flex items-center justify-center"
+            >
+                <ExternalLink size={16}/>
             </a>
         )}
+      </div>
+
+      {/* Mini-Indicator Bars */}
+      <div className="absolute bottom-0 left-0 w-full h-0.5 flex">
+          <div className={`h-full transition-all duration-1000 ${isPositive ? 'bg-green-500' : 'bg-red-500'}`} style={{ width: `${Math.min(100, Math.abs(change) * 20)}%` }}></div>
       </div>
     </div>
   );
