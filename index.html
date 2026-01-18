@@ -79,7 +79,7 @@
     "recharts": "https://esm.sh/recharts@2.12.0?external=react,react-dom",
     "vite": "https://esm.sh/vite@^5.1.4",
     "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^4.2.1",
-    "react-dom/": "https://esm.sh/react-dom@^19.2.3/"
+    "react-dom/": "https://esm.sh/react-dom@^18.2.0/"
   }
 }
 </script>
@@ -87,19 +87,26 @@
   <body>
     <div id="root"></div>
     <script>
-      if ('serviceWorker' in navigator) {
+      // Fix: Robust Service Worker registration for diverse environments
+      if ('serviceWorker' in navigator && window.location.protocol === 'https:') {
         window.addEventListener('load', () => {
-          navigator.serviceWorker.register('./sw.js?v=' + Date.now()).then(registration => {
-            registration.onupdatefound = () => {
-              const installingWorker = registration.installing;
-              installingWorker.onstatechange = () => {
-                if (installingWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                  // New content is available; notify the app
-                  window.dispatchEvent(new CustomEvent('sw-update-available'));
+          // Use relative path to avoid origin mismatch issues in proxied previews
+          navigator.serviceWorker.register('sw.js?v=' + Date.now())
+            .then(registration => {
+              registration.onupdatefound = () => {
+                const installingWorker = registration.installing;
+                if (installingWorker) {
+                  installingWorker.onstatechange = () => {
+                    if (installingWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                      window.dispatchEvent(new CustomEvent('sw-update-available'));
+                    }
+                  };
                 }
               };
-            };
-          }).catch(err => console.log('SW registration failed:', err));
+            })
+            .catch(err => {
+              console.debug('ServiceWorker registration skipped (likely dev/frame environment):', err.message);
+            });
         });
       }
     </script>
