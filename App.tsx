@@ -213,8 +213,7 @@ export default function App() {
         {activePage === 0 && (
             <PageMarket settings={settings} recommendations={recommendations} marketData={marketData} onTrade={() => {}} onRefresh={performTechnicalScan} isLoading={isLoading} scanProgress={scanProgress} enabledMarkets={settings.enabledMarkets} />
         )}
-        {activePage === 1 && <PageBrokerIntel onRefresh={performTechnicalScan} isLoading={isLoading} />}
-        {activePage === 2 && (
+        {activePage === 1 && (
             <PageScalper 
                 recommendations={recommendations} 
                 marketData={marketData} 
@@ -227,14 +226,15 @@ export default function App() {
                 onToggleAutoMode={setIsAutoScalpMode}
             />
         )}
-        {activePage === 3 && <PageScan marketData={marketData} settings={settings} onTrade={() => {}} />}
-        {activePage === 4 && <PagePaperTrading holdings={paperPortfolio} marketData={marketData} analysisData={{}} onSell={(symbol, broker) => {
+        {activePage === 2 && <PageScan marketData={marketData} settings={settings} onTrade={() => {}} />}
+        {activePage === 3 && <PageStrategyLog recommendations={recommendations} marketData={marketData} rules={settings.strategyRules || DEFAULT_RULES} onUpdateRules={(r) => { setSettings(s => ({...s, strategyRules: r})); saveData('settings', {...settings, strategyRules: r}); }} aiIntradayPicks={[]} onRefresh={performTechnicalScan} settings={settings} />}
+        {activePage === 4 && <PageBrokerIntel onRefresh={performTechnicalScan} isLoading={isLoading} />}
+        {activePage === 5 && <PagePaperTrading holdings={paperPortfolio} marketData={marketData} analysisData={{}} onSell={(symbol, broker) => {
             const h = paperPortfolio.find(p => p.symbol === symbol && p.broker === broker);
             if (h) {
                 handleSell(symbol, h.quantity, marketData[symbol]?.price || h.avgCost, broker as BrokerID);
             }
         }} onAnalyze={() => {}} isAnalyzing={false} funds={funds} activeBots={{'PAPER': true}} onToggleBot={() => {}} transactions={transactions} onUpdateFunds={(f) => { setFunds(f); saveData('funds', f); }} />}
-        {activePage === 5 && <PageStrategyLog recommendations={recommendations} marketData={marketData} rules={settings.strategyRules || DEFAULT_RULES} onUpdateRules={(r) => { setSettings(s => ({...s, strategyRules: r})); saveData('settings', {...settings, strategyRules: r}); }} aiIntradayPicks={[]} onRefresh={performTechnicalScan} settings={settings} />}
         {activePage === 6 && <PageConfiguration settings={settings} onSave={(s) => { setSettings(s); saveData('settings', s); showNotification("Settings Saved"); }} transactions={transactions} activeBots={{'PAPER': true}} onToggleBot={() => {}} onTestTrade={() => {}} />}
       </main>
 
