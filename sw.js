@@ -1,5 +1,5 @@
 
-const CACHE_NAME = 'aitrade-v4-' + Date.now(); // Dynamic name to force update
+const CACHE_NAME = 'aitrade-v5-' + Date.now(); // Bumped to v5 to force sync
 const urlsToCache = [
   '/',
   '/index.html',

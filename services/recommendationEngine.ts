@@ -1,3 +1,4 @@
+
 import { StockRecommendation, AppSettings, StockData } from "../types";
 import { fetchRealStockData } from "./marketDataService";
 import { getMarketStatus } from "./marketStatusService";
@@ -28,7 +29,7 @@ async function promisePool<T, R>(
 /**
  * AI Robot Recommendation Engine.
  * Features a "Weekend Explorer" mode that simulates high-conviction picks
- * from ai-robots (Streamlit) and major global trend sources.
+ * from ai-robots (Streamlit) and major global trend sources like Trendlyne.
  */
 export const runTechnicalScan = async (
     stockUniverse: string[], 
@@ -38,7 +39,7 @@ export const runTechnicalScan = async (
   const marketStatus = getMarketStatus('STOCK');
   const isWeekend = !marketStatus.isOpen && marketStatus.message.includes('Weekend');
 
-  // Liquid high-momentum targets for scanning
+  // Scout a liquid alpha universe
   const scanTargets = stockUniverse.filter(s => 
     s.startsWith('BSE') || 
     ['RELIANCE.NS', 'HDFCBANK.NS', 'ICICIBANK.NS', 'TCS.NS', 'INFY.NS', 'SBIN.NS', 'AXISBANK.NS', 'BHARTIARTL.NS', 'TRENT.NS', 'ZOMATO.NS', 'TATASTEEL.NS', 'MARUTI.NS', 'BAJFINANCE.NS'].includes(s)
@@ -46,7 +47,7 @@ export const runTechnicalScan = async (
 
   const rawTechnicalResults = await promisePool(scanTargets, 12, async (symbol) => {
       try {
-          // Weekend Explorer: Uses Daily data for Weekly Swing analysis
+          // Weekend Explorer Mode: Analyzes daily trends for weekly swing targets
           const interval = isWeekend ? "1d" : "15m";
           const range = isWeekend ? "1mo" : "2d";
           const marketData = await fetchRealStockData(symbol, settings, interval, range);
@@ -69,22 +70,21 @@ export const runTechnicalScan = async (
   });
 
   const validData = rawTechnicalResults.filter(r => r !== null) as any[];
-  
-  // Sort by technical score to find candidates for the AI review
   const topCandidates = validData.sort((a, b) => b.score - a.score).slice(0, 20);
 
   let best5Symbols: string[] = topCandidates.slice(0, 5).map(t => t.symbol);
 
-  // Use Gemini to act as the "AI Robot Explorer"
+  // Initialize AI Robot persona
   try {
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
       const prompt = isWeekend 
-        ? `Act as the "Weekend AI Robot Explorer". Based on the airobots portfolio strategy and global market trends from sites like Trendlyne and Screener.in, identify the top 5 SWING picks for the next week from these 20 candidates. 
-           Prioritize stocks with clear weekly breakouts and strong RSI support.
-           Respond with ONLY a JSON array of the 5 symbols.
+        ? `You are the "Weekend AI Robot Explorer" (inspired by ai-robots Streamlit and Trendlyne Alpha). 
+           Review these 20 high-momentum technical candidates and select exactly 5 "Weekly Alpha Picks" for the upcoming market session. 
+           Focus on weekly breakouts, high RSI support (60+), and clear bullish price action.
+           Return a JSON array of symbols.
            Candidates: ${JSON.stringify(topCandidates)}`
-        : `Act as the "AI Robot Alpha Scanner" from airobots. Review these 20 technical candidates and select exactly 5 "Alpha Robot Picks" for immediate intraday momentum. 
-           Respond with ONLY a JSON array of the 5 symbols.
+        : `You are the "AI Robot Alpha Scanner". Select exactly 5 "Intraday Alpha Picks" for immediate scalping momentum.
+           Return a JSON array of symbols.
            Candidates: ${JSON.stringify(topCandidates)}`;
 
       const response = await ai.models.generateContent({
@@ -104,7 +104,7 @@ export const runTechnicalScan = async (
           best5Symbols = parsed.slice(0, 5);
       }
   } catch (err) {
-      console.warn("AI Picking failed, falling back to technical score", err);
+      console.warn("Robot picking logic bypassed, using technical score fallback", err);
   }
 
   const finalRecommendations: StockRecommendation[] = validData.map(item => {
@@ -116,10 +116,10 @@ export const runTechnicalScan = async (
           sector: 'Equity',
           currentPrice: item.currentPrice,
           reason: isTopPick 
-            ? (isWeekend ? "Weekend Robot Pick: Weekly Swing Alpha" : "AI Robot Alpha: Scalping Setup") 
-            : (item.signals[0] || "Trend Strength"),
+            ? (isWeekend ? "Weekend Scout: Weekly Alpha Pick" : "Robot Signal: High-Intensity Scalp") 
+            : (item.signals[0] || "Trend Follower"),
           riskLevel: item.score > 85 ? 'Low' : item.score > 60 ? 'Medium' : 'High',
-          targetPrice: item.currentPrice * (1 + (item.atr / item.currentPrice) * (isWeekend ? 5 : 2.5)),
+          targetPrice: item.currentPrice * (1 + (item.atr / item.currentPrice) * (isWeekend ? 4.5 : 2.5)),
           timeframe: isWeekend ? 'WEEKLY' : 'INTRADAY',
           score: item.score,
           lotSize: 1,
