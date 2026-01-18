@@ -2,11 +2,11 @@
 import React, { useState, useEffect } from 'react';
 import { StockRecommendation, MarketData, NewsItem } from '../types';
 import { StockCard } from './StockCard';
-import { RefreshCw, Globe, Search, AlertCircle, Newspaper, ArrowRight, ExternalLink, BarChart2, Info, Zap, Clock, MessageSquareQuote } from 'lucide-react';
+import { RefreshCw, Globe, Search, AlertCircle, Newspaper, ArrowRight, ExternalLink, BarChart2, Info, Zap, Clock, MessageSquareQuote, TrendingUp } from 'lucide-react';
 
 interface PageBrokerIntelProps {
   recommendations: StockRecommendation[];
-  news: NewsItem[]; // Added news prop
+  news: NewsItem[];
   marketData: MarketData;
   onTrade: (stock: StockRecommendation) => void;
   onRefresh: () => void;
@@ -16,7 +16,7 @@ interface PageBrokerIntelProps {
 
 export const PageBrokerIntel: React.FC<PageBrokerIntelProps> = ({
   recommendations,
-  news = [], // Default to empty array
+  news = [],
   marketData,
   onTrade,
   onRefresh,
@@ -26,10 +26,10 @@ export const PageBrokerIntel: React.FC<PageBrokerIntelProps> = ({
   const [loadingStep, setLoadingStep] = useState(0);
 
   const steps = [
-    "SYNCING WITH NSE TICKER CORE...",
-    "PARSING RSS ADVICE FEED...",
-    "CALCULATING ALPHA TARGETS...",
-    "EXTRACTING MOMENTUM SIGNALS..."
+    "SCANNING ECONOMIC TIMES FEED...",
+    "PARSING BROKER RESEARCH...",
+    "SYNCING MOMENTUM SIGNALS...",
+    "EXTRACTING HIGH CONVICTION CALLS..."
   ];
 
   useEffect(() => {
@@ -54,7 +54,7 @@ export const PageBrokerIntel: React.FC<PageBrokerIntelProps> = ({
           </h1>
           <p className="text-[10px] font-black uppercase tracking-[0.2em] mt-2 flex items-center gap-2 text-slate-500">
             <Globe size={12} className="text-blue-500" />
-            Consensus & Advice Stream
+            Live ET & Consensus Recommendations
           </p>
         </div>
         <button 
@@ -66,108 +66,84 @@ export const PageBrokerIntel: React.FC<PageBrokerIntelProps> = ({
         </button>
       </div>
 
-      {/* Live News & Expert Advice Section */}
+      {/* Expert Recommendations (ET Feed) */}
       <div className="mb-8 space-y-4">
-        <div className="flex items-center gap-2 px-1">
-          <MessageSquareQuote size={20} className="text-blue-400" />
-          <h3 className="text-xl font-black text-white uppercase italic tracking-tight leading-none">News & Expert Advice</h3>
+        <div className="flex items-center justify-between px-1">
+          <div className="flex items-center gap-2">
+            <TrendingUp size={20} className="text-blue-400" />
+            <h3 className="text-xl font-black text-white uppercase italic tracking-tight leading-none">ET Expert Calls</h3>
+          </div>
+          <div className="text-[8px] font-black bg-slate-800 text-slate-500 px-2 py-0.5 rounded border border-slate-700 uppercase tracking-widest">
+            Latest Research
+          </div>
         </div>
 
-        <div className="bg-slate-900 border border-slate-800 rounded-3xl p-4 shadow-2xl overflow-hidden min-h-[200px] flex flex-col">
+        <div className="bg-slate-900 border border-slate-800 rounded-3xl p-4 shadow-2xl overflow-hidden min-h-[250px] flex flex-col">
           {isLoading ? (
             <div className="flex-1 flex flex-col items-center justify-center gap-4 py-8">
                <Loader2 className="animate-spin text-blue-500" size={32} />
-               <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Parsing Live News Feed...</p>
+               <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">{steps[loadingStep]}</p>
             </div>
           ) : news.length > 0 ? (
-            <div className="space-y-4 max-h-[400px] overflow-y-auto custom-scrollbar pr-1">
+            <div className="space-y-4 max-h-[450px] overflow-y-auto custom-scrollbar pr-1">
               {news.map((item, idx) => (
                 <a 
                   key={idx} 
                   href={item.link} 
                   target="_blank" 
                   rel="noreferrer"
-                  className="block p-3 bg-slate-800/40 rounded-2xl border border-slate-700/50 hover:bg-slate-800 transition-all group"
+                  className="block p-4 bg-slate-800/40 rounded-2xl border border-slate-700/50 hover:bg-slate-800 transition-all group relative overflow-hidden"
                 >
-                  <div className="flex justify-between items-start mb-1">
-                    <span className="text-[8px] font-black bg-blue-600/20 text-blue-400 px-2 py-0.5 rounded uppercase tracking-widest border border-blue-500/20">
+                  <div className="flex justify-between items-start mb-2 relative z-10">
+                    <span className={`text-[8px] font-black px-2 py-0.5 rounded uppercase tracking-widest border ${
+                      item.source === 'Economic Times' ? 'bg-orange-600/20 text-orange-400 border-orange-500/20' : 'bg-blue-600/20 text-blue-400 border-blue-500/20'
+                    }`}>
                       {item.source}
                     </span>
                     <span className="text-[8px] font-mono text-slate-500 flex items-center gap-1">
                       <Clock size={10} /> {new Date(item.pubDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </span>
                   </div>
-                  <h4 className="text-xs font-bold text-slate-200 group-hover:text-blue-400 transition-colors leading-tight mb-1">
+                  <h4 className="text-sm font-black text-slate-100 group-hover:text-blue-400 transition-colors leading-snug mb-2 relative z-10">
                     {item.title}
                   </h4>
-                  <div className="text-[9px] text-slate-500 line-clamp-2 italic" dangerouslySetInnerHTML={{ __html: item.description }}></div>
+                  <div className="text-[10px] text-slate-500 line-clamp-2 italic leading-relaxed relative z-10" dangerouslySetInnerHTML={{ __html: item.description }}></div>
+                  
+                  {/* Visual Hint for ET items */}
+                  {item.source === 'Economic Times' && (
+                    <div className="absolute -right-4 -bottom-4 opacity-5 rotate-12">
+                      <Newspaper size={80} />
+                    </div>
+                  )}
                 </a>
               ))}
             </div>
           ) : (
-            <div className="flex-1 flex flex-col items-center justify-center py-8 text-center text-slate-600">
-               <Info size={32} className="opacity-20 mb-2" />
+            <div className="flex-1 flex flex-col items-center justify-center py-12 text-center text-slate-600">
+               <AlertCircle size={32} className="opacity-20 mb-3" />
                <p className="text-[9px] font-black uppercase tracking-widest leading-relaxed">
-                 RSS Feed Unavailable.<br/>
-                 Using Iframe below as primary source.
+                 Expert feed temporarily unavailable.<br/>
+                 Check terminal for technical alpha.
                </p>
             </div>
           )}
         </div>
       </div>
 
-      {/* Live Web Section - Show it as it is */}
-      <div className="mb-10 space-y-4">
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-2xl">
-          <div className="p-3 bg-slate-800/50 border-b border-slate-700 flex justify-between items-center">
-            <div className="flex items-center gap-2">
-              <Globe size={14} className="text-blue-400" />
-              <span className="text-[10px] font-black text-white uppercase tracking-widest">Moneycontrol Web Feed</span>
-            </div>
-            <a 
-              href="https://www.moneycontrol.com/markets/stock-ideas/" 
-              target="_blank" 
-              rel="noreferrer" 
-              className="px-3 py-1 bg-blue-600 rounded-lg text-[9px] font-black text-white flex items-center gap-1.5 hover:bg-blue-500 transition-colors"
-            >
-              OPEN FULL SITE <ExternalLink size={10}/>
-            </a>
-          </div>
-          
-          <div className="relative aspect-[16/12] md:aspect-[21/7] bg-slate-950">
-            <iframe 
-              src="https://www.moneycontrol.com/markets/stock-ideas/" 
-              className="w-full h-full border-0"
-              title="Moneycontrol Stock Ideas"
-              loading="lazy"
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* Latest Calls Section */}
+      {/* Technical Momentum Cards */}
       <div className="flex items-center justify-between mb-4 px-1">
           <div className="flex items-center gap-2">
             <Zap size={20} className="text-yellow-400 fill-yellow-400" />
-            <h3 className="text-xl font-black text-white uppercase italic tracking-tight leading-none">Hot Technical Calls</h3>
+            <h3 className="text-xl font-black text-white uppercase italic tracking-tight leading-none">Execution Targets</h3>
           </div>
-          <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Consensus Alpha</span>
+          <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Momentum Core</span>
       </div>
 
       {isLoading ? (
-        <div className="flex flex-col items-center justify-center py-20 gap-6 animate-fade-in">
-            <div className="relative">
-                <Search size={48} className="text-blue-500 animate-pulse" />
-                <div className="absolute inset-0 border-4 border-blue-500/20 border-t-blue-500 rounded-full animate-spin"></div>
-            </div>
-            <div className="text-center">
-                <p className="text-xs font-black text-white uppercase tracking-widest mb-1 min-h-[1.5em] transition-all duration-500">
-                  {steps[loadingStep]}
-                </p>
-                <p className="text-[9px] text-slate-500 uppercase font-bold">
-                    SCANNING INSTITUTIONAL DATA
-                </p>
-            </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {[1,2,3,4].map(i => (
+                <div key={i} className="h-48 bg-slate-900 border border-slate-800 rounded-2xl animate-pulse"></div>
+            ))}
         </div>
       ) : (
         <div className="space-y-4">
@@ -179,21 +155,30 @@ export const PageBrokerIntel: React.FC<PageBrokerIntelProps> = ({
             </div>
           ) : (
             <div className="text-center py-20 border border-dashed border-slate-800 rounded-3xl bg-slate-900/20 px-6">
-              <AlertCircle size={32} className="mx-auto text-slate-700 mb-4 opacity-20" />
-              <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest leading-relaxed">
-                No active momentum calls identified.<br/>
-                Try refreshing for latest market consensus.
+              <Search size={32} className="mx-auto text-slate-700 mb-4 opacity-20" />
+              <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">
+                Scanning for momentum signals...
               </p>
-              <button 
-                onClick={onRefresh} 
-                className="mt-6 flex items-center gap-2 mx-auto bg-blue-600 hover:bg-blue-500 text-white px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all active:scale-95 shadow-lg shadow-blue-500/20"
-              >
-                Refresh Data <ArrowRight size={14}/>
-              </button>
             </div>
           )}
         </div>
       )}
+
+      {/* Legacy Iframe View - Minimized */}
+      <div className="mt-12 mb-8 opacity-40 hover:opacity-100 transition-opacity">
+        <div className="flex items-center justify-between mb-2 px-1">
+          <p className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em]">External Markets View</p>
+          <a href="https://www.moneycontrol.com/markets/stock-ideas/" target="_blank" rel="noreferrer" className="text-[9px] font-black text-blue-500 uppercase tracking-widest flex items-center gap-1">Source <ExternalLink size={10}/></a>
+        </div>
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden h-[200px] shadow-xl">
+          <iframe 
+            src="https://www.moneycontrol.com/markets/stock-ideas/" 
+            className="w-full h-full border-0 grayscale hover:grayscale-0 transition-all"
+            title="Markets Feed"
+            loading="lazy"
+          />
+        </div>
+      </div>
       
       <div className="h-12"></div>
     </div>

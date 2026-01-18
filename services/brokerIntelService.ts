@@ -15,40 +15,49 @@ const INSTITUTIONAL_CORE = [
   'DLF.NS', 'SIEMENS.NS', 'ABB.NS', 'BAJFINANCE.NS', 'WIPRO.NS', 'JIOFIN.NS'
 ];
 
-const RSS_FEED_URL = "https://www.moneycontrol.com/rss/stockadvices.xml";
+const RSS_FEEDS = [
+  { url: "https://economictimes.indiatimes.com/markets/stocks/recos/rssfeeds/81872147.cms", source: "Economic Times" },
+  { url: "https://economictimes.indiatimes.com/markets/stocks/rssfeeds/2146842.cms", source: "ET Markets" },
+  { url: "https://www.moneycontrol.com/rss/stockadvices.xml", source: "Moneycontrol Advice" }
+];
 
 async function fetchRSSNews(): Promise<NewsItem[]> {
-  const proxies = [
-    `https://api.allorigins.win/raw?url=${encodeURIComponent(RSS_FEED_URL)}`,
-    `https://corsproxy.io/?${encodeURIComponent(RSS_FEED_URL)}`
-  ];
+  const allNews: NewsItem[] = [];
+  
+  for (const feed of RSS_FEEDS) {
+    const proxies = [
+      `https://api.allorigins.win/raw?url=${encodeURIComponent(feed.url)}`,
+      `https://corsproxy.io/?${encodeURIComponent(feed.url)}`
+    ];
 
-  for (const proxy of proxies) {
-    try {
-      const res = await fetch(proxy);
-      if (!res.ok) continue;
-      const xmlText = await res.text();
-      const parser = new DOMParser();
-      const xmlDoc = parser.parseFromString(xmlText, "text/xml");
-      const items = xmlDoc.querySelectorAll("item");
-      
-      const news: NewsItem[] = [];
-      items.forEach((item, idx) => {
-        if (idx > 10) return; // Limit to 10 latest news
-        news.push({
-          title: item.querySelector("title")?.textContent || "",
-          link: item.querySelector("link")?.textContent || "",
-          pubDate: item.querySelector("pubDate")?.textContent || "",
-          description: item.querySelector("description")?.textContent || "",
-          source: "Moneycontrol Advice"
+    for (const proxy of proxies) {
+      try {
+        const res = await fetch(proxy);
+        if (!res.ok) continue;
+        const xmlText = await res.text();
+        const parser = new DOMParser();
+        const xmlDoc = parser.parseFromString(xmlText, "text/xml");
+        const items = xmlDoc.querySelectorAll("item");
+        
+        items.forEach((item, idx) => {
+          if (idx > 5) return; // Limit items per feed for variety
+          allNews.push({
+            title: item.querySelector("title")?.textContent || "",
+            link: item.querySelector("link")?.textContent || "",
+            pubDate: item.querySelector("pubDate")?.textContent || "",
+            description: item.querySelector("description")?.textContent || "",
+            source: feed.source
+          });
         });
-      });
-      return news;
-    } catch (e) {
-      console.warn("RSS Proxy failed", proxy, e);
+        break; // Successfully fetched this feed, move to next
+      } catch (e) {
+        console.warn(`RSS Proxy failed for ${feed.source}`, proxy, e);
+      }
     }
   }
-  return [];
+
+  // Sort by date (descending)
+  return allNews.sort((a, b) => new Date(b.pubDate).getTime() - new Date(a.pubDate).getTime());
 }
 
 /**
@@ -56,7 +65,7 @@ async function fetchRSSNews(): Promise<NewsItem[]> {
  */
 export const fetchBrokerIntel = async (settings: AppSettings): Promise<BrokerIntelResponse> => {
   try {
-    // 1. Fetch Technical Calls
+    // 1. Fetch Technical Calls (Best 5 - 10 Logic)
     const technicalResults = await Promise.all(INSTITUTIONAL_CORE.map(async (ticker) => {
       try {
         const data = await fetchRealStockData(ticker, settings, "15m", "2d");
@@ -69,12 +78,12 @@ export const fetchBrokerIntel = async (settings: AppSettings): Promise<BrokerInt
         if (tech.score < 65) return null;
 
         let signalContext = "";
-        if (tech.activeSignals.includes("BB Breakout")) signalContext = "Price breakout from volatility squeeze.";
-        else if (tech.activeSignals.includes("EMA Bull Stack")) signalContext = "Strong multi-day momentum trend confirmed.";
-        else if (tech.activeSignals.includes("High Volume Pulse")) signalContext = "Institutional buying detected at lower levels.";
-        else signalContext = "Trend reversal confirmed with positive volume flow.";
+        if (tech.activeSignals.includes("BB Breakout")) signalContext = "Breakout detected.";
+        else if (tech.activeSignals.includes("EMA Bull Stack")) signalContext = "Strong trend confirmed.";
+        else if (tech.activeSignals.includes("High Volume Pulse")) signalContext = "Institutional buying pulse.";
+        else signalContext = "Bullish momentum reversal.";
 
-        const reason = `Technical Consensus: ${signalContext} Support zone identified at ₹${(price * 0.985).toFixed(2)}. Targets set based on ATR volatility expansion.`;
+        const reason = `Quant Intelligence: ${signalContext} Support zone at ₹${(price * 0.985).toFixed(2)}. Alpha targets projected.`;
 
         return {
           symbol: ticker,
@@ -95,7 +104,7 @@ export const fetchBrokerIntel = async (settings: AppSettings): Promise<BrokerInt
       }
     }));
 
-    // 2. Fetch Latest News Feed
+    // 2. Fetch Latest News & ET Recos
     const newsFeed = await fetchRSSNews();
 
     const validData = technicalResults
