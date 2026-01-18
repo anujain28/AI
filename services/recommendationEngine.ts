@@ -33,19 +33,30 @@ async function promisePool<T, R>(
     return results;
 }
 
-const calculatePythonScore = (tech: any): number => {
+/**
+ * Scoring Logic inspired by high-conviction momentum bots.
+ * Focuses on EMA Stack, Supertrend, and Volume Pulse.
+ */
+const calculateAlphaScore = (tech: any): number => {
     let score = 0;
-    // RSI weighting
-    if (tech.rsi < 30) score += 40;
-    else if (tech.rsi < 45) score += 25;
-    else if (tech.rsi > 70) score -= 10;
-
-    // Momentum & Trend
-    if (tech.macd.histogram > 0) score += 20;
-    if (tech.adx > 25) score += 20;
-    if (tech.ema.ema9 > tech.ema.ema21) score += 20;
-    if (tech.rvol > 1.3) score += 20;
-    if (tech.supertrend.trend === 'BUY') score += 15;
+    
+    // 1. Trend Foundation (EMA Stack)
+    if (tech.ema.ema9 > tech.ema.ema21) score += 25;
+    
+    // 2. Momentum Strength (RSI)
+    if (tech.rsi > 50 && tech.rsi < 70) score += 20; // Sweet spot
+    else if (tech.rsi > 40 && tech.rsi <= 50) score += 10;
+    
+    // 3. Volatility/Trend Confirmation
+    if (tech.supertrend.trend === 'BUY') score += 20;
+    if (tech.adx > 25) score += 15;
+    
+    // 4. Volume/Energy
+    if (tech.rvol > 1.2) score += 10;
+    if (tech.rvol > 2.0) score += 10;
+    
+    // 5. Indicators
+    if (tech.macd.histogram > 0) score += 10;
     
     return score;
 };
@@ -56,50 +67,56 @@ export const runTechnicalScan = async (
     onProgress?: (percent: number) => void
 ): Promise<StockRecommendation[]> => {
   
-  // SCAN UNIVERSE: Focus on Top 50 most liquid stocks
+  // SCAN UNIVERSE: We'll scan the top 40 most liquid for speed
   const allSymbols = getFullUniverse();
-  const scanTargets = allSymbols.slice(0, 50); 
+  const scanTargets = allSymbols.slice(0, 40); 
   const results: StockRecommendation[] = [];
 
-  await promisePool(scanTargets, 15, async (symbol) => {
+  // Higher concurrency (25) for faster scans
+  await promisePool(scanTargets, 25, async (symbol) => {
       try {
+          // Use 15m/5d as it's the most reliable for capturing intraday and swing signals
           const data = await fetchRealStockData(symbol, settings, "15m", "5d");
           if (!data) return;
 
-          const score = calculatePythonScore(data.technicals);
+          const score = calculateAlphaScore(data.technicals);
           
-          // Lower threshold to 25 to ensure we see the 'best of' available stocks
-          if (score >= 25) {
+          // Permissive threshold (30) ensures we always have ideas displayed
+          if (score >= 30) {
               let timeframe: 'INTRADAY' | 'BTST' | 'WEEKLY' | 'MONTHLY' = 'BTST';
-              if (data.technicals.rvol > 1.8 && data.technicals.rsi > 55) timeframe = 'INTRADAY';
-              else if (score > 80) timeframe = 'WEEKLY';
-              else if (data.technicals.rsi < 40) timeframe = 'MONTHLY';
+              
+              // Categorization Logic
+              if (data.technicals.rvol > 1.8 && data.technicals.rsi > 60) {
+                  timeframe = 'INTRADAY';
+              } else if (score > 75) {
+                  timeframe = 'WEEKLY';
+              } else if (data.technicals.rsi < 45) {
+                  timeframe = 'MONTHLY'; // Value/Oversold plays
+              }
 
               results.push(mapToRec(symbol, data, score, timeframe));
           }
-      } catch (e) {}
+      } catch (e) {
+          console.debug(`Scan skip: ${symbol}`, e);
+      }
   }, onProgress);
 
-  // If we have very few results, do a safety injection of the top trending Nifty stocks
-  if (results.length < 3) {
-      console.debug("Alpha scan sparse. Injecting discovery picks.");
-      // Logic would go here to fetch top Nifty gainers
-  }
-
+  // Return best results sorted by score
   return results.sort((a, b) => (b.score || 0) - (a.score || 0));
 };
 
 function mapToRec(symbol: string, data: any, score: number, tf: any): StockRecommendation {
     const tech = data.technicals;
-    const upside = 1 + (tech.atr / data.price) * 3;
+    const upside = 1 + (tech.atr / data.price) * (tf === 'MONTHLY' ? 5 : 3);
+    
     return {
         symbol: symbol,
         name: symbol.split('.')[0],
         type: 'STOCK',
         sector: 'Equity',
         currentPrice: data.price,
-        reason: tech.activeSignals[0] || (score > 60 ? "Bullish Consolidation" : "Technical Recovery"),
-        riskLevel: score > 90 ? 'Low' : score > 50 ? 'Medium' : 'High',
+        reason: tech.activeSignals[0] || (score > 60 ? "Bullish Momentum" : "Consolidation Breakout"),
+        riskLevel: score > 80 ? 'Low' : score > 50 ? 'Medium' : 'High',
         targetPrice: data.price * upside,
         timeframe: tf,
         score: score,

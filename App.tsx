@@ -73,10 +73,9 @@ export default function App() {
   const [selectedStock, setSelectedStock] = useState<StockRecommendation | null>(null);
   const [marketStatus, setMarketStatus] = useState(getMarketStatus('STOCK'));
   
-  // Using refs for intervals to prevent the main effect from re-running on data changes
-  const scanIntervalRef = useRef<any>(null);
-  const priceIntervalRef = useRef<any>(null);
-  const botIntervalRef = useRef<any>(null);
+  // Ref-based timers to prevent the infinite refresh loop
+  const scanTimerRef = useRef<any>(null);
+  const priceTimerRef = useRef<any>(null);
 
   const saveData = useCallback((key: string, data: any) => {
     localStorage.setItem(`${STORAGE_PREFIX}${key}`, JSON.stringify(data));
@@ -87,25 +86,32 @@ export default function App() {
       setTimeout(() => setNotification(null), 3000);
   }, []);
 
+  /**
+   * Main Market Scanning Routine
+   */
   const performTechnicalScan = useCallback(async () => {
-    const combinedUniverse = Array.from(new Set([...getIdeasWatchlist(), ...getEngineUniverse()]));
+    if (isLoading && scanProgress > 0) return; // Prevent double-scanning
     
     setIsLoading(true);
     setScanProgress(0);
-
+    
+    const universe = getIdeasWatchlist();
+    
     try {
-        const recs = await runTechnicalScan(combinedUniverse, settings, (p) => setScanProgress(p));
-        setRecommendations(recs);
+        const results = await runTechnicalScan(universe, settings, (p) => setScanProgress(p));
+        setRecommendations(results);
     } catch (e) {
-        console.error("Technical Scan Failure", e);
+        console.error("Critical Scanner Error", e);
     } finally {
         setIsLoading(false);
         setScanProgress(0);
     }
-  }, [settings]);
+  }, [settings, isLoading, scanProgress]);
 
-  const refreshPrices = useCallback(async () => {
-    // Collect unique symbols to refresh
+  /**
+   * Price Refresh Routine (Throttled)
+   */
+  const refreshActivePrices = useCallback(async () => {
     const symbols = Array.from(new Set([
         ...recommendations.map(r => r.symbol),
         ...paperPortfolio.map(p => p.symbol)
@@ -113,7 +119,7 @@ export default function App() {
 
     if (symbols.length === 0) return;
 
-    // Fetch in small parallel batches to avoid proxy exhaustion
+    // Refresh in small chunks to avoid rate limits
     for (let i = 0; i < symbols.length; i += 5) {
         const batch = symbols.slice(i, i + 5);
         const updates = await Promise.all(batch.map(async s => ({ 
@@ -127,9 +133,10 @@ export default function App() {
             return next;
         });
     }
+    setMarketStatus(getMarketStatus('STOCK'));
   }, [recommendations, paperPortfolio, settings]);
 
-  // Initial Data Load
+  // Initial Load & Lifecycle
   useEffect(() => { 
     const savedSettings = localStorage.getItem(`${STORAGE_PREFIX}settings`);
     if (savedSettings) setSettings({ ...DEFAULT_SETTINGS, ...JSON.parse(savedSettings) });
@@ -140,37 +147,21 @@ export default function App() {
     const savedTx = localStorage.getItem(`${STORAGE_PREFIX}transactions`);
     if (savedTx) setTransactions(JSON.parse(savedTx));
 
-    const splashTimer = setTimeout(() => setShowSplash(false), 1500); 
+    const splashTimer = setTimeout(() => setShowSplash(false), 1200); 
+    
+    // Initial scan
     performTechnicalScan();
 
-    return () => clearTimeout(splashTimer);
-  }, []);
-
-  // Interval Management - Separated from data dependencies to prevent flickering
-  useEffect(() => {
-    // Scan every 3 minutes
-    scanIntervalRef.current = setInterval(() => {
-        performTechnicalScan();
-    }, 180000);
-
-    // Refresh prices every 30 seconds
-    priceIntervalRef.current = setInterval(() => {
-        refreshPrices();
-        setMarketStatus(getMarketStatus('STOCK'));
-    }, 30000);
-
-    // Auto-Bot Engine
-    botIntervalRef.current = setInterval(() => {
-        // Function inside interval uses state from closures (will be stale if we don't handle correctly)
-        // But since App is the root, it's generally okay if dependencies are handled
-    }, 20000);
+    // Setup periodic updates
+    scanTimerRef.current = setInterval(performTechnicalScan, 180000); // Scan every 3 mins
+    priceTimerRef.current = setInterval(refreshActivePrices, 20000); // Refresh prices every 20s
 
     return () => {
-        clearInterval(scanIntervalRef.current);
-        clearInterval(priceIntervalRef.current);
-        clearInterval(botIntervalRef.current);
+        clearTimeout(splashTimer);
+        clearInterval(scanTimerRef.current);
+        clearInterval(priceTimerRef.current);
     };
-  }, [performTechnicalScan, refreshPrices]);
+  }, []);
 
   const handleBuy = async (symbol: string, quantity: number, price: number, broker: BrokerID = 'PAPER') => {
       const brokerage = 20;
@@ -183,7 +174,7 @@ export default function App() {
       });
       setFunds(prev => { const next = { ...prev, stock: prev.stock - cost }; saveData('funds', next); return next; });
       setTransactions(prev => { const next = [...prev, tx]; saveData('transactions', next); return next; });
-      showNotification(`Executed Buy: ${symbol}`);
+      showNotification(`Bought ${symbol} @ ₹${price.toFixed(2)}`);
   };
 
   const handleSell = async (symbol: string, quantity: number, price: number, broker: BrokerID = 'PAPER') => {
@@ -193,7 +184,7 @@ export default function App() {
       setPaperPortfolio(prev => { const next = prev.filter(p => p.symbol !== symbol); saveData('portfolio', next); return next; });
       setFunds(prev => { const next = { ...prev, stock: prev.stock + proceeds }; saveData('funds', next); return next; });
       setTransactions(prev => { const next = [...prev, tx]; saveData('transactions', next); return next; });
-      showNotification(`Executed Sell: ${symbol}`);
+      showNotification(`Sold ${symbol} @ ₹${price.toFixed(2)}`);
   };
 
   if (showSplash) return <SplashScreen visible={true} />;
@@ -222,17 +213,17 @@ export default function App() {
                 recommendations={recommendations} 
                 marketData={marketData} 
                 onTrade={(s) => { setSelectedStock(s); setIsTradeModalOpen(true); }} 
-                onRefresh={() => performTechnicalScan()} 
+                onRefresh={performTechnicalScan} 
                 isLoading={isLoading} 
                 scanProgress={scanProgress}
                 enabledMarkets={settings.enabledMarkets} 
             />
         )}
-        {activePage === 1 && <PageBrokerIntel onRefresh={() => performTechnicalScan()} isLoading={isLoading} />}
+        {activePage === 1 && <PageBrokerIntel onRefresh={performTechnicalScan} isLoading={isLoading} />}
         {activePage === 2 && <PageScalper recommendations={recommendations} marketData={marketData} funds={funds} holdings={paperPortfolio} onBuy={handleBuy} onSell={handleSell} onRefresh={performTechnicalScan} />}
         {activePage === 3 && <PageScan marketData={marketData} settings={settings} onTrade={(s) => { setSelectedStock(s); setIsTradeModalOpen(true); }} />}
         {activePage === 4 && <PagePaperTrading holdings={paperPortfolio} marketData={marketData} analysisData={analysisData} onSell={(s, b) => handleSell(s, 0, marketData[s]?.price || 0, b)} onAnalyze={() => {}} isAnalyzing={isAnalyzing} funds={funds} activeBots={activeBots} onToggleBot={(b) => setActiveBots(p => ({...p, [b]: !p[b]}))} transactions={transactions} onUpdateFunds={(f) => { setFunds(f); saveData('funds', f); }} />}
-        {activePage === 5 && <PageStrategyLog recommendations={recommendations} marketData={marketData} rules={settings.strategyRules || DEFAULT_RULES} onUpdateRules={(r) => { setSettings(s => ({...s, strategyRules: r})); saveData('settings', {...settings, strategyRules: r}); }} aiIntradayPicks={[]} onRefresh={() => performTechnicalScan()} settings={settings} />}
+        {activePage === 5 && <PageStrategyLog recommendations={recommendations} marketData={marketData} rules={settings.strategyRules || DEFAULT_RULES} onUpdateRules={(r) => { setSettings(s => ({...s, strategyRules: r})); saveData('settings', {...settings, strategyRules: r}); }} aiIntradayPicks={[]} onRefresh={performTechnicalScan} settings={settings} />}
         {activePage === 6 && <PageConfiguration settings={settings} onSave={(s) => { setSettings(s); saveData('settings', s); showNotification("Settings Saved"); }} transactions={transactions} activeBots={activeBots} onToggleBot={(b) => setActiveBots(p => ({...p, [b]: !p[b]}))} onTestTrade={() => {}} />}
       </main>
 

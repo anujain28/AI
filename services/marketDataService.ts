@@ -7,17 +7,18 @@ const marketCache: Record<string, { data: StockData, timestamp: number }> = {};
 const pendingRequests = new Map<string, Promise<StockData | null>>();
 
 /**
- * Turbo Proxy Racer - Resolves with the first successful response
+ * High-performance Proxy Racing logic.
+ * Tries 3 proxies simultaneously and resolves with the first valid response.
  */
 async function fetchWithProxy(targetUrl: string): Promise<any> {
     const proxies = [
         `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`,
         `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`,
-        `https://proxy.cors.sh/${targetUrl}`
+        `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(targetUrl)}`
     ];
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 5000); // 5s wait
+    const timeoutId = setTimeout(() => controller.abort(), 4000); // 4s timeout
 
     try {
         const responseText = await new Promise<any>((resolve, reject) => {
@@ -25,45 +26,36 @@ async function fetchWithProxy(targetUrl: string): Promise<any> {
             let resolved = false;
             
             proxies.forEach(url => {
-                fetch(url, { 
-                    signal: controller.signal,
-                    headers: url.includes('cors.sh') ? { 'x-cors-gratis': 'true' } : {}
-                })
-                .then(async res => {
-                    if (!res.ok) throw new Error("Proxy response not OK");
-                    const raw = await res.text();
-                    
-                    let json;
-                    try {
-                        json = JSON.parse(raw);
-                        // AllOrigins double-encapsulation fix
-                        if (json.contents) {
-                            try {
-                                json = JSON.parse(json.contents);
-                            } catch (e) {
-                                // contents might be the raw HTML or a non-JSON string
-                            }
+                fetch(url, { signal: controller.signal })
+                    .then(async res => {
+                        if (!res.ok) throw new Error("Proxy error");
+                        const raw = await res.text();
+                        
+                        let json;
+                        try {
+                            // Check if response is wrapped (like AllOrigins)
+                            json = JSON.parse(raw);
+                            if (json.contents) json = JSON.parse(json.contents);
+                        } catch (e) {
+                            // If it's already a clean JSON or if the wrap parsing fails
+                            json = JSON.parse(raw);
                         }
-                    } catch (e) {
-                        // Fallback: raw might be the JSON string already
-                        json = JSON.parse(raw);
-                    }
 
-                    if (json?.chart?.result) {
-                        if (!resolved) {
-                            resolved = true;
-                            resolve(json);
+                        if (json?.chart?.result) {
+                            if (!resolved) {
+                                resolved = true;
+                                resolve(json);
+                            }
+                        } else {
+                            throw new Error("Invalid Chart Format");
                         }
-                    } else {
-                        throw new Error("Invalid structure");
-                    }
-                })
-                .catch(() => {
-                    settledCount++;
-                    if (settledCount === proxies.length && !resolved) {
-                        reject(new Error("All proxies failed"));
-                    }
-                });
+                    })
+                    .catch(() => {
+                        settledCount++;
+                        if (settledCount === proxies.length && !resolved) {
+                            reject(new Error("All Proxies Failed"));
+                        }
+                    });
             });
         });
 
@@ -122,12 +114,13 @@ export const fetchRealStockData = async (
     const ticker = symbol.includes('.') ? symbol : `${symbol}.NS`;
     const cacheKey = `${ticker}_${interval}_${range}`;
     
+    // Check Cache
     const cached = marketCache[cacheKey];
-    // Cache result for 45 seconds to keep data fresh but avoid redundant fetches
-    if (cached && (Date.now() - cached.timestamp < 45000)) {
+    if (cached && (Date.now() - cached.timestamp < 30000)) {
         return cached.data;
     }
 
+    // Coalesce pending requests
     if (pendingRequests.has(cacheKey)) return pendingRequests.get(cacheKey)!;
 
     const requestPromise = (async () => {
@@ -141,7 +134,9 @@ export const fetchRealStockData = async (
                 marketCache[cacheKey] = { data: parsed, timestamp: Date.now() };
                 return parsed;
             }
-        } catch (e) {} finally {
+        } catch (e) {
+            console.debug(`Market fetch failed for ${ticker}`);
+        } finally {
             pendingRequests.delete(cacheKey);
         }
         return null;
