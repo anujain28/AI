@@ -3,9 +3,6 @@ import { StockRecommendation, AppSettings, TechnicalSignals } from "../types";
 import { fetchRealStockData } from "./marketDataService";
 import { getFullUniverse } from "./stockListService";
 
-/**
- * Concurrency Pool with Progress Reporting
- */
 async function promisePool<T, R>(
     items: T[],
     batchSize: number,
@@ -34,56 +31,50 @@ async function promisePool<T, R>(
 }
 
 /**
- * AI Robot Additive Scoring logic.
- * Signals stack points; allowing high conviction scores over 100.
+ * AI Robot Intelligence Layer
+ * Stacks signals to reach scores of 130+
  */
-const runAIBotAnalysis = (tech: TechnicalSignals, price: number) => {
+const performRobotAnalysis = (tech: TechnicalSignals, price: number) => {
     let score = 0;
-    const reasons: string[] = [];
+    const logicFlags: string[] = [];
 
-    // Trend Logic
+    // Trend Foundation
     if (tech.ema.ema9 > tech.ema.ema21) {
         score += 35;
-        reasons.push("EMA 9/21 Golden Cross");
-    }
-    if (price > tech.ema.ema9) score += 10;
-
-    // Momentum Logic
-    if (tech.rsi >= 50 && tech.rsi <= 70) {
-        score += 25;
-        reasons.push(`RSI Momentum (${tech.rsi.toFixed(0)})`);
-    } else if (tech.rsi < 35) {
-        score += 15;
-        reasons.push("Oversold Recovery Potential");
-    }
-
-    // Indicator Logic
-    if (tech.macd.histogram > 0) {
-        score += 20;
-        reasons.push("MACD Bullish Crossover");
-    }
-    if (tech.adx > 25) {
-        score += 20;
-        reasons.push(`Strong Uptrend (ADX: ${tech.adx.toFixed(1)})`);
-    }
-    if (tech.supertrend.trend === 'BUY') {
-        score += 15;
-        reasons.push("Supertrend Buy Confirmed");
+        logicFlags.push("EMA 9/21 Golden Cross");
     }
     
-    // Volume Logic
-    if (tech.rvol > 1.4) {
+    // Momentum
+    if (tech.macd.histogram > 0) {
+        score += 30;
+        logicFlags.push("MACD Bullish Crossover");
+    }
+    
+    // Volatility/Trend Strength
+    if (tech.adx > 25) {
+        score += 25;
+        logicFlags.push(`Strong Uptrend (ADX: ${tech.adx.toFixed(1)})`);
+    }
+
+    // Chart Patterns
+    const bbWidth = (tech.bollinger.upper - tech.bollinger.lower) / tech.bollinger.middle;
+    if (bbWidth < 0.02) {
         score += 20;
-        reasons.push(`High Relative Volume (${tech.rvol.toFixed(1)}x)`);
+        logicFlags.push("BB Squeeze Breakout Setup");
+    } else if (price > tech.bollinger.upper) {
+        score += 15;
+        logicFlags.push("Upper Band Breakout");
     }
 
-    // Volatility
-    if (tech.bollinger.percentB > 0.8) {
-        score += 10;
-        reasons.push("BB Upper Band Breakout");
+    // Volume Pulse
+    if (tech.rvol > 1.8) {
+        score += 20;
+        logicFlags.push("High Relative Volume Pulse");
     }
 
-    return { score, reason: reasons.join(" | ") };
+    // Signal Synthesis
+    const reason = logicFlags.join(" | ");
+    return { score, reason };
 };
 
 export const runTechnicalScan = async (
@@ -93,25 +84,27 @@ export const runTechnicalScan = async (
 ): Promise<StockRecommendation[]> => {
   
   const allSymbols = getFullUniverse();
-  const scanTargets = allSymbols.slice(0, 60); 
+  const scanTargets = allSymbols.slice(0, 50); // Scan top 50 for quality
   const results: StockRecommendation[] = [];
 
-  await promisePool(scanTargets, 25, async (symbol) => {
+  await promisePool(scanTargets, 15, async (symbol) => {
       try {
           const data = await fetchRealStockData(symbol, settings, "15m", "5d");
           if (!data) return;
 
-          const analysis = runAIBotAnalysis(data.technicals, data.price);
+          const analysis = performRobotAnalysis(data.technicals, data.price);
           
-          if (analysis.score >= 40) {
-              let timeframe: 'INTRADAY' | 'BTST' | 'WEEKLY' | 'MONTHLY' = 'BTST';
-              if (data.technicals.rvol > 2.0) timeframe = 'INTRADAY';
-              else if (analysis.score > 90) timeframe = 'WEEKLY';
-              else if (data.technicals.rsi < 40) timeframe = 'MONTHLY';
+          // Project ROI
+          const atr = data.technicals.atr || (data.price * 0.015);
+          const targetPrice = data.price + (atr * 3);
+          const profitValue = targetPrice - data.price;
+          const profitPercent = (profitValue / data.price) * 100;
 
-              const targetPrice = data.price * (1 + (data.technicals.atr / data.price) * 3);
-              const profitValue = targetPrice - data.price;
-              const profitPercent = (profitValue / data.price) * 100;
+          // HARD FILTER: 2% Profit Minimum + Minimum Conviction Score
+          if (profitPercent >= 2.0 && analysis.score >= 50) {
+              let timeframe: 'INTRADAY' | 'BTST' | 'WEEKLY' | 'MONTHLY' = 'BTST';
+              if (data.technicals.rvol > 2.2) timeframe = 'INTRADAY';
+              else if (analysis.score > 110) timeframe = 'WEEKLY';
 
               results.push({
                   symbol: symbol,
@@ -120,19 +113,20 @@ export const runTechnicalScan = async (
                   sector: 'Equity',
                   currentPrice: data.price,
                   reason: analysis.reason,
-                  riskLevel: analysis.score > 100 ? 'Low' : analysis.score > 60 ? 'Medium' : 'High',
+                  riskLevel: analysis.score > 110 ? 'Low' : 'Medium',
                   targetPrice,
                   profitValue,
                   profitPercent,
-                  timeframe: timeframe,
+                  timeframe,
                   score: analysis.score,
                   lotSize: 1,
-                  isTopPick: analysis.score >= 85,
+                  isTopPick: analysis.score >= 100,
                   sourceUrl: `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}`
               });
           }
       } catch (e) {}
   }, onProgress);
 
+  // Return best 20 sorted by score
   return results.sort((a, b) => (b.score || 0) - (a.score || 0)).slice(0, 20);
 };
