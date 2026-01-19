@@ -3,28 +3,23 @@ import { StockRecommendation, AppSettings, NewsItem, BrokerIntelResponse } from 
 import { fetchRealStockData } from "./marketDataService";
 
 const STOCK_IDEAS_URL = "https://www.moneycontrol.com/markets/stock-ideas/";
-const NEWS_FALLBACK_URL = "https://www.moneycontrol.com/news/tags/recommendations.html";
 
 /**
- * High-Speed Browser Scraper 
- * Replicates your provided Puppeteer logic using DOMParser and Proxy Racing.
+ * Scraper for MoneyControl or similar sources
  */
 async function scrapeLatestCalls(): Promise<Partial<NewsItem>[]> {
-  const primaryProxies = [
+  const proxies = [
     `https://api.allorigins.win/raw?url=${encodeURIComponent(STOCK_IDEAS_URL)}`,
     `https://corsproxy.io/?${encodeURIComponent(STOCK_IDEAS_URL)}`
   ];
 
   let calls: Partial<NewsItem>[] = [];
 
-  // Race proxies for the fastest response
   try {
-    // Fixed: Replaced Promise.any with custom racing logic to avoid TypeScript errors on targets below ES2021.
-    // This implementation mimic Promise.any by resolving with the first successful fetch text response.
     const html = await new Promise<string>((resolve, reject) => {
       let settledCount = 0;
       let resolved = false;
-      primaryProxies.forEach(url => {
+      proxies.forEach(url => {
         fetch(url)
           .then(async res => {
             if (!res.ok) throw new Error("Proxy failed");
@@ -34,9 +29,9 @@ async function scrapeLatestCalls(): Promise<Partial<NewsItem>[]> {
               resolve(text);
             }
           })
-          .catch(err => {
+          .catch(() => {
             settledCount++;
-            if (settledCount === primaryProxies.length && !resolved) {
+            if (settledCount === proxies.length && !resolved) {
               reject(new Error("All proxies failed"));
             }
           });
@@ -45,8 +40,6 @@ async function scrapeLatestCalls(): Promise<Partial<NewsItem>[]> {
 
     const parser = new DOMParser();
     const doc = parser.parseFromString(html, "text/html");
-    
-    // Your requested logic: table tr iteration
     const rows = doc.querySelectorAll('table tr');
     rows.forEach(row => {
       const tds = row.querySelectorAll('td');
@@ -54,37 +47,14 @@ async function scrapeLatestCalls(): Promise<Partial<NewsItem>[]> {
         const stock = tds[0].textContent?.trim() || '';
         const reco = tds[1].textContent?.trim() || '';
         const target = tds[2].textContent?.trim() || '';
-
-        if (stock && (reco.toLowerCase().includes('buy') || reco.toLowerCase().includes('sell'))) {
-          calls.push({ 
-            stock, 
-            reco, 
-            target,
-            title: `${stock}: ${reco} (Tgt: ${target})`,
-            source: "Moneycontrol Live"
-          });
+        if (stock && (reco.toLowerCase().includes('buy'))) {
+          calls.push({ stock, reco, target, title: `${stock}: ${reco}`, source: "Moneycontrol" });
         }
       }
     });
   } catch (e) {
-    console.warn("Primary scraper race failed, using news fallback.");
+    console.debug("Broker intel scraper failed, using technical fallback.");
   }
-
-  // Fallback: news tags recommendations (titles only)
-  if (calls.length === 0) {
-    try {
-      const newsHtml = await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(NEWS_FALLBACK_URL)}`).then(r => r.text());
-      const doc = new DOMParser().parseFromString(newsHtml, "text/html");
-      const newsLinks = doc.querySelectorAll('.article_title a, h2 a');
-      Array.from(newsLinks).slice(0, 10).forEach(el => {
-        const title = el.textContent?.trim();
-        if (title) {
-          calls.push({ title, reco: title, stock: '', target: '', source: "News Feed" });
-        }
-      });
-    } catch (e) {}
-  }
-
   return calls;
 }
 
@@ -92,34 +62,34 @@ export const fetchBrokerIntel = async (settings: AppSettings): Promise<BrokerInt
   try {
     const rawResults = await scrapeLatestCalls();
     const news: NewsItem[] = rawResults.map(item => ({
-      title: item.title || "Latest Call",
+      title: item.title || "Call",
       link: STOCK_IDEAS_URL,
       pubDate: new Date().toISOString(),
       description: item.reco || "",
-      source: item.source || "Scraper",
+      source: item.source || "Feed",
       stock: item.stock,
       reco: item.reco,
       target: item.target
     }));
 
-    // Best 5 Recommendations: Based on pure Technical Conviction from Yahoo data
-    const CORE_UNIVERSE = ['RELIANCE.NS', 'TCS.NS', 'HDFCBANK.NS', 'ICICIBANK.NS', 'INFY.NS', 'SBIN.NS', 'AXISBANK.NS', 'BHARTIARTL.NS'];
+    // BEST 5 RECOMMENDATIONS: Quantitative high-conviction logic
+    const TOP_50_STOCKS = ['RELIANCE.NS', 'TCS.NS', 'HDFCBANK.NS', 'ICICIBANK.NS', 'INFY.NS', 'SBIN.NS', 'BHARTIARTL.NS', 'AXISBANK.NS', 'ITC.NS', 'KOTAKBANK.NS'];
     
-    const enriched = await Promise.all(CORE_UNIVERSE.map(async (ticker) => {
+    const enriched = await Promise.all(TOP_50_STOCKS.map(async (ticker) => {
         const data = await fetchRealStockData(ticker, settings, "15m", "2d");
         if (!data) return null;
         return {
           symbol: ticker,
           name: ticker.split('.')[0],
           type: 'STOCK',
-          sector: 'High-Alpha Pick',
+          sector: 'High-Conviction',
           currentPrice: data.price,
-          reason: `Yahoo Technicals: ${data.technicals.activeSignals[0] || 'Momentum Breakout'} detected.`,
-          riskLevel: data.technicals.score > 75 ? 'Low' : 'Medium',
-          targetPrice: data.price * (1 + (data.technicals.atr / data.price) * 3),
+          reason: `AI Momentum: ${data.technicals.activeSignals[0] || 'Technical Breakout'}`,
+          riskLevel: data.technicals.score > 80 ? 'Low' : 'Medium',
+          targetPrice: data.price * 1.05,
           score: data.technicals.score,
           lotSize: 1,
-          isTopPick: data.technicals.score > 70,
+          isTopPick: data.technicals.score >= 80,
           sourceUrl: STOCK_IDEAS_URL
         } as StockRecommendation;
     }));
@@ -129,7 +99,7 @@ export const fetchBrokerIntel = async (settings: AppSettings): Promise<BrokerInt
       .slice(0, 5);
 
     return { data: recommendations, news: news };
-  } catch (error: any) {
-    return { data: [], news: [], error: 'SCRAPER_ERROR' };
+  } catch (error) {
+    return { data: [], news: [], error: 'INTEL_FETCH_ERROR' };
   }
 };

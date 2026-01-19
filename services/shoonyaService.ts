@@ -35,7 +35,7 @@ export const loginToShoonya = async (settings: AppSettings): Promise<boolean> =>
       pwd: hashedPassword,
       vc: vendorCode || userId,
       appkey: appKey,
-      imei: 'abc1234',
+      imei: 'GENERATED_ID_REQUIRED', // Removed hardcoded specific IMEI
       source: "API"
     };
 

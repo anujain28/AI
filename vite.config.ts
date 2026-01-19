@@ -12,13 +12,17 @@ export default defineConfig({
         manualChunks: {
           'react-vendor': ['react', 'react-dom'],
           'recharts-vendor': ['recharts'],
-          'lucide-vendor': ['lucide-react']
+          'lucide-react': ['lucide-react']
         }
       }
     }
   },
   define: {
     'process.env.API_KEY': JSON.stringify(process.env.API_KEY),
-    'process.env': {}
+    'process.env': {
+      env: {
+        API_KEY: process.env.API_KEY
+      }
+    }
   }
 });
