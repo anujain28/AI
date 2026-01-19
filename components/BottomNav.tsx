@@ -13,8 +13,8 @@ export const BottomNav: React.FC<BottomNavProps> = ({ activeTab, onChange }) => 
     { id: 1, label: 'Scalp', icon: Zap },
     { id: 2, label: 'Scan', icon: Filter },
     { id: 3, label: 'Strategy', icon: Cpu },
-    { id: 4, label: 'Broker', icon: Building2 },
     { id: 5, label: 'Paper', icon: Bot },
+    { id: 4, label: 'Broker', icon: Building2 },
     { id: 6, label: 'Config', icon: Settings },
   ];
 
